@@ -77,7 +77,25 @@ jobs:
           PY
       - name: Gradle assembleRelease
         working-directory: apps/mobile/android
-        run: ./gradlew assembleRelease --no-daemon
+        run: |
+          # React Native release builds need more heap than Gradle's default on the 7 GB runners.
+          echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" >> gradle.properties
+          set +e
+          ./gradlew assembleRelease --no-daemon --console=plain 2>&1 | tee gradle.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            # Surface the real error publicly (annotations + job summary) instead of only "exit code 1".
+            {
+              echo "### Gradle failed (exit $code)"
+              echo '```'
+              awk '/What went wrong/{p=1} p&&/^\* Try:/{exit} p' gradle.log | head -60
+              grep -E "error:|FAILED|Could not|Exception" gradle.log | grep -v "^\s*at " | head -30
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            awk '/What went wrong/{p=1} p&&/^\* Try:/{exit} p' gradle.log | head -25 | tr '\n' ' ' | sed 's/^/::error title=Gradle::/' ; echo
+            grep -E "error:|FAILED" gradle.log | head -8 | while read -r line; do echo "::error title=Gradle detail::${line:0:900}"; done
+          fi
+          exit "$code"
       - uses: actions/upload-artifact@v4
         with:
           name: sakuna-${{ github.sha }}.apk
