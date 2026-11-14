@@ -22,7 +22,7 @@ from app.models.entities import (
     Expense, FocusSession, FreelanceProject, Goal, Habit, HabitLog, HealthRecord,
     Income, JobApplication, Liability, LifeEntry, Memory, Message, Notification,
     PlanItem, RefreshToken, SleepRecord, Task, User, UserProfile, Workout, CareerProfile, GoalMilestone,
-    Flashcard, Mistake, Quest, Treat, FinancialAccount, AccountAdjustment, Envelope, WishlistItem, PriceNote, BuyListItem,
+    Flashcard, Mistake, Quest, Treat, CapturedCommand, FinancialAccount, AccountAdjustment, Envelope, WishlistItem, PriceNote, BuyListItem,
 )
 from app.schemas import dto
 from app.services.actions import (
@@ -38,7 +38,8 @@ from app.services.permissions import seed_user_defaults
 from app.services.learning import (
     clean_deck, create_card, due_cards, import_cards, job_summary, learning_stats, mistake_again, mistake_to_card, review_card,
 )
-from app.services import game, gcalendar, goal_engine, google_oauth
+from app.services import commands, game, gcalendar, goal_engine, google_oauth
+from app.services.audit import audit
 from app.services import money as money_svc
 from app.services.time_engine import insights as time_insights
 from app.services.schedule import create_milestone, list_milestones, month_view, update_milestone, upcoming_reminders
@@ -520,6 +521,108 @@ def job_update(job_id: uuid.UUID, data: dto.JobUpdate, db: Session = Depends(get
 @router.delete("/career/jobs/{job_id}", status_code=204)
 def job_delete(job_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     db.delete(owned(db, JobApplication, user.id, job_id)); db.commit()
+
+
+# ---------- "Say it once" commands (guide 34): text or voice -> task, one question if unclear, Undo ----------
+
+@router.post("/commands", status_code=201)
+def command_create(data: dto.CommandIn, idempotency_key: str | None = Header(default=None, max_length=100),
+                   db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    cmd = commands.start(db, user.id, data.text, data.source, data.idempotency_key or idempotency_key); db.commit(); db.refresh(cmd)
+    return commands.to_out(cmd)
+
+
+@router.get("/commands")
+def commands_list(limit: int = Query(20, ge=1, le=100), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    rows = db.scalars(query_user(db, CapturedCommand, user.id).order_by(CapturedCommand.created_at.desc()).limit(limit)).all()
+    return [commands.to_out(r) for r in rows]
+
+
+@router.post("/commands/{command_id}/answer")
+def command_answer(command_id: uuid.UUID, data: dto.CommandAnswerIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    cmd = commands.answer(db, owned(db, CapturedCommand, user.id, command_id), data.answer); db.commit(); db.refresh(cmd)
+    return commands.to_out(cmd)
+
+
+@router.post("/commands/{command_id}/undo")
+def command_undo(command_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    cmd = commands.undo(db, owned(db, CapturedCommand, user.id, command_id)); db.commit(); db.refresh(cmd)
+    return commands.to_out(cmd)
+
+
+@router.delete("/commands/{command_id}/text")
+def command_forget_text(command_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    cmd = owned(db, CapturedCommand, user.id, command_id)
+    cmd.raw_text = None  # what you said is erased; the task it created stays
+    db.commit(); return {"forgotten": True}
+
+
+# ---------- AI controls and usage meter (guide 27.3-27.4) ----------
+
+def _ai_view(db: Session, user: User) -> dict:
+    from app.models.entities import AiUsage
+    from app.services import ai_client
+    cfg = ai_client.settings_for(db, user.id)
+    totals = ai_client.usage_totals(db, user.id)
+    month_rows = db.execute(select(AiUsage.feature, func.sum(AiUsage.input_tokens + AiUsage.output_tokens), func.count(),
+                                   func.sum(AiUsage.estimated_cost_usd))
+                            .where(AiUsage.user_id == user.id, AiUsage.created_at >= totals["month_start"]).group_by(AiUsage.feature)).all()
+    by_group: dict[str, dict] = {}
+    for feature, tokens, calls, cost in month_rows:
+        g = by_group.setdefault(ai_client.feature_group(feature), {"tokens": 0, "calls": 0, "cost_usd": Decimal("0")})
+        g["tokens"] += int(tokens or 0); g["calls"] += int(calls or 0); g["cost_usd"] += Decimal(cost or 0)
+    days = db.execute(select(AiUsage.created_at, AiUsage.input_tokens + AiUsage.output_tokens)
+                      .where(AiUsage.user_id == user.id, AiUsage.created_at >= totals["week_start"])).all()
+    series: dict[str, int] = {}
+    for when, tokens in days:
+        key = as_utc(when).date().isoformat()
+        series[key] = series.get(key, 0) + int(tokens or 0)
+    settings_out = {
+        "ai_off": bool(cfg and cfg.ai_off), "daily_token_cap": cfg.daily_token_cap if cfg else None,
+        "monthly_token_cap": cfg.monthly_token_cap if cfg else None, "monthly_cost_cap_usd": cfg.monthly_cost_cap_usd if cfg else None,
+        "disabled_features": list(cfg.disabled_features or []) if cfg else [], "share_money": bool(cfg and cfg.share_money),
+        "share_health": bool(cfg and cfg.share_health),
+    }
+    blocked = ai_client.gate(db, user.id, "general")
+    return {
+        "key_configured": ai_client.ai_enabled(), "settings": settings_out,
+        "status": "no_key" if not ai_client.ai_enabled() else "blocked" if blocked else "on", "blocked_reason": blocked,
+        "last_block": ai_client.block_reason(user.id),
+        "today": totals["today"], "month": totals["month"], "by_feature": by_group, "last_14_days": dict(sorted(series.items())),
+        "groups": ai_client.GROUP_LABELS, "cost_known": any(r[3] for r in month_rows),
+        "what_ai_can_see": [
+            "Your message and recent messages in that chat",
+            "Task titles, goal titles and counts",
+            "Saved memories marked non-sensitive that match your question",
+            "Money totals" + ("" if settings_out["share_money"] else " — NOT shared (answered by rules instead)"),
+            "Health data" + (" (only if you ask about it)" if settings_out["share_health"] else " — NOT shared"),
+            "Unusual voice-command text, only when the built-in rules can't understand it",
+        ],
+        "never_sent": ["Passwords, tokens and keys", "Sensitive memories", "Google/Gmail tokens", "Bank details"],
+    }
+
+
+@router.get("/ai/usage")
+def ai_usage(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return _ai_view(db, user)
+
+
+@router.patch("/ai/settings")
+def ai_settings_update(data: dto.AiSettingsIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import AiSettings
+    from app.services import ai_client
+    cfg = ai_client.settings_for(db, user.id)
+    if cfg is None:
+        cfg = AiSettings(user_id=user.id, disabled_features=[]); db.add(cfg)
+    changes = data.model_dump(exclude_unset=True)
+    for key in ("daily_token_cap", "monthly_token_cap", "monthly_cost_cap_usd"):
+        if key in changes:
+            setattr(cfg, key, changes.pop(key) or None)   # 0 or null = no cap
+    for key, value in changes.items():
+        if value is not None: setattr(cfg, key, list(dict.fromkeys(value)) if key == "disabled_features" else value)
+    cfg.updated_at = now_utc()
+    audit(db, user.id, "ai.settings", "ai_settings", None, {k: str(v) for k, v in data.model_dump(exclude_unset=True).items()})
+    db.commit(); ai_client.clear_block(user.id); return _ai_view(db, user)
 
 
 # ---------- Goal engine (guide 29): levels, automatic progress, forecast range ----------

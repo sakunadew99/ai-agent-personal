@@ -11,11 +11,12 @@ import { MonthAgenda } from "./src/screens/PlanExtras";
 import { JobsScreen, LearningScreen } from "./src/screens/LearningScreens";
 import { MoneyListsScreen, TimeCard } from "./src/screens/MoneyListsScreen";
 import { RewardsScreen } from "./src/screens/RewardsScreen";
+import { AiScreen, CommandCard } from "./src/screens/CommandAiScreens";
 import { cancelFocusEnd, scheduleFocusEnd, syncReminders } from "./src/notify";
 import { appendSpeech, MicButton } from "./src/voice";
 
 type Tab = "Home" | "Plan" | "Capture" | "Focus" | "More";
-const SUB_TITLES: Record<MoreTarget, string> = { Assistant: "Assistant", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
+const SUB_TITLES: Record<MoreTarget, string> = { Assistant: "Assistant", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
 
 export default function App() {
   const [email, setEmail] = useState("");
@@ -148,13 +149,14 @@ export default function App() {
     <View style={styles.screen}>
       {tab === "Home" && <HomeScreen dashboard={dashboard} finance={finance} health={health} onComplete={completeTask} onOpenPlan={() => setTab("Plan")} top={<BrainCard api={api}/>}/>}
       {tab === "Plan" && <PlanScreen plan={plan} busy={busy} generate={generatePlan} extra={<><TimeCard api={api}/><MonthAgenda api={api}/></>}/>}
-      {tab === "Capture" && <CaptureScreen captures={captures} text={captureText} setText={setCaptureText} save={saveCapture} confirm={confirmCapture} busy={busy}/>}
+      {tab === "Capture" && <CaptureScreen captures={captures} text={captureText} setText={setCaptureText} save={saveCapture} confirm={confirmCapture} busy={busy} top={<CommandCard api={api} onError={showError}/>}/>}
       {tab === "Focus" && <FocusScreen seconds={focusSeconds} active={focusActive} setActive={setFocusActive} setSeconds={setFocusSeconds}/>}
       {tab === "More" && !sub && <MoreScreen open={target => { setError(""); setNotice(""); setSub(target); }}/>}
       {tab === "More" && sub === "Assistant" && <ChatScreen api={api}/>}
       {tab === "More" && sub === "Life" && <LifeScreen api={api} onError={showError}/>}
       {tab === "More" && sub === "Learning" && <LearningScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Jobs" && <JobsScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "AI" && <AiScreen api={api} onError={showError}/>}
       {tab === "More" && sub === "Rewards" && <RewardsScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Money" && <MoneyListsScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Finance" && <FinanceScreen api={api} onError={showError} onNotice={showNotice}/>}
@@ -187,8 +189,8 @@ function PlanScreen({ plan, busy, generate, extra }: { plan: Row; busy: boolean;
   return <ScrollView contentContainerStyle={styles.scroll}><View style={styles.card}><Text style={styles.kicker}>DAILY PLANNER</Text><Text style={styles.sectionTitle}>{plan.plan_date || "Your day"}</Text><Text style={styles.muted}>{plan.summary || "Build a plan around your routine and open tasks."}</Text><TouchableOpacity style={styles.primary} onPress={generate} disabled={busy}><Text style={styles.primaryText}>{busy ? "Planning…" : "Build today’s plan"}</Text></TouchableOpacity></View>{items.length ? items.map(item => <View key={item.id} style={styles.planItem}><Text style={styles.time}>{new Date(item.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text><View style={styles.planBlock}><Text style={styles.taskTitle}>{item.title}</Text><Text style={styles.muted}>{item.kind} · {new Date(item.ends_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text></View></View>) : <Text style={styles.empty}>Generate a plan to see today’s time blocks.</Text>}{Array.isArray(plan.unscheduled) && plan.unscheduled.length > 0 && <Text style={styles.warning}>Could not schedule: {plan.unscheduled.join(", ")}</Text>}{extra}</ScrollView>;
 }
 
-function CaptureScreen({ captures, text, setText, save, confirm, busy }: { captures: Row[]; text: string; setText: (value: string) => void; save: () => void; confirm: (id: string) => void; busy: boolean }) {
-  return <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}><ScrollView contentContainerStyle={styles.scroll}><View style={styles.card}><Text style={styles.kicker}>QUICK CAPTURE</Text><View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}><TextInput multiline placeholder="Type or tap 🎙 and say it: “call bank tomorrow 5pm”, “spent 1500 on lunch”…" placeholderTextColor="#75877c" value={text} onChangeText={setText} style={[styles.input, styles.multiline, { flex: 1 }]}/><MicButton size={46} onText={spoken => setText(appendSpeech(text, spoken))}/></View><TouchableOpacity style={styles.primary} onPress={save} disabled={busy}><Text style={styles.primaryText}>{busy ? "Saving…" : "Add to inbox"}</Text></TouchableOpacity><Text style={styles.muted}>Items that need clarification wait for your review.</Text></View><Text style={styles.sectionTitle}>Inbox · {captures.length}</Text>{captures.map(item => <View key={item.id} style={styles.card}><Text style={styles.badge}>{String(item.classified_type).replaceAll("_", " " )} · {String(item.status).replaceAll("_", " ")}</Text><Text style={styles.taskTitle}>{item.raw_text}</Text>{["pending", "needs_confirmation"].includes(item.status) && <TouchableOpacity style={styles.outlineButton} onPress={() => confirm(item.id)}><Text style={styles.outlineText}>Review & save</Text></TouchableOpacity>}</View>)}{!captures.length && <Text style={styles.empty}>Your quick captures will show up here.</Text>}</ScrollView></KeyboardAvoidingView>;
+function CaptureScreen({ captures, text, setText, save, confirm, busy, top }: { captures: Row[]; text: string; setText: (value: string) => void; save: () => void; confirm: (id: string) => void; busy: boolean; top?: React.ReactNode }) {
+  return <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}><ScrollView contentContainerStyle={styles.scroll}>{top}<View style={styles.card}><Text style={styles.kicker}>QUICK CAPTURE</Text><View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}><TextInput multiline placeholder="Type or tap 🎙 and say it: “call bank tomorrow 5pm”, “spent 1500 on lunch”…" placeholderTextColor="#75877c" value={text} onChangeText={setText} style={[styles.input, styles.multiline, { flex: 1 }]}/><MicButton size={46} onText={spoken => setText(appendSpeech(text, spoken))}/></View><TouchableOpacity style={styles.primary} onPress={save} disabled={busy}><Text style={styles.primaryText}>{busy ? "Saving…" : "Add to inbox"}</Text></TouchableOpacity><Text style={styles.muted}>Items that need clarification wait for your review.</Text></View><Text style={styles.sectionTitle}>Inbox · {captures.length}</Text>{captures.map(item => <View key={item.id} style={styles.card}><Text style={styles.badge}>{String(item.classified_type).replaceAll("_", " " )} · {String(item.status).replaceAll("_", " ")}</Text><Text style={styles.taskTitle}>{item.raw_text}</Text>{["pending", "needs_confirmation"].includes(item.status) && <TouchableOpacity style={styles.outlineButton} onPress={() => confirm(item.id)}><Text style={styles.outlineText}>Review & save</Text></TouchableOpacity>}</View>)}{!captures.length && <Text style={styles.empty}>Your quick captures will show up here.</Text>}</ScrollView></KeyboardAvoidingView>;
 }
 
 

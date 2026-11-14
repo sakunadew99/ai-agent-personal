@@ -838,3 +838,43 @@ class Redemption(Base):
     money_cost: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+
+class AiSettings(Base):
+    """AI gateway controls (guide 27.3-27.4): off switch, token/cost caps, per-feature off, data sharing per area."""
+    __tablename__ = "ai_settings"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    ai_off: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    daily_token_cap: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    monthly_token_cap: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    monthly_cost_cap_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
+    disabled_features: Mapped[list] = mapped_column(JsonDict, default=list)
+    share_money: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    share_health: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CapturedCommand(Base):
+    """'Say it once' (guide 34): what you said, how it was understood, and what was created (so it can be undone)."""
+    __tablename__ = "captured_commands"
+    __table_args__ = (
+        UniqueConstraint("user_id", "idempotency_key", name="uq_captured_commands_user_key"),
+        CheckConstraint("status IN ('created','needs_answer','cancelled','undone')", name="ck_captured_commands_status"),
+        CheckConstraint("source IN ('voice','text')", name="ck_captured_commands_source"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    raw_text: Mapped[str | None] = mapped_column(String(500), nullable=True)   # deletable for privacy
+    source: Mapped[str] = mapped_column(String(8), default="text")
+    parsed: Mapped[dict] = mapped_column(JsonDict, default=dict)
+    status: Mapped[str] = mapped_column(String(16), default="needs_answer")
+    question: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

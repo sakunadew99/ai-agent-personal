@@ -250,9 +250,22 @@ def _draft(facts: str, proposed, completed, refused) -> str:
     return "\n\n".join(parts)
 
 
+MONEY_LINES = ("This month actual net income", "Financial target tracking")
+
+
 def _phrase(db, user, conversation, message, draft, intent) -> str:
     if not ai_enabled():
         return _local_reply(message, draft, intent)
+    from app.services.ai_client import block_reason, clear_block, settings_for
+    cfg = settings_for(db, user.id)
+    share_money = bool(cfg and cfg.share_money)
+    if intent == "finance" and not share_money:
+        # Money questions are answered by rules with your real numbers; nothing is sent to the AI provider.
+        return (f"{_local_reply(message, draft, intent)}\n\n_(Answered privately: money details are not sent to the AI. "
+                "You can allow it in Settings > AI.)_")
+    if not share_money:
+        draft = "\n".join(line for line in draft.splitlines() if not line.startswith(MONEY_LINES))
+    clear_block(user.id)
     history = db.scalars(
         select(Message).where(Message.conversation_id == conversation.id).order_by(Message.created_at.desc()).limit(12)
     ).all()
@@ -284,8 +297,9 @@ def _phrase(db, user, conversation, message, draft, intent) -> str:
     phrased = chat_complete(db, user.id, intent, model_for("analysis" if intent in {"finance", "productivity"} else "conversation"), messages, temperature=0.4)
     if phrased:
         return phrased
-    # Provider call failed: give the readable rule-based reply, never the raw fact sheet.
-    note = "_(The AI provider didn't answer this time, so this is a basic reply. See the note at the top of the chat.)_"
+    # Provider call failed or AI was blocked by your settings: give the readable rule-based reply, never the raw fact sheet.
+    reason = block_reason(user.id)
+    note = f"_({reason})_" if reason else "_(The AI provider didn't answer this time, so this is a basic reply. See the note at the top of the chat.)_"
     return f"{_local_reply(message, draft, intent)}\n\n{note}"
 
 

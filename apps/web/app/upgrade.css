@@ -535,3 +535,28 @@ h1 { font-size: 30px; font-weight: 700; }
 .rule-row { display: grid; grid-template-columns: 1.6fr 1fr 1fr auto; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); font-size: 13px; }
 .rule-row input[type="number"] { width: 70px; }
 @media (max-width: 560px) { .rule-row { grid-template-columns: 1fr 1fr; } .levels-form label { grid-template-columns: 1fr; } }
+
+/* ---------- Say it once + AI controls ---------- */
+.command-bar { display: grid; gap: 10px; border-color: color-mix(in srgb, var(--green) 30%, var(--line)); }
+.command-form { display: flex; gap: 8px; align-items: flex-start; }
+.command-form .with-mic { flex: 1; }
+.command-form input { font-size: 15px; }
+.command-card { display: grid; gap: 6px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); }
+.command-card.status-created { border-color: color-mix(in srgb, var(--green) 45%, var(--line)); }
+.command-card.status-needs_answer { border-color: color-mix(in srgb, var(--amber) 55%, var(--line)); }
+.command-line { display: flex; align-items: center; gap: 10px; }
+.command-line b { flex: 1; }
+.cmd-icon { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font-weight: 900; font-size: 13px;
+  background: color-mix(in srgb, var(--green) 20%, transparent); color: var(--green); }
+.status-needs_answer .cmd-icon { background: color-mix(in srgb, var(--amber) 22%, transparent); color: var(--amber); }
+.status-cancelled .cmd-icon, .status-undone .cmd-icon { background: color-mix(in srgb, var(--muted) 18%, transparent); color: var(--muted); }
+.ai-controls { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; }
+.ai-controls h4 { margin: 8px 0 0; font-size: 14px; }
+.ai-meter { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ai-meter > div { display: grid; gap: 3px; padding: 10px; border-radius: 12px; background: color-mix(in srgb, var(--text) 3%, transparent); }
+.ai-meter b { font-size: 20px; }
+.ai-bars { display: flex; align-items: flex-end; gap: 3px; height: 48px; }
+.ai-bars span { flex: 1; border-radius: 3px 3px 0 0; background: color-mix(in srgb, var(--green) 60%, transparent); }
+.ai-features { display: grid; gap: 4px; padding-left: 4px; }
+.ai-switch { font-weight: 600; color: var(--text); }
+.ai-see { margin: 0; padding-left: 18px; font-size: 13px; color: var(--muted); display: grid; gap: 2px; }

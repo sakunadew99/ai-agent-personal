@@ -903,3 +903,28 @@ class TreatUpdate(BaseModel):
 class RedeemIn(BaseModel):
     confirm: bool = False            # redeeming always needs an explicit yes
     over_budget_ok: bool = False     # money treat when fun money is short: only if you say so
+
+
+# ---------- "Say it once" commands (guide 34) and AI controls (guide 27) ----------
+
+class CommandIn(BaseModel):
+    text: str = Field(min_length=1, max_length=500)
+    source: Literal["voice", "text"] = "text"
+    idempotency_key: str | None = Field(default=None, max_length=100)
+
+
+class CommandAnswerIn(BaseModel):
+    answer: str = Field(min_length=1, max_length=200)
+
+
+AiGroup = Literal["chat", "summary", "memory", "transcription", "voice_parse"]
+
+
+class AiSettingsIn(BaseModel):
+    ai_off: bool | None = None
+    daily_token_cap: int | None = Field(default=None, ge=0, le=10_000_000)      # 0 = no cap
+    monthly_token_cap: int | None = Field(default=None, ge=0, le=500_000_000)   # 0 = no cap
+    monthly_cost_cap_usd: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=4)  # 0 = no cap
+    disabled_features: list[AiGroup] | None = Field(default=None, max_length=5)
+    share_money: bool | None = None
+    share_health: bool | None = None
