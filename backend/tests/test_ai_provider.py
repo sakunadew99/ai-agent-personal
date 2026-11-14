@@ -3,6 +3,9 @@ from app.services.assistant import _local_reply
 
 
 class _Resp:
+    status_code = 200
+    text = ""
+
     def raise_for_status(self):
         return None
 
