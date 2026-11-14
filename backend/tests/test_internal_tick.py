@@ -25,5 +25,5 @@ def test_tick_runs_worker_with_correct_token(monkeypatch):
     monkeypatch.setattr(routes.settings, "service_token", STRONG)
     import app.workers.checkins as checkins
     monkeypatch.setattr(checkins, "process_once", lambda: calls.append(1))
-    assert routes.internal_tick(x_service_token=STRONG) == {"status": "ok"}
+    assert routes.internal_tick(x_service_token=STRONG)["status"] == "ok"
     assert calls == [1]

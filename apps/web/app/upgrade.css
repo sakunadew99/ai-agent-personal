@@ -503,3 +503,35 @@ h1 { font-size: 30px; font-weight: 700; }
 .month-dot.kind-event { background: var(--muted); }
 .cal-select { max-width: 92px; padding: 3px 6px; font-size: 12px; border-radius: 8px; }
 .cal-btn { font-size: 13px; white-space: nowrap; }
+
+/* ---------- Goal engine ---------- */
+.forecast { display: grid; gap: 6px; margin: 10px 0 4px; padding: 10px; border-radius: 12px; background: color-mix(in srgb, var(--text) 3%, transparent); }
+.forecast-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.forecast-level { display: grid; gap: 3px; }
+.forecast-level-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+.fc-status { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: .04em; }
+.fc-status.good { background: color-mix(in srgb, var(--green) 18%, transparent); color: var(--green); }
+.fc-status.warn { background: color-mix(in srgb, var(--amber) 20%, transparent); color: var(--amber); }
+.fc-status.muted { background: color-mix(in srgb, var(--muted) 15%, transparent); color: var(--muted); }
+.fc-note { font-size: 11px; }
+.levels-form { display: grid; gap: 6px; }
+.levels-form label { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; align-items: center; font-size: 13px; }
+.levels-form input { min-width: 0; }
+/* ---------- Rewards ---------- */
+.game-hero { display: grid; gap: 14px; background: linear-gradient(135deg, color-mix(in srgb, var(--green) 10%, var(--panel)), var(--panel)); }
+.game-hero.paused { filter: grayscale(.7); }
+.game-level { display: flex; align-items: center; gap: 14px; }
+.game-badge { display: grid; place-items: center; min-width: 64px; height: 64px; border-radius: 18px; background: var(--green); color: var(--bg); font-size: 20px; font-weight: 900; }
+.game-level-bar { flex: 1; display: grid; gap: 4px; }
+.game-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.game-stats > div { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.game-stats b { font-size: 20px; }
+.treat-row, .quest-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); }
+.treat-row > div:first-child, .quest-row > div:first-child { display: grid; gap: 3px; flex: 1; min-width: 0; }
+.ledger-row { display: grid; grid-template-columns: 48px 1fr auto; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.ledger-row .pts { font-weight: 800; color: var(--green); font-variant-numeric: tabular-nums; }
+.ledger-row .pts.zero { color: var(--muted); }
+.rules-table { display: grid; gap: 4px; }
+.rule-row { display: grid; grid-template-columns: 1.6fr 1fr 1fr auto; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.rule-row input[type="number"] { width: 70px; }
+@media (max-width: 560px) { .rule-row { grid-template-columns: 1fr 1fr; } .levels-form label { grid-template-columns: 1fr; } }

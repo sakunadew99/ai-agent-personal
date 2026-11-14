@@ -4,6 +4,7 @@ import type { ApiRecord as Row } from "../api";
 import { Badge, Btn, C, Card, Chips, Empty, Field, H2, Kicker, Muted, niceDate, Progress, Row as Line, Screen } from "../ui";
 import { syncReminders } from "../notify";
 import { GoalMilestones } from "./PlanExtras";
+import { GoalStatusLine } from "./RewardsScreen";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 const TABS = ["tasks", "goals", "habits"] as const;
@@ -105,6 +106,7 @@ export function LifeScreen({ api, onError }: { api: Api; onError: (m: string) =>
         return <View key={g.id} style={{ gap: 6, paddingVertical: 6 }}>
           <Line><H2>{g.title}</H2><View style={{ flex: 1 }}/><Text style={{ color: C.green, fontWeight: "700" }}>{pct}%</Text></Line>
           <Progress value={pct}/><Muted small>{g.current_value ?? 0} / {g.target_value ?? "—"} {g.unit || ""}</Muted>
+          <GoalStatusLine api={api} goalId={String(g.id)}/>
           <GoalMilestones api={api} goalId={String(g.id)} onError={onError}/>
           <Line><Btn kind="link" title="Progress +1" onPress={() => void run(() => api(`/goals/${g.id}`, "PATCH", { current_value: Number(g.current_value || 0) + 1 }))}/>
             <Btn kind="link" title="Delete" onPress={() => confirmDelete(g.title, () => api(`/goals/${g.id}`, "DELETE"))}/></Line>

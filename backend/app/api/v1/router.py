@@ -22,7 +22,7 @@ from app.models.entities import (
     Expense, FocusSession, FreelanceProject, Goal, Habit, HabitLog, HealthRecord,
     Income, JobApplication, Liability, LifeEntry, Memory, Message, Notification,
     PlanItem, RefreshToken, SleepRecord, Task, User, UserProfile, Workout, CareerProfile, GoalMilestone,
-    Flashcard, Mistake, FinancialAccount, AccountAdjustment, Envelope, WishlistItem, PriceNote, BuyListItem,
+    Flashcard, Mistake, Quest, Treat, FinancialAccount, AccountAdjustment, Envelope, WishlistItem, PriceNote, BuyListItem,
 )
 from app.schemas import dto
 from app.services.actions import (
@@ -38,7 +38,7 @@ from app.services.permissions import seed_user_defaults
 from app.services.learning import (
     clean_deck, create_card, due_cards, import_cards, job_summary, learning_stats, mistake_again, mistake_to_card, review_card,
 )
-from app.services import gcalendar, google_oauth
+from app.services import game, gcalendar, goal_engine, google_oauth
 from app.services import money as money_svc
 from app.services.time_engine import insights as time_insights
 from app.services.schedule import create_milestone, list_milestones, month_view, update_milestone, upcoming_reminders
@@ -265,6 +265,7 @@ def reminders_upcoming(days: int = Query(7, ge=1, le=31), lead_minutes: int = Qu
 def memory_create(data: dto.MemoryIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     row = save_memory(db, user.id, data.content, data.category, "user", data.allow_sensitive, data.pinned,
                       intent_type=data.intent_type, check_duplicates=not data.allow_duplicate)
+    game.on_memory_saved(db, row)
     db.commit(); db.refresh(row); return row
 
 
@@ -421,7 +422,7 @@ def finance_reports(month: str | None = None, db: Session = Depends(get_db), use
 @router.post("/health/records", status_code=201)
 def health_create(data: dto.HealthMetricIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     row = HealthRecord(user_id=user.id, metric=data.metric, value=data.value, unit=data.unit, recorded_at=as_utc(data.recorded_at or now_utc()), source=data.source)
-    db.add(row); db.commit(); db.refresh(row); return row
+    db.add(row); db.flush(); game.on_health_record(db, row); db.commit(); db.refresh(row); return row
 
 
 @router.get("/health/summary")
@@ -436,13 +437,13 @@ def health_summary(db: Session = Depends(get_db), user: User = Depends(get_curre
 def sleep_create(data: dto.SleepIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     if data.end_at <= data.start_at: raise HTTPException(422, "Sleep end must be after start")
     row = SleepRecord(user_id=user.id, start_at=as_utc(data.start_at), end_at=as_utc(data.end_at), duration_minutes=int((data.end_at-data.start_at).total_seconds()/60), stages=data.stages, source=data.source)
-    db.add(row); db.commit(); db.refresh(row); return row
+    db.add(row); db.flush(); game.on_sleep(db, row); db.commit(); db.refresh(row); return row
 
 
 @router.post("/health/workouts", status_code=201)
 def workout_create(data: dto.WorkoutIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     row = Workout(user_id=user.id, activity=data.activity, duration_minutes=data.duration_minutes, calories=data.calories, started_at=as_utc(data.started_at or now_utc()), notes=data.notes, source=data.source)
-    db.add(row); db.commit(); db.refresh(row); return row
+    db.add(row); db.flush(); game.on_workout(db, row); db.commit(); db.refresh(row); return row
 
 
 @router.get("/health/sleep")
@@ -519,6 +520,99 @@ def job_update(job_id: uuid.UUID, data: dto.JobUpdate, db: Session = Depends(get
 @router.delete("/career/jobs/{job_id}", status_code=204)
 def job_delete(job_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     db.delete(owned(db, JobApplication, user.id, job_id)); db.commit()
+
+
+# ---------- Goal engine (guide 29): levels, automatic progress, forecast range ----------
+
+@router.get("/goals/forecasts")
+def goal_forecasts(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    goals = db.scalars(select(Goal).where(Goal.user_id == user.id, Goal.status == "active").order_by(Goal.due_date.asc().nullslast())).all()
+    out = [goal_engine.forecast(db, g) for g in goals]; db.commit(); return out
+
+
+@router.get("/goals/{goal_id}/forecast")
+def goal_forecast(goal_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    out = goal_engine.forecast(db, owned(db, Goal, user.id, goal_id)); db.commit(); return out
+
+
+@router.put("/goals/{goal_id}/levels")
+def goal_levels_set(goal_id: uuid.UUID, data: dto.GoalLevelsIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    goal = owned(db, Goal, user.id, goal_id)
+    goal_engine.set_levels(db, goal, data.levels)
+    out = goal_engine.forecast(db, goal); db.commit(); return out
+
+
+# ---------- Game and rewards (guide 30): points after real actions, caps, forgiving streaks, treats ----------
+
+@router.get("/game")
+def game_summary(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    out = game.summary(db, user.id); db.commit(); return out
+
+
+@router.patch("/game/settings")
+def game_settings_update(data: dto.GameSettingsIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = game.settings_for(db, user.id)
+    for key, value in data.model_dump(exclude_unset=True).items():
+        if value is not None: setattr(row, key, value)
+    row.updated_at = now_utc(); db.commit(); return game.summary(db, user.id)
+
+
+@router.patch("/game/rules/{event_type}")
+def game_rule_update(event_type: str, data: dto.PointRuleUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    rule = game.rules_for(db, user.id).get(event_type)
+    if rule is None: raise HTTPException(404, "Unknown rule")
+    for key, value in data.model_dump(exclude_unset=True).items():
+        if value is not None: setattr(rule, key, value)
+    rule.updated_at = now_utc(); db.commit()
+    return {"event_type": rule.event_type, "points": rule.points, "daily_cap": rule.daily_cap, "area": rule.area, "active": rule.active}
+
+
+@router.get("/game/ledger")
+def game_ledger(limit: int = Query(100, ge=1, le=500), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import PointsLedger
+    rows = db.scalars(select(PointsLedger).where(PointsLedger.user_id == user.id).order_by(PointsLedger.created_at.desc()).limit(limit)).all()
+    return [{"event_type": r.event_type, "points": r.points, "reason": r.reason, "area": r.area, "date": r.local_date, "at": r.created_at} for r in rows]
+
+
+@router.post("/game/quests", status_code=201)
+def game_quest_create(data: dto.QuestIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = game.add_quest(db, user.id, data); db.commit()
+    return {"id": row.id, "title": row.title, "event_type": row.event_type, "target_count": row.target_count, "period": row.period}
+
+
+@router.delete("/game/quests/{quest_id}", status_code=204)
+def game_quest_delete(quest_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, Quest, user.id, quest_id); row.status = "archived"; db.commit()
+
+
+@router.post("/game/treats", status_code=201)
+def game_treat_create(data: dto.TreatIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    values = data.model_dump()
+    if values.get("wish_id"): owned(db, WishlistItem, user.id, values["wish_id"])
+    if values.get("money_cost") and not values.get("currency"): raise HTTPException(422, "Money treats need a currency")
+    values["currency"] = values["currency"].upper() if values.get("currency") else None
+    row = Treat(user_id=user.id, **values); db.add(row); db.commit(); db.refresh(row)
+    return {"id": row.id, "name": row.name, "cost_points": row.cost_points, "money_cost": row.money_cost, "currency": row.currency}
+
+
+@router.patch("/game/treats/{treat_id}")
+def game_treat_update(treat_id: uuid.UUID, data: dto.TreatUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, Treat, user.id, treat_id)
+    for key, value in data.model_dump(exclude_unset=True).items():
+        if key in ("name", "cost_points", "active") and value is None: continue
+        setattr(row, key, value)
+    row.updated_at = now_utc(); db.commit()
+    return {"id": row.id, "name": row.name, "cost_points": row.cost_points, "money_cost": row.money_cost, "active": row.active}
+
+
+@router.delete("/game/treats/{treat_id}", status_code=204)
+def game_treat_delete(treat_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    db.delete(owned(db, Treat, user.id, treat_id)); db.commit()
+
+
+@router.post("/game/treats/{treat_id}/redeem")
+def game_treat_redeem(treat_id: uuid.UUID, data: dto.RedeemIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    result = game.redeem(db, user.id, owned(db, Treat, user.id, treat_id), data.confirm, data.over_budget_ok); db.commit(); return result
 
 
 # ---------- Google connections: Gmail read-only (Fiverr F1) and Google Calendar. One OAuth client serves both. ----------
@@ -881,6 +975,7 @@ def habit_log(habit_id: uuid.UUID, data: dto.HabitLogIn, db: Session = Depends(g
     row = db.scalar(select(HabitLog).where(HabitLog.habit_id == habit_id, HabitLog.logged_on == day))
     if row is None: row = HabitLog(habit_id=habit_id, user_id=user.id, logged_on=day); db.add(row)
     row.completed = data.completed
+    if data.completed: game.on_habit_logged(db, habit, day)
     db.commit(); db.refresh(row); return row
 
 
@@ -903,6 +998,7 @@ def focus_finish(session_id: uuid.UUID, data: dto.FocusFinish, db: Session = Dep
     row = owned(db, FocusSession, user.id, session_id)
     if row.ended_at is not None: raise HTTPException(409, "Focus session is already finished")
     row.ended_at = now_utc(); row.distractions = data.distractions; row.notes = data.notes
+    game.on_focus_finished(db, row)
     db.commit(); db.refresh(row); return row
 
 
@@ -919,7 +1015,11 @@ def internal_tick(x_service_token: str = Header(default="")):
     if configured in WEAK_SECRETS or len(configured) < 32 or not hmac.compare_digest(x_service_token.encode(), configured.encode()):
         raise HTTPException(403, "Forbidden")
     process_once()
-    return {"status": "ok"}
+    from app.core.database import SessionLocal
+    from app.services.goal_engine import snapshot_all
+    with SessionLocal() as db:
+        goals = snapshot_all(db)
+    return {"status": "ok", "goal_snapshots": goals}
 
 
 @router.get("/insights")

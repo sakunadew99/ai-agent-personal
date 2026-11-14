@@ -12,6 +12,8 @@ from app.services.recurrence import normalize_rule
 Priority = Literal["low", "medium", "high"]
 TaskStatus = Literal["inbox", "todo", "in_progress", "done", "cancelled"]
 GoalStatus = Literal["active", "paused", "completed", "archived"]
+# Where goal progress comes from (services/goal_engine.py). Money metrics need metric_currency.
+GoalMetric = Literal["manual", "savings_balance", "all_accounts", "income_since_start", "focus_hours", "tasks_done", "milestones_done"]
 RecordKind = Literal["actual", "estimated", "projected"]
 ExpenseCategory = Literal[
     "food", "transport", "housing", "subscriptions", "shopping", "health", "education", "business", "savings", "other"
@@ -145,6 +147,8 @@ class GoalIn(BaseModel):
     unit: str | None = Field(default=None, max_length=32)
     due_date: date | None = None
     status: GoalStatus = "active"
+    metric: GoalMetric = "manual"
+    metric_currency: str | None = Field(default=None, pattern=r"^[A-Za-z]{3}$")
 
 
 class GoalUpdate(BaseModel):
@@ -156,6 +160,8 @@ class GoalUpdate(BaseModel):
     unit: str | None = None
     due_date: date | None = None
     status: GoalStatus | None = None
+    metric: GoalMetric | None = None
+    metric_currency: str | None = Field(default=None, pattern=r"^[A-Za-z]{3}$")
 
 
 class GoalOut(ORMModel):
@@ -168,6 +174,8 @@ class GoalOut(ORMModel):
     current_value: Decimal
     unit: str | None
     due_date: date | None
+    metric: str = "manual"
+    metric_currency: str | None = None
     created_at: datetime
 
 
@@ -840,3 +848,58 @@ class CalendarAddIn(BaseModel):
 
 class ConnectIn(BaseModel):
     write: bool = False  # Calendar only: also allow adding events you confirm (calendar.events instead of calendar.readonly)
+
+
+# ---------- Goal engine (guide 29) and game (guide 30) ----------
+
+class GoalLevelIn(BaseModel):
+    level: Literal["floor", "realistic", "stretch"]
+    target_value: Decimal = Field(max_digits=16, decimal_places=2)
+    target_date: date | None = None
+
+
+class GoalLevelsIn(BaseModel):
+    levels: list[GoalLevelIn] = Field(max_length=3)
+
+
+class GameSettingsIn(BaseModel):
+    paused: bool | None = None
+    daily_cap: int | None = Field(default=None, ge=50, le=300)
+    steps_target: int | None = Field(default=None, ge=1000, le=40000)
+
+
+class PointRuleUpdate(BaseModel):
+    points: int | None = Field(default=None, ge=0, le=100)
+    daily_cap: int | None = Field(default=None, ge=0, le=300)
+    active: bool | None = None
+
+
+QuestEvent = Literal["focus", "task", "habit", "sleep", "steps", "workout", "weekly_review"]
+
+
+class QuestIn(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    event_type: QuestEvent
+    target_count: int = Field(ge=1, le=50)
+    period: Literal["day", "week"] = "day"
+    bonus_points: int = Field(default=30, ge=0, le=100)
+
+
+class TreatIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    cost_points: int = Field(ge=1, le=100000)
+    money_cost: Decimal | None = Field(default=None, ge=0, max_digits=16, decimal_places=2)
+    currency: str | None = Field(default=None, pattern=r"^[A-Za-z]{3}$")
+    wish_id: uuid.UUID | None = None
+
+
+class TreatUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    cost_points: int | None = Field(default=None, ge=1, le=100000)
+    money_cost: Decimal | None = Field(default=None, ge=0, max_digits=16, decimal_places=2)
+    active: bool | None = None
+
+
+class RedeemIn(BaseModel):
+    confirm: bool = False            # redeeming always needs an explicit yes
+    over_budget_ok: bool = False     # money treat when fun money is short: only if you say so

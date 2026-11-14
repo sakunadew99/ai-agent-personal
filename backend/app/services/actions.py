@@ -18,6 +18,7 @@ from app.models.entities import (
     UserProfile,
 )
 from app.schemas.dto import ExpenseIn, GoalIn, GoalUpdate, IncomeIn, TaskIn, TaskUpdate
+from app.services import game
 from app.services.audit import audit
 from app.services.memory import save_memory
 from app.services.planner import SchedTask, build_day
@@ -88,6 +89,7 @@ def update_task(db: Session, row: Task, data: TaskUpdate) -> Task:
     audit(db, row.user_id, "task.update", "task", row.id)
     if row.status == "done" and not was_done:
         _spawn_next(db, row)
+        game.on_task_done(db, row)
     return row
 
 
@@ -100,11 +102,15 @@ def complete_task(db: Session, row: Task) -> Task:
     row.updated_at = now_utc()
     audit(db, row.user_id, "task.complete", "task", row.id)
     _spawn_next(db, row)
+    game.on_task_done(db, row)
     return row
 
 
 def create_goal(db: Session, user_id, data: GoalIn) -> Goal:
-    row = Goal(user_id=user_id, **data.model_dump())
+    from app.services.goal_engine import validate_metric
+    values = data.model_dump()
+    values["metric_currency"] = validate_metric(data.metric, data.metric_currency)
+    row = Goal(user_id=user_id, **values)
     db.add(row)
     db.flush()
     audit(db, user_id, "goal.create", "goal", row.id, {"title": row.title})
@@ -112,7 +118,13 @@ def create_goal(db: Session, user_id, data: GoalIn) -> Goal:
 
 
 def update_goal(db: Session, row: Goal, data: GoalUpdate) -> Goal:
-    for key, value in data.model_dump(exclude_unset=True).items():
+    from app.services.goal_engine import validate_metric
+    changes = data.model_dump(exclude_unset=True)
+    if "metric" in changes or "metric_currency" in changes:
+        if changes.get("metric") is None:
+            changes.pop("metric", None)
+        changes["metric_currency"] = validate_metric(changes.get("metric", row.metric), changes.get("metric_currency", row.metric_currency))
+    for key, value in changes.items():
         setattr(row, key, value)
     row.updated_at = now_utc()
     audit(db, row.user_id, "goal.update", "goal", row.id)

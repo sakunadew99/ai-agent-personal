@@ -44,6 +44,8 @@ def world():
         ids["envelope"] = make("/money/envelopes", {"name": "Alice fun", "currency": "LKR", "monthly_amount": "5"})["id"]
         ids["wish"] = make("/money/wishlist", {"name": "Alice wish", "price": "100", "currency": "LKR"})["id"]
         ids["buy"] = make("/money/buy-list", {"name": "Alice rice", "est_price": "10", "currency": "LKR"})["id"]
+        ids["quest"] = make("/game/quests", {"title": "Alice quest", "event_type": "habit", "target_count": 1})["id"]
+        ids["treat"] = make("/game/treats", {"name": "Alice treat", "cost_points": 1})["id"]
         ids["milestone"] = make(f"/goals/{ids['goal']}/milestones", {"title": "Alice milestone"})["id"]
         yield client, a, b, ids
 
@@ -67,6 +69,12 @@ ID_ROUTES = [
     ("POST", "/mistakes/{mistake}/card", {}),
     ("DELETE", "/mistakes/{mistake}", None),
     ("PATCH", "/career/jobs/{job}", {"status": "rejected"}),
+    ("GET", "/goals/{goal}/forecast", None),
+    ("PUT", "/goals/{goal}/levels", {"levels": [{"level": "stretch", "target_value": "1"}]}),
+    ("DELETE", "/game/quests/{quest}", None),
+    ("PATCH", "/game/treats/{treat}", {"cost_points": 1}),
+    ("POST", "/game/treats/{treat}/redeem", {"confirm": True}),
+    ("DELETE", "/game/treats/{treat}", None),
     ("PATCH", "/money/accounts/{account}", {"name": "hijacked"}),
     ("POST", "/money/accounts/{account}/reconcile", {"balance": "0"}),
     ("GET", "/money/accounts/{account}/adjustments", None),
@@ -97,7 +105,7 @@ ID_ROUTES = [
 def test_other_user_gets_404_on_my_records(world, method, path, body):
     client, _alice, bob, ids = world
     if body is not None:
-        body = {k: ([x.format(**ids) for x in v] if isinstance(v, list) else v) for k, v in body.items()}
+        body = {k: ([x.format(**ids) if isinstance(x, str) else x for x in v] if isinstance(v, list) else v) for k, v in body.items()}
     response = client.request(method, "/api/v1" + path.format(**ids), headers=bob, **({"json": body} if body is not None else {}))
     assert response.status_code == 404, f"{method} {path} as another user -> {response.status_code}: {response.text}"
 
@@ -126,3 +134,6 @@ def test_other_users_calendar_and_reminders_are_empty_of_my_records(world):
     balance = client.get("/api/v1/money/balance", headers=bob).json()["currencies"]
     assert balance == []  # Bob has no accounts; Alice's are never counted
     assert client.get("/api/v1/time/insights", headers=bob).json()["top3"] == []
+    bob_game = client.get("/api/v1/game", headers=bob).json()
+    assert bob_game["treats"] == [] and bob_game["quests"] == [] and bob_game["total_earned"] == 0
+    assert client.get("/api/v1/goals/forecasts", headers=bob).json() == []

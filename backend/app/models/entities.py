@@ -157,8 +157,43 @@ class Goal(Base):
     current_value: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     unit: Mapped[str | None] = mapped_column(String(32), nullable=True)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Where progress comes from: manual | savings_balance | all_accounts | income_since_start | focus_hours |
+    # tasks_done | milestones_done (see services/goal_engine.py). Money metrics use metric_currency.
+    metric: Mapped[str] = mapped_column(String(32), default="manual", server_default="manual")
+    metric_currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class GoalLevel(Base):
+    """Floor / realistic / stretch targets for one goal (guide 29.2)."""
+    __tablename__ = "goal_levels"
+    __table_args__ = (
+        UniqueConstraint("goal_id", "level", name="uq_goal_levels_goal_level"),
+        CheckConstraint("level IN ('floor','realistic','stretch')", name="ck_goal_levels_level"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    goal_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("goals.id", ondelete="CASCADE"), index=True)
+    level: Mapped[str] = mapped_column(String(16))
+    target_value: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    target_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class GoalSnapshot(Base):
+    """One value per goal per day, so trends exist even for manual and balance-based goals."""
+    __tablename__ = "goal_snapshots"
+    __table_args__ = (UniqueConstraint("goal_id", "snapshot_date", name="uq_goal_snapshots_goal_date"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    goal_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("goals.id", ondelete="CASCADE"), index=True)
+    snapshot_date: Mapped[date] = mapped_column(Date)
+    value: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class Task(Base):
@@ -708,3 +743,98 @@ class OAuthState(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+
+# ---------- Game and rewards (guide section 30) ----------
+
+class GameSettings(Base):
+    __tablename__ = "game_settings"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    paused: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    daily_cap: Mapped[int] = mapped_column(Integer, default=150, server_default="150")
+    steps_target: Mapped[int] = mapped_column(Integer, default=8000, server_default="8000")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PointRule(Base):
+    """Rules are data, not code (guide 30.4): tune points and caps without a release."""
+    __tablename__ = "point_rules"
+    __table_args__ = (UniqueConstraint("user_id", "event_type", name="uq_point_rules_user_event"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    event_type: Mapped[str] = mapped_column(String(32))
+    points: Mapped[int] = mapped_column(Integer)
+    daily_cap: Mapped[int] = mapped_column(Integer)
+    area: Mapped[str] = mapped_column(String(32))
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PointsLedger(Base):
+    """Append-only. (user, event, ref) is unique, so retries and re-completions never double count."""
+    __tablename__ = "points_ledger"
+    __table_args__ = (
+        UniqueConstraint("user_id", "event_type", "ref_id", name="uq_points_ledger_user_event_ref"),
+        Index("ix_points_ledger_user_date", "user_id", "local_date"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    event_type: Mapped[str] = mapped_column(String(32))
+    ref_id: Mapped[str] = mapped_column(String(100))
+    points: Mapped[int] = mapped_column(Integer)
+    area: Mapped[str] = mapped_column(String(32))
+    reason: Mapped[str] = mapped_column(String(200))
+    local_date: Mapped[date] = mapped_column(Date)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Quest(Base):
+    __tablename__ = "quests"
+    __table_args__ = (
+        CheckConstraint("period IN ('day','week')", name="ck_quests_period"),
+        CheckConstraint("status IN ('active','archived')", name="ck_quests_status"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    title: Mapped[str] = mapped_column(String(120))
+    event_type: Mapped[str] = mapped_column(String(32))
+    target_count: Mapped[int] = mapped_column(Integer)
+    period: Mapped[str] = mapped_column(String(8), default="day")
+    bonus_points: Mapped[int] = mapped_column(Integer, default=30)
+    status: Mapped[str] = mapped_column(String(16), default="active", server_default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Treat(Base):
+    __tablename__ = "treats"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    name: Mapped[str] = mapped_column(String(120))
+    cost_points: Mapped[int] = mapped_column(Integer)
+    money_cost: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    wish_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("wishlist_items.id", ondelete="SET NULL"), nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Redemption(Base):
+    __tablename__ = "redemptions"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    treat_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("treats.id", ondelete="SET NULL"), nullable=True)
+    treat_name: Mapped[str] = mapped_column(String(120))
+    points_spent: Mapped[int] = mapped_column(Integer)
+    money_cost: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
