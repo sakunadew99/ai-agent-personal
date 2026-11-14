@@ -53,6 +53,8 @@ jobs:
         run: |
           if [ -z "$KS_B64" ]; then echo "::warning::No keystore secrets; APK uses a throwaway debug key"; exit 0; fi
           echo "$KS_B64" | base64 -d > android/app/release.keystore
+          # Start with a newline: the generated gradle.properties may not end with one.
+          echo >> android/gradle.properties
           cat >> android/gradle.properties <<EOF
           SAKUNA_STORE_FILE=release.keystore
           SAKUNA_STORE_PASSWORD=$KS_PASS
@@ -79,6 +81,7 @@ jobs:
         working-directory: apps/mobile/android
         run: |
           # React Native release builds need more heap than Gradle's default on the 7 GB runners.
+          echo >> gradle.properties   # the file may not end with a newline
           echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" >> gradle.properties
           set +e
           ./gradlew assembleRelease --no-daemon --console=plain 2>&1 | tee gradle.log
