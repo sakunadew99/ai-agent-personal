@@ -5,7 +5,7 @@ SHELL := /bin/bash
 COMPOSE := docker compose
 
 .DEFAULT_GOAL := help
-.PHONY: help setup env db db-stop api worker web mobile up down logs ps migrate revision downgrade \
+.PHONY: help setup env db db-stop api worker web mobile up down logs ps home-up home-url home-down migrate revision downgrade \
         test test-api test-mcp test-web lint fmt typecheck check psql backup restore
 
 help: ## Show this help
@@ -50,6 +50,16 @@ logs: ## Follow container logs (S=service to filter)
 
 ps: ## Show container status
 	$(COMPOSE) --profile full ps
+
+# ---------- home server (public HTTPS via Cloudflare quick tunnel) ----------
+home-up: ## Run in production mode on this PC and print the public URL
+	./scripts/home/up.sh
+
+home-url: ## Print the current public URL
+	./scripts/home/url.sh
+
+home-down: ## Stop the home server (data kept)
+	./scripts/home/down.sh
 
 # ---------- database ----------
 migrate: ## Apply Alembic migrations

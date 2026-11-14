@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     openai_output_price_per_million: Decimal = Decimal("0")
     cors_origins: str = "http://localhost:3000,http://localhost:8081"
     service_token: str = "dev-service-token"
+    # Turn off on any internet-facing server once your own account exists, so strangers who find
+    # the URL cannot sign up. Existing users can still sign in.
+    registration_open: bool = True
 
 
 @lru_cache

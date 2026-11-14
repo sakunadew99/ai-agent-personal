@@ -1,0 +1,32 @@
+# "Home server" mode: run Sakuna on this PC and publish it on a public HTTPS URL through a
+# Cloudflare quick tunnel (free, no account, no router/port-forwarding changes).
+#
+#   ./scripts/home/up.sh      start (creates .env.home with strong secrets on first run) and print the URL
+#   ./scripts/home/url.sh     print the current public URL
+#   ./scripts/home/down.sh    stop (data is kept)
+#
+# Traffic path: phone/browser --HTTPS--> Cloudflare --tunnel--> cloudflared --> caddy:80 --> web / api / mcp.
+# The quick-tunnel URL changes every time the cloudflared container restarts. For a fixed URL, use a
+# named tunnel with a free Cloudflare account and your own domain (see docs/deploy/home-server.md).
+
+x-home-backend: &home-backend
+  env_file:
+    - path: .env
+      required: false
+    - path: .env.home
+      required: true
+  environment:
+    ENVIRONMENT: production          # enforces strong secrets; schema comes only from Alembic
+    REGISTRATION_OPEN: "false"       # strangers who find the URL cannot sign up
+
+services:
+  backend: *home-backend
+  worker: *home-backend
+
+  cloudflared:
+    profiles: ["edge"]
+    image: cloudflare/cloudflared:2024.12.2
+    command: ["tunnel", "--no-autoupdate", "--url", "http://caddy:80"]
+    restart: unless-stopped
+    depends_on:
+      - caddy

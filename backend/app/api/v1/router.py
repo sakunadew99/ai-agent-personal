@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user, owned, query_user
 from app.core.security import (
@@ -70,6 +71,8 @@ def finance_summary(db: Session, user: User, month: str | None = None):
 
 @router.post("/auth/register", response_model=dto.TokenPair, status_code=201)
 def register(data: dto.RegisterIn, db: Session = Depends(get_db)):
+    if not settings.registration_open:
+        raise HTTPException(403, "New sign-ups are closed on this server. Sign in with your existing account.")
     if db.scalar(select(User).where(User.email == data.email)):
         raise HTTPException(409, "An account with this email already exists")
     user = User(email=data.email, full_name=data.full_name.strip(), password_hash=hash_password(data.password))
