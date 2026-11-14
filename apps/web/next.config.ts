@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
-const apiInternalUrl = process.env.API_INTERNAL_URL || "http://localhost:8000";
+// Strip trailing slashes: "https://api.example.com/" would otherwise produce "//api/v1/..." (404 on the API).
+const apiInternalUrl = (process.env.API_INTERNAL_URL || "http://localhost:8000").trim().replace(/\/+$/, "");
 
 const config: NextConfig = {
   output: "standalone",
