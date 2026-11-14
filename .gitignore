@@ -42,3 +42,6 @@ backups/
 *.dump
 *.dump.age
 infra/.env.prod
+
+# Android release signing key and its passwords (back these up; never commit)
+.signing/
