@@ -1,0 +1,74 @@
+-- Merging decision tree log ---
+manifest
+ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:1:1-38:12
+INJECTED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:1:1-38:12
+	package
+		INJECTED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml
+	xmlns:tools
+		ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:2:5-51
+	xmlns:android
+		ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:1:11-69
+uses-permission#android.permission.PACKAGE_USAGE_STATS
+ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:5:3-112
+	tools:ignore
+		ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:5:74-109
+	android:name
+		ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:5:20-73
+queries
+ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:8:3-13:13
+intent#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
+ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:9:5-12:14
+action#android.intent.action.MAIN
+ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:10:7-59
+	android:name
+		ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:10:15-56
+category#android.intent.category.LAUNCHER
+ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:11:7-67
+	android:name
+		ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:11:17-64
+application
+ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:15:3-37:17
+service#expo.modules.sakunashield.ShieldAccessibilityService
+ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:17:5-28:15
+	android:label
+		ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:20:9-60
+	android:exported
+		ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:19:9-33
+	android:permission
+		ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:21:9-75
+	android:name
+		ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:18:9-76
+intent-filter#action:name:android.accessibilityservice.AccessibilityService
+ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:22:7-24:23
+action#android.accessibilityservice.AccessibilityService
+ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:23:9-84
+	android:name
+		ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:23:17-81
+meta-data#android.accessibilityservice
+ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:25:7-27:65
+	android:resource
+		ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:27:11-62
+	android:name
+		ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:26:11-54
+activity#expo.modules.sakunashield.BlockActivity
+ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:30:5-36:74
+	android:excludeFromRecents
+		ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:33:9-42
+	android:launchMode
+		ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:34:9-40
+	android:exported
+		ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:32:9-33
+	android:theme
+		ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:36:9-71
+	android:taskAffinity
+		ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:35:9-63
+	android:name
+		ADDED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml:31:9-63
+uses-sdk
+INJECTED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml
+INJECTED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml
+	android:targetSdkVersion
+		INJECTED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml
+	android:minSdkVersion
+		INJECTED from D:\cursor\sakuna-ai\apps\mobile\modules\sakuna-shield\android\src\main\AndroidManifest.xml

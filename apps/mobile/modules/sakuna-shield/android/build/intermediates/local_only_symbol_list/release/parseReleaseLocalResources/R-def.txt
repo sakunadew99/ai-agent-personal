@@ -1,0 +1,5 @@
+R_DEF: Internal format may change without notice
+local
+string sakuna_shield_service_description
+string sakuna_shield_service_label
+xml sakuna_shield_accessibility

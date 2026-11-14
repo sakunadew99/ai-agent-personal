@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { apiRequest as request, getServerUrl, loadServerUrl, saveServerUrl, type ApiRecord as Row } from "./src/api";
 import { connectHealthConnect, getHealthConnectStatus, readTodayHealth, type TodayHealth } from "./src/health/health-connect";
+import { ShieldPanel } from "./src/ShieldPanel";
 
 type Tab = "Home" | "Plan" | "Capture" | "AI" | "Health" | "Focus" | "Profile";
 
@@ -238,7 +239,7 @@ function FocusScreen({ seconds, active, setActive, setSeconds }: { seconds: numb
   }
   return <ScrollView contentContainerStyle={styles.scroll}>
     <View style={styles.card}><Text style={styles.kicker}>FOCUS SESSION</Text><Text style={styles.sectionTitle}>Make room for deep work</Text><Text style={styles.muted}>A simple on-device timer that keeps running while Sakuna stays open.</Text><Text style={styles.timer}>{time}</Text><View style={styles.durationRow}>{[25, 45, 60].map(value => <TouchableOpacity key={value} style={[styles.duration, minutes === value && styles.durationSelected]} onPress={() => chooseMinutes(value)}><Text style={[styles.durationText, minutes === value && styles.durationTextSelected]}>{value} min</Text></TouchableOpacity>)}</View><TouchableOpacity style={styles.primary} onPress={toggleFocus}><Text style={styles.primaryText}>{active ? "Pause focus" : seconds === 0 ? "Start another session" : "Start focus session"}</Text></TouchableOpacity><TouchableOpacity style={styles.outlineButton} onPress={() => { setActive(false); setSeconds(minutes * 60); }}><Text style={styles.outlineText}>Reset timer</Text></TouchableOpacity></View>
-    <View style={styles.card}><Text style={styles.kicker}>APP BLOCKING</Text><Text style={styles.taskTitle}>Android system blocking is not active in this build</Text><Text style={styles.muted}>This timer does not pause or block other apps. Reliable Android app blocking needs a native usage monitor and an explicit system permission; website blocking needs a user-approved VPN service. The current app will not imply that apps are blocked.</Text></View>
+    <ShieldPanel/>
     <Text style={styles.disclaimer}>Keep Sakuna open during a focus session. The timer pauses when the app process stops, and it is not an emergency or safety control.</Text>
   </ScrollView>;
 }
