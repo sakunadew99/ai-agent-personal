@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { apiRequest as request, type ApiRecord as Row } from "./src/api";
+import { apiRequest as request, getServerUrl, loadServerUrl, saveServerUrl, type ApiRecord as Row } from "./src/api";
 import { connectHealthConnect, getHealthConnectStatus, readTodayHealth, type TodayHealth } from "./src/health/health-connect";
 
 type Tab = "Home" | "Plan" | "Capture" | "AI" | "Health" | "Focus" | "Profile";
@@ -10,6 +10,8 @@ export default function App() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [registerMode, setRegisterMode] = useState(false);
+  const [server, setServer] = useState(getServerUrl());
+  const [showServer, setShowServer] = useState(false);
   const [token, setToken] = useState("");
   const [user, setUser] = useState<Row>({});
   const [tab, setTab] = useState<Tab>("Home");
@@ -57,13 +59,16 @@ export default function App() {
 
   useEffect(() => { if (focusSeconds === 0) setFocusActive(false); }, [focusSeconds]);
 
+  useEffect(() => { void loadServerUrl().then(setServer); }, []);
+
   async function authenticate() {
     setBusy(true); setError("");
     try {
+      setServer(await saveServerUrl(server));
       const route = registerMode ? "/auth/register" : "/auth/login";
       const result = await request<Row>(route, "", "POST", registerMode ? { email, password, full_name: name } : { email, password });
       setToken(result.access_token); setUser(result.user || {}); setTab("Home");
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not sign in"); }
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not sign in"); if (reason instanceof Error && reason.message.startsWith("Can't reach")) setShowServer(true); }
     finally { setBusy(false); }
   }
 
@@ -139,6 +144,8 @@ export default function App() {
     {registerMode && <TextInput placeholder="Your name" placeholderTextColor="#75877c" value={name} onChangeText={setName} style={styles.input}/>}
     <TextInput autoCapitalize="none" keyboardType="email-address" placeholder="Email address" placeholderTextColor="#75877c" value={email} onChangeText={setEmail} style={styles.input}/>
     <TextInput secureTextEntry placeholder="Password · at least 8 characters" placeholderTextColor="#75877c" value={password} onChangeText={setPassword} style={styles.input}/>
+    {showServer ? <TextInput autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="Server address, e.g. https://xyz.trycloudflare.com" placeholderTextColor="#75877c" value={server} onChangeText={setServer} style={styles.input}/>
+      : <TouchableOpacity onPress={() => setShowServer(true)}><Text style={styles.link}>Server: {server.replace(/^https?:\/\//, "")} · Change</Text></TouchableOpacity>}
     <TouchableOpacity style={styles.primary} onPress={authenticate} disabled={busy}><Text style={styles.primaryText}>{busy ? "Please wait…" : registerMode ? "Create account" : "Sign in"}</Text></TouchableOpacity>
     {!!error && <Text style={styles.error}>{error}</Text>}
     <TouchableOpacity onPress={() => { setRegisterMode(!registerMode); setError(""); }}><Text style={styles.link}>{registerMode ? "Already have an account? Sign in" : "New to Sakuna? Create an account"}</Text></TouchableOpacity>

@@ -18,6 +18,9 @@ x-home-backend: &home-backend
   environment:
     ENVIRONMENT: production          # enforces strong secrets; schema comes only from Alembic
     REGISTRATION_OPEN: "false"       # strangers who find the URL cannot sign up
+    # Cloud database when scripts/home/up.sh finds .env.supabase (passed as an extra --env-file);
+    # otherwise the local Postgres container.
+    DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://sakuna:sakuna@db:5432/sakuna}
 
 services:
   backend: *home-backend
