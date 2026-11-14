@@ -96,7 +96,7 @@ jobs:
             grep -E "error:|FAILED" gradle.log | head -8 | while read -r line; do echo "::error title=Gradle detail::${line:0:900}"; done
           fi
           exit "$code"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sakuna-${{ github.sha }}.apk
           path: apps/mobile/android/app/build/outputs/apk/release/*.apk
