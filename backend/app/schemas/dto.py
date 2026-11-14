@@ -490,13 +490,121 @@ class CareerProfileIn(BaseModel):
     skills: list[str] = Field(default_factory=list)
 
 
+JobStage = Literal["draft", "applied", "interview", "offer", "accepted", "rejected", "withdrawn"]
+
+
 class JobIn(BaseModel):
     company: str = Field(min_length=1, max_length=200)
     role: str = Field(min_length=1, max_length=200)
-    status: str = Field(default="draft", max_length=32)
+    status: JobStage = "draft"
     url: str | None = Field(default=None, max_length=500)
     applied_at: date | None = None
     notes: str | None = None
+    next_step: str | None = Field(default=None, max_length=200)
+    follow_up_on: date | None = None
+
+
+class JobUpdate(BaseModel):
+    company: str | None = Field(default=None, min_length=1, max_length=200)
+    role: str | None = Field(default=None, min_length=1, max_length=200)
+    status: JobStage | None = None
+    url: str | None = Field(default=None, max_length=500)
+    applied_at: date | None = None
+    notes: str | None = None
+    next_step: str | None = Field(default=None, max_length=200)
+    follow_up_on: date | None = None
+
+
+class JobOut(ORMModel):
+    id: uuid.UUID
+    company: str
+    role: str
+    status: str
+    url: str | None
+    applied_at: date | None
+    notes: str | None
+    next_step: str | None = None
+    follow_up_on: date | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+
+
+Grade = Literal["again", "hard", "good", "easy"]
+
+
+class FlashcardIn(BaseModel):
+    deck: str = Field(default="german", min_length=1, max_length=64)
+    front: str = Field(min_length=1, max_length=500)
+    back: str = Field(min_length=1, max_length=1000)
+    example: str | None = Field(default=None, max_length=1000)
+
+
+class FlashcardUpdate(BaseModel):
+    deck: str | None = Field(default=None, min_length=1, max_length=64)
+    front: str | None = Field(default=None, min_length=1, max_length=500)
+    back: str | None = Field(default=None, min_length=1, max_length=1000)
+    example: str | None = Field(default=None, max_length=1000)
+    suspended: bool | None = None
+
+
+class FlashcardImport(BaseModel):
+    deck: str = Field(min_length=1, max_length=64)
+    text: str = Field(min_length=1, max_length=100_000)
+
+
+class FlashcardOut(ORMModel):
+    id: uuid.UUID
+    deck: str
+    front: str
+    back: str
+    example: str | None
+    ease: float
+    interval_days: int
+    repetitions: int
+    lapses: int
+    due_at: datetime
+    last_reviewed_at: datetime | None
+    suspended: bool
+    created_at: datetime
+
+
+class ReviewIn(BaseModel):
+    grade: Grade
+
+
+MistakeSubject = Literal["german", "english", "coding", "work", "money", "health", "life", "other"]
+
+
+class MistakeIn(BaseModel):
+    subject: MistakeSubject = "german"
+    what_happened: str = Field(min_length=1, max_length=1000)
+    correction: str = Field(min_length=1, max_length=1000)
+    lesson: str | None = Field(default=None, max_length=2000)
+
+
+class MistakeUpdate(BaseModel):
+    subject: MistakeSubject | None = None
+    what_happened: str | None = Field(default=None, min_length=1, max_length=1000)
+    correction: str | None = Field(default=None, min_length=1, max_length=1000)
+    lesson: str | None = Field(default=None, max_length=2000)
+    resolved: bool | None = None
+
+
+class MistakeOut(ORMModel):
+    id: uuid.UUID
+    subject: str
+    what_happened: str
+    correction: str
+    lesson: str | None
+    occurrences: int
+    last_seen_at: datetime
+    card_id: uuid.UUID | None
+    resolved_at: datetime | None
+    created_at: datetime
+
+
+class ToCardIn(BaseModel):
+    deck: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 class ProjectIn(BaseModel):

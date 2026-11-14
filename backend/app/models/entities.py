@@ -4,8 +4,10 @@ from decimal import Decimal
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -345,7 +347,65 @@ class JobApplication(Base):
     url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     applied_at: Mapped[date | None] = mapped_column(Date, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    next_step: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    follow_up_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class Flashcard(Base):
+    """A spaced-repetition card (SM-2). Scheduling is plain code in services/learning.py."""
+    __tablename__ = "flashcards"
+    __table_args__ = (
+        UniqueConstraint("user_id", "deck", "front", name="uq_flashcards_user_deck_front"),
+        Index("ix_flashcards_user_due", "user_id", "due_at"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    deck: Mapped[str] = mapped_column(String(64), default="german")
+    front: Mapped[str] = mapped_column(String(500))
+    back: Mapped[str] = mapped_column(String(1000))
+    example: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ease: Mapped[float] = mapped_column(Float, default=2.5, server_default="2.5")
+    interval_days: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    repetitions: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    lapses: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    suspended: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class FlashcardReview(Base):
+    __tablename__ = "flashcard_reviews"
+    __table_args__ = (CheckConstraint("grade IN ('again','hard','good','easy')", name="ck_flashcard_reviews_grade"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    card_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("flashcards.id", ondelete="CASCADE"), index=True)
+    grade: Mapped[str] = mapped_column(String(8))
+    interval_days: Mapped[int] = mapped_column(Integer)
+    reviewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class Mistake(Base):
+    """Mistake notebook: what went wrong, the right way, and how often it happened."""
+    __tablename__ = "mistakes"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    subject: Mapped[str] = mapped_column(String(32), default="german")
+    what_happened: Mapped[str] = mapped_column(String(1000))
+    correction: Mapped[str] = mapped_column(String(1000))
+    lesson: Mapped[str | None] = mapped_column(Text, nullable=True)
+    occurrences: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    card_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("flashcards.id", ondelete="SET NULL"), nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class FreelanceProject(Base):

@@ -6,6 +6,7 @@ import hmac
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, UploadFile, File
 from sqlalchemy import select, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -19,6 +20,7 @@ from app.models.entities import (
     Expense, FocusSession, FreelanceProject, Goal, Habit, HabitLog, HealthRecord,
     Income, JobApplication, Liability, LifeEntry, Memory, Message, Notification,
     PlanItem, RefreshToken, SleepRecord, Task, User, UserProfile, Workout, CareerProfile, GoalMilestone,
+    Flashcard, Mistake,
 )
 from app.schemas import dto
 from app.services.actions import (
@@ -31,6 +33,9 @@ from app.services.finance import Flow, Balance, month_bounds, summarize
 from app.services.memory import delete_memory, save_memory, search_memories, update_memory
 from app.services.ai_client import transcribe_audio
 from app.services.permissions import seed_user_defaults
+from app.services.learning import (
+    clean_deck, create_card, due_cards, import_cards, job_summary, learning_stats, mistake_again, mistake_to_card, review_card,
+)
 from app.services.schedule import create_milestone, list_milestones, month_view, update_milestone, upcoming_reminders
 from app.core.clock import as_utc, now_utc, zone
 
@@ -475,14 +480,138 @@ def career_profile_update(data: dto.CareerProfileIn, db: Session = Depends(get_d
     db.commit(); db.refresh(row); return row
 
 
-@router.get("/career/jobs")
+@router.get("/career/jobs", response_model=list[dto.JobOut])
 def jobs_list(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     return list(db.scalars(query_user(db, JobApplication, user.id).order_by(JobApplication.created_at.desc())).all())
 
 
-@router.post("/career/jobs", status_code=201)
+@router.get("/career/jobs/summary")
+def jobs_summary(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return job_summary(db, user.id)
+
+
+@router.post("/career/jobs", response_model=dto.JobOut, status_code=201)
 def job_create(data: dto.JobIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    row = JobApplication(user_id=user.id, **data.model_dump()); db.add(row); db.commit(); db.refresh(row); return row
+    row = JobApplication(user_id=user.id, updated_at=now_utc(), **data.model_dump())
+    if row.status != "draft" and row.applied_at is None:
+        row.applied_at = datetime.now(zone(profile_for(db, user).timezone)).date()
+    db.add(row); db.commit(); db.refresh(row); return row
+
+
+@router.patch("/career/jobs/{job_id}", response_model=dto.JobOut)
+def job_update(job_id: uuid.UUID, data: dto.JobUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, JobApplication, user.id, job_id)
+    changes = data.model_dump(exclude_unset=True)
+    for key, value in changes.items():
+        if key in ("company", "role", "status") and value is None:
+            continue
+        setattr(row, key, value)
+    if changes.get("status") == "applied" and row.applied_at is None:
+        row.applied_at = datetime.now(zone(profile_for(db, user).timezone)).date()
+    row.updated_at = now_utc(); db.commit(); db.refresh(row); return row
+
+
+@router.delete("/career/jobs/{job_id}", status_code=204)
+def job_delete(job_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    db.delete(owned(db, JobApplication, user.id, job_id)); db.commit()
+
+
+# ---------- Phase 4: learning (flashcards, spaced repetition) and the mistake notebook ----------
+
+@router.get("/learning/stats")
+def learning_stats_get(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return learning_stats(db, user.id)
+
+
+@router.get("/learning/cards", response_model=list[dto.FlashcardOut])
+def cards_list(deck: str | None = None, q: str | None = Query(None, max_length=100), limit: int = Query(200, ge=1, le=1000),
+               db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    statement = query_user(db, Flashcard, user.id)
+    if deck: statement = statement.where(Flashcard.deck == clean_deck(deck))
+    if q: statement = statement.where(Flashcard.front.ilike(f"%{q}%") | Flashcard.back.ilike(f"%{q}%"))
+    return list(db.scalars(statement.order_by(Flashcard.created_at.desc()).limit(limit)).all())
+
+
+@router.post("/learning/cards", response_model=dto.FlashcardOut, status_code=201)
+def card_create(data: dto.FlashcardIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = create_card(db, user.id, data.deck, data.front, data.back, data.example); db.commit(); db.refresh(row); return row
+
+
+@router.post("/learning/cards/import")
+def cards_import(data: dto.FlashcardImport, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    result = import_cards(db, user.id, data.deck, data.text); db.commit(); return result
+
+
+@router.patch("/learning/cards/{card_id}", response_model=dto.FlashcardOut)
+def card_update(card_id: uuid.UUID, data: dto.FlashcardUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, Flashcard, user.id, card_id)
+    changes = data.model_dump(exclude_unset=True)
+    if changes.get("deck") is not None: changes["deck"] = clean_deck(changes["deck"])
+    for key, value in changes.items():
+        if key in ("deck", "front", "back", "suspended") and value is None: continue
+        setattr(row, key, value.strip() if isinstance(value, str) else value)
+    row.updated_at = now_utc()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback(); raise HTTPException(409, "That card already exists in this deck")
+    db.refresh(row); return row
+
+
+@router.delete("/learning/cards/{card_id}", status_code=204)
+def card_delete(card_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    db.delete(owned(db, Flashcard, user.id, card_id)); db.commit()
+
+
+@router.get("/learning/review", response_model=list[dto.FlashcardOut])
+def review_queue(deck: str | None = None, limit: int = Query(20, ge=1, le=200), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return due_cards(db, user.id, deck, limit)
+
+
+@router.post("/learning/cards/{card_id}/review", response_model=dto.FlashcardOut)
+def card_review(card_id: uuid.UUID, data: dto.ReviewIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, Flashcard, user.id, card_id); review_card(db, row, data.grade); db.commit(); db.refresh(row); return row
+
+
+@router.get("/mistakes", response_model=list[dto.MistakeOut])
+def mistakes_list(subject: str | None = None, include_resolved: bool = False, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    statement = query_user(db, Mistake, user.id)
+    if subject: statement = statement.where(Mistake.subject == subject)
+    if not include_resolved: statement = statement.where(Mistake.resolved_at.is_(None))
+    return list(db.scalars(statement.order_by(Mistake.occurrences.desc(), Mistake.last_seen_at.desc()).limit(500)).all())
+
+
+@router.post("/mistakes", response_model=dto.MistakeOut, status_code=201)
+def mistake_create(data: dto.MistakeIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = Mistake(user_id=user.id, **data.model_dump()); db.add(row); db.commit(); db.refresh(row); return row
+
+
+@router.patch("/mistakes/{mistake_id}", response_model=dto.MistakeOut)
+def mistake_update(mistake_id: uuid.UUID, data: dto.MistakeUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, Mistake, user.id, mistake_id)
+    changes = data.model_dump(exclude_unset=True)
+    resolved = changes.pop("resolved", None)
+    for key, value in changes.items():
+        if key != "lesson" and value is None: continue
+        setattr(row, key, value)
+    if resolved is True and row.resolved_at is None: row.resolved_at = now_utc()
+    elif resolved is False: row.resolved_at = None
+    row.updated_at = now_utc(); db.commit(); db.refresh(row); return row
+
+
+@router.post("/mistakes/{mistake_id}/again", response_model=dto.MistakeOut)
+def mistake_repeat(mistake_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, Mistake, user.id, mistake_id); mistake_again(db, row); db.commit(); db.refresh(row); return row
+
+
+@router.post("/mistakes/{mistake_id}/card", response_model=dto.FlashcardOut, status_code=201)
+def mistake_card(mistake_id: uuid.UUID, data: dto.ToCardIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, Mistake, user.id, mistake_id); card = mistake_to_card(db, row, data.deck); db.commit(); db.refresh(card); return card
+
+
+@router.delete("/mistakes/{mistake_id}", status_code=204)
+def mistake_delete(mistake_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    db.delete(owned(db, Mistake, user.id, mistake_id)); db.commit()
 
 
 @router.get("/career/projects")

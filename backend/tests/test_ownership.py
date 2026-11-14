@@ -37,6 +37,9 @@ def world():
             "conversation": make("/chat", {"message": "hello"})["conversation_id"],
             "approval": make("/mcp/proposals", {"tool_name": "create_task", "payload": {"title": "Proposed for Alice"}})["id"],
         }
+        ids["card"] = make("/learning/cards", {"deck": "german", "front": "Alice card", "back": "x"})["id"]
+        ids["mistake"] = make("/mistakes", {"what_happened": "Alice mistake", "correction": "y"})["id"]
+        ids["job"] = make("/career/jobs", {"company": "Alice Co", "role": "Dev"})["id"]
         ids["milestone"] = make(f"/goals/{ids['goal']}/milestones", {"title": "Alice milestone"})["id"]
         yield client, a, b, ids
 
@@ -52,6 +55,15 @@ ID_ROUTES = [
     ("POST", "/goals/{goal}/milestones", {"title": "hijacked"}),
     ("PATCH", "/milestones/{milestone}", {"done": True}),
     ("DELETE", "/milestones/{milestone}", None),
+    ("PATCH", "/learning/cards/{card}", {"back": "hijacked"}),
+    ("POST", "/learning/cards/{card}/review", {"grade": "good"}),
+    ("DELETE", "/learning/cards/{card}", None),
+    ("PATCH", "/mistakes/{mistake}", {"resolved": True}),
+    ("POST", "/mistakes/{mistake}/again", None),
+    ("POST", "/mistakes/{mistake}/card", {}),
+    ("DELETE", "/mistakes/{mistake}", None),
+    ("PATCH", "/career/jobs/{job}", {"status": "rejected"}),
+    ("DELETE", "/career/jobs/{job}", None),
     ("PATCH", "/memories/{memory}", {"content": "hijacked"}),
     ("DELETE", "/memories/{memory}", None),
     ("POST", "/memories/{memory}/resurface", {"action": "dismiss"}),
@@ -71,7 +83,7 @@ def test_other_user_gets_404_on_my_records(world, method, path, body):
     assert response.status_code == 404, f"{method} {path} as another user -> {response.status_code}: {response.text}"
 
 
-@pytest.mark.parametrize("path", ["/tasks", "/goals", "/milestones", "/memories", "/capture", "/habits", "/focus/sessions", "/conversations", "/approvals"])
+@pytest.mark.parametrize("path", ["/tasks", "/goals", "/milestones", "/learning/cards", "/learning/review", "/mistakes", "/career/jobs", "/memories", "/capture", "/habits", "/focus/sessions", "/conversations", "/approvals"])
 def test_other_users_lists_never_include_my_records(world, path):
     client, _alice, bob, ids = world
     response = client.get("/api/v1" + path, headers=bob)
