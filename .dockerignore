@@ -1,0 +1,15 @@
+# Used only when the build context is the repo root (infra/render/Dockerfile).
+**/node_modules
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.next
+apps
+.gradle-cache
+.git
+backups
+apk
+**/.env
+**/.env.*
+!**/.env.example
+**/tests

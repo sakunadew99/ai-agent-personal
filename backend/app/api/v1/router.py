@@ -2,7 +2,9 @@ import uuid
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+import hmac
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, UploadFile, File
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
@@ -462,6 +464,22 @@ def focus_finish(session_id: uuid.UUID, data: dto.FocusFinish, db: Session = Dep
     if row.ended_at is not None: raise HTTPException(409, "Focus session is already finished")
     row.ended_at = now_utc(); row.distractions = data.distractions; row.notes = data.notes
     db.commit(); db.refresh(row); return row
+
+
+@router.post("/internal/tick", include_in_schema=False)
+def internal_tick(x_service_token: str = Header(default="")):
+    """Run one round of the reminder/check-in worker.
+
+    For free hosts where a background process cannot stay up: a scheduler (GitHub Actions) calls this
+    every few minutes with the SERVICE_TOKEN. Refused unless a strong token is configured.
+    """
+    from app.core.config import WEAK_SECRETS
+    from app.workers.checkins import process_once
+    configured = settings.service_token
+    if configured in WEAK_SECRETS or len(configured) < 32 or not hmac.compare_digest(x_service_token.encode(), configured.encode()):
+        raise HTTPException(403, "Forbidden")
+    process_once()
+    return {"status": "ok"}
 
 
 @router.get("/insights")

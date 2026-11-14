@@ -1,0 +1,34 @@
+# Render Blueprint: Dashboard -> New -> Blueprint -> pick this repo.
+# One free web service runs the API and the MCP server (/mcp). Database: Supabase (DATABASE_URL).
+# Reminders/check-ins: .github/workflows/tick.yml calls /api/v1/internal/tick every 10 minutes,
+# which also keeps the free service from sleeping.
+services:
+  - type: web
+    name: sakuna-api
+    runtime: docker
+    plan: free
+    region: singapore            # closest Render region to the Supabase project (Mumbai)
+    dockerfilePath: ./infra/render/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    buildFilter:
+      paths:
+        - backend/**
+        - mcp-service/**
+        - infra/render/**
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: REGISTRATION_OPEN
+        value: "false"
+      - key: DATABASE_URL          # paste the value from your local .env.supabase when Render asks
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SERVICE_TOKEN         # copy this value into the GitHub secret RENDER_SERVICE_TOKEN
+        generateValue: true
+      - key: CORS_ORIGINS          # your Vercel URL, e.g. https://sakuna-ai.vercel.app
+        sync: false
+      - key: OPENAI_API_KEY        # optional; leave empty to run free with rule-based fallbacks
+        sync: false
