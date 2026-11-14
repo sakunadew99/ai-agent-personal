@@ -89,6 +89,14 @@ def month_view(db: Session, user_id, month: str | None) -> dict:
     for stone in stones:
         put(stone.due_date, {"kind": "milestone", "id": str(stone.id), "goal_id": str(stone.goal_id), "title": stone.title,
                              "at": None, "status": "done" if stone.done_at else "open"})
+    # Study-abroad deadlines (programs and scholarships).
+    from app.models.entities import Scholarship, StudyProgram
+    for prog in db.scalars(select(StudyProgram).where(StudyProgram.user_id == user_id, StudyProgram.deadline >= first,
+                                                      StudyProgram.deadline < following, StudyProgram.stage != "dropped")).all():
+        put(prog.deadline, {"kind": "deadline", "id": str(prog.id), "title": f"Deadline: {prog.university}", "at": None, "status": prog.stage})
+    for sch in db.scalars(select(Scholarship).where(Scholarship.user_id == user_id, Scholarship.deadline >= first,
+                                                    Scholarship.deadline < following, Scholarship.status.in_(("researching", "preparing")))).all():
+        put(sch.deadline, {"kind": "deadline", "id": str(sch.id), "title": f"Scholarship: {sch.name}", "at": None, "status": sch.status})
     # Google Calendar events (read-only view). If the calendar isn't connected or Google fails, the plan still works.
     from app.services.gcalendar import list_events
     events, calendar_status = list_events(db, user_id, start, end)

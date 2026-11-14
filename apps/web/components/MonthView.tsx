@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiRequest, type JsonRecord as Row } from "@/lib/api";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const KIND_LABEL: Record<string, string> = { task: "Task", repeat: "Repeats", goal: "Goal deadline", milestone: "Milestone", event: "Google Calendar" };
+const KIND_LABEL: Record<string, string> = { task: "Task", repeat: "Repeats", goal: "Goal deadline", milestone: "Milestone", event: "Google Calendar", deadline: "Study deadline" };
 
 function shift(month: string, by: number) {
   const [y, m] = month.split("-").map(Number);

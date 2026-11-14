@@ -560,3 +560,28 @@ h1 { font-size: 30px; font-weight: 700; }
 .ai-features { display: grid; gap: 4px; padding-left: 4px; }
 .ai-switch { font-weight: 600; color: var(--text); }
 .ai-see { margin: 0; padding-left: 18px; font-size: 13px; color: var(--muted); display: grid; gap: 2px; }
+
+/* ---------- Coach ---------- */
+.coach-card { display: grid; gap: 10px; }
+.checkin { display: grid; gap: 8px; padding: 12px; border-radius: 12px; background: color-mix(in srgb, var(--text) 3%, transparent); }
+.checkin-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.checkin-row span { min-width: 56px; font-size: 13px; color: var(--muted); }
+.dot-btn { min-width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--text); cursor: pointer; font: inherit; }
+.dot-btn.on { background: var(--green); color: var(--bg); border-color: var(--green); }
+.brief { display: grid; gap: 6px; }
+.coach-suggestion { display: grid; gap: 6px; padding: 12px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--blue) 35%, var(--line)); }
+.coach-suggestion p { margin: 0; }
+.care-box { padding: 14px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--amber) 50%, var(--line)); background: color-mix(in srgb, var(--amber) 8%, var(--panel)); }
+.care-box p { margin: 0 0 8px; } .care-box ul { margin: 0 0 6px; padding-left: 18px; }
+.coach-settings { display: grid; gap: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.coach-settings label { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.coach-settings input[type="number"] { width: 70px; }
+/* ---------- Study abroad ---------- */
+.program-card { border-top: 1px solid var(--line); }
+.program-head { display: grid; grid-template-columns: 1fr auto auto auto; gap: 10px; align-items: center; padding: 10px 0; cursor: pointer; }
+.program-body { display: grid; gap: 8px; padding: 4px 0 14px 12px; border-left: 2px solid color-mix(in srgb, var(--green) 40%, transparent); }
+.program-body h3 { margin: 8px 0 0; font-size: 14px; }
+.done-row span { text-decoration: line-through; color: var(--muted); }
+.badge.stage-apply, .badge.stage-offer, .badge.stage-visa, .badge.stage-move { background: color-mix(in srgb, var(--green) 18%, transparent); color: var(--green); }
+.badge.stage-dropped { opacity: .6; }
+@media (max-width: 640px) { .program-head { grid-template-columns: 1fr auto; } }

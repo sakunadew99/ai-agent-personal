@@ -928,3 +928,151 @@ class AiSettingsIn(BaseModel):
     disabled_features: list[AiGroup] | None = Field(default=None, max_length=5)
     share_money: bool | None = None
     share_health: bool | None = None
+
+
+# ---------- Study abroad (guide 39) and coach (guide 26) ----------
+
+StudyStage = Literal["explore", "shortlist", "requirements", "prepare", "apply", "offer", "visa", "move", "dropped"]
+Money2 = Annotated[Decimal, Field(ge=0, max_digits=16, decimal_places=2)]
+
+
+class ProgramIn(BaseModel):
+    country: str = Field(min_length=1, max_length=80)
+    university: str = Field(min_length=1, max_length=200)
+    course: str = Field(min_length=1, max_length=200)
+    language: str | None = Field(default=None, max_length=40)
+    stage: StudyStage = "explore"
+    deadline: date | None = None
+    deadline_note: str | None = Field(default=None, max_length=200)
+    language_test: str | None = Field(default=None, max_length=80)
+    currency: Currency = "EUR"
+    application_fee: Money2 | None = None
+    tuition_per_year: Money2 | None = None
+    living_per_month: Money2 | None = None
+    fx_rate_to_lkr: Decimal | None = Field(default=None, gt=0, max_digits=18, decimal_places=6)
+    fx_rate_date: date | None = None
+    link: str | None = Field(default=None, max_length=500)
+    notes: str | None = Field(default=None, max_length=4000)
+
+
+class ProgramUpdate(BaseModel):
+    country: str | None = Field(default=None, min_length=1, max_length=80)
+    university: str | None = Field(default=None, min_length=1, max_length=200)
+    course: str | None = Field(default=None, min_length=1, max_length=200)
+    language: str | None = Field(default=None, max_length=40)
+    stage: StudyStage | None = None
+    deadline: date | None = None
+    deadline_note: str | None = Field(default=None, max_length=200)
+    language_test: str | None = Field(default=None, max_length=80)
+    application_fee: Money2 | None = None
+    tuition_per_year: Money2 | None = None
+    living_per_month: Money2 | None = None
+    fx_rate_to_lkr: Decimal | None = Field(default=None, gt=0, max_digits=18, decimal_places=6)
+    fx_rate_date: date | None = None
+    link: str | None = Field(default=None, max_length=500)
+    notes: str | None = Field(default=None, max_length=4000)
+    verified: bool | None = None   # true = "I checked the official page today"
+
+
+class ProgramOut(ORMModel):
+    id: uuid.UUID
+    country: str
+    university: str
+    course: str
+    language: str | None
+    stage: str
+    deadline: date | None
+    deadline_note: str | None
+    language_test: str | None
+    currency: str
+    application_fee: Decimal | None
+    tuition_per_year: Decimal | None
+    living_per_month: Decimal | None
+    fx_rate_to_lkr: Decimal | None
+    fx_rate_date: date | None
+    link: str | None
+    notes: str | None
+    last_verified_at: datetime | None
+    created_at: datetime
+
+
+class ChecklistIn(BaseModel):
+    create_tasks: bool = True
+    portfolio: bool = False
+
+
+class RequirementUpdate(BaseModel):
+    status: Literal["todo", "done", "na"] | None = None
+    due_date: date | None = None
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class RequirementOut(ORMModel):
+    id: uuid.UUID
+    program_id: uuid.UUID
+    kind: str
+    title: str
+    due_date: date | None
+    status: str
+    task_id: uuid.UUID | None
+    notes: str | None
+
+
+class StudyCostIn(BaseModel):
+    item: Literal["application_fee", "test_fee", "translation", "travel", "visa_fee", "deposit", "first_month", "tuition", "living", "insurance", "other"]
+    amount: Money2
+    currency: Currency
+    note: str | None = Field(default=None, max_length=200)
+
+
+class ScholarshipIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    provider: str | None = Field(default=None, max_length=200)
+    link: str | None = Field(default=None, max_length=500)
+    deadline: date | None = None
+    amount: Money2 | None = None
+    currency: str | None = Field(default=None, pattern=r"^[A-Za-z]{3}$")
+    eligibility_notes: str | None = Field(default=None, max_length=4000)
+    status: Literal["researching", "preparing", "applied", "won", "lost", "dropped"] = "researching"
+    program_id: uuid.UUID | None = None
+
+
+class ScholarshipUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    deadline: date | None = None
+    amount: Money2 | None = None
+    eligibility_notes: str | None = Field(default=None, max_length=4000)
+    status: Literal["researching", "preparing", "applied", "won", "lost", "dropped"] | None = None
+    verified: bool | None = None
+
+
+class ScholarshipOut(ORMModel):
+    id: uuid.UUID
+    program_id: uuid.UUID | None
+    name: str
+    provider: str | None
+    link: str | None
+    deadline: date | None
+    amount: Decimal | None
+    currency: str | None
+    eligibility_notes: str | None
+    status: str
+    last_verified_at: datetime | None
+
+
+class DailyCheckinIn(BaseModel):
+    energy: int = Field(ge=1, le=5)
+    mood: int = Field(ge=1, le=5)
+    win: str | None = Field(default=None, max_length=300)
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class CoachDecideIn(BaseModel):
+    option_id: str = Field(min_length=1, max_length=40)
+    helpful: bool | None = None
+
+
+class CoachSettingsIn(BaseModel):
+    tone: Literal["gentle", "direct"] | None = None
+    daily_cap: int | None = Field(default=None, ge=0, le=8)
+    muted_kinds: list[Literal["low_sleep", "overdue_pileup", "overloaded", "focus_drop", "no_exercise", "habit_slipping", "goal_behind", "envelope_over"]] | None = None

@@ -878,3 +878,144 @@ class CapturedCommand(Base):
     idempotency_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+
+# ---------- Study abroad planner (guide 39) ----------
+
+STUDY_STAGES = ("explore", "shortlist", "requirements", "prepare", "apply", "offer", "visa", "move", "dropped")
+
+
+class StudyProgram(Base):
+    __tablename__ = "study_programs"
+    __table_args__ = (CheckConstraint("stage IN ('explore','shortlist','requirements','prepare','apply','offer','visa','move','dropped')",
+                                      name="ck_study_programs_stage"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    country: Mapped[str] = mapped_column(String(80))
+    university: Mapped[str] = mapped_column(String(200))
+    course: Mapped[str] = mapped_column(String(200))
+    language: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    stage: Mapped[str] = mapped_column(String(16), default="explore", server_default="explore")
+    deadline: Mapped[date | None] = mapped_column(Date, nullable=True)
+    deadline_note: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    language_test: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    currency: Mapped[str] = mapped_column(String(3), default="EUR")
+    application_fee: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    tuition_per_year: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    living_per_month: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    fx_rate_to_lkr: Mapped[Decimal | None] = mapped_column(Numeric(18, 6), nullable=True)
+    fx_rate_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    link: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ProgramRequirement(Base):
+    __tablename__ = "program_requirements"
+    __table_args__ = (
+        UniqueConstraint("program_id", "kind", name="uq_program_requirements_program_kind"),
+        CheckConstraint("status IN ('todo','done','na')", name="ck_program_requirements_status"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    program_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("study_programs.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(40))
+    title: Mapped[str] = mapped_column(String(200))
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    status: Mapped[str] = mapped_column(String(8), default="todo", server_default="todo")
+    task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class StudyCost(Base):
+    __tablename__ = "study_costs"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    program_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("study_programs.id", ondelete="CASCADE"), index=True)
+    item: Mapped[str] = mapped_column(String(32))
+    amount: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    currency: Mapped[str] = mapped_column(String(3))
+    note: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Scholarship(Base):
+    __tablename__ = "scholarships"
+    __table_args__ = (CheckConstraint("status IN ('researching','preparing','applied','won','lost','dropped')", name="ck_scholarships_status"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    program_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("study_programs.id", ondelete="SET NULL"), nullable=True)
+    name: Mapped[str] = mapped_column(String(200))
+    provider: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    link: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    deadline: Mapped[date | None] = mapped_column(Date, nullable=True)
+    amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    eligibility_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="researching", server_default="researching")
+    last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# ---------- Coach (guide 26) ----------
+
+class CoachSettings(Base):
+    __tablename__ = "coach_settings"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    tone: Mapped[str] = mapped_column(String(8), default="gentle", server_default="gentle")
+    daily_cap: Mapped[int] = mapped_column(Integer, default=3, server_default="3")
+    muted_kinds: Mapped[list] = mapped_column(JsonDict, default=list)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class DailyCheckin(Base):
+    __tablename__ = "daily_checkins"
+    __table_args__ = (
+        UniqueConstraint("user_id", "local_date", name="uq_daily_checkins_user_date"),
+        CheckConstraint("energy BETWEEN 1 AND 5", name="ck_daily_checkins_energy"),
+        CheckConstraint("mood BETWEEN 1 AND 5", name="ck_daily_checkins_mood"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    local_date: Mapped[date] = mapped_column(Date)
+    energy: Mapped[int] = mapped_column(Integer)
+    mood: Mapped[int] = mapped_column(Integer)
+    win: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CoachSuggestion(Base):
+    """Output of the plain-code rules: evidence + 1-3 options. One per kind per day."""
+    __tablename__ = "coach_suggestions"
+    __table_args__ = (
+        UniqueConstraint("user_id", "kind", "local_date", name="uq_coach_suggestions_user_kind_date"),
+        CheckConstraint("status IN ('proposed','accepted','dismissed','expired')", name="ck_coach_suggestions_status"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    kind: Mapped[str] = mapped_column(String(32))
+    local_date: Mapped[date] = mapped_column(Date)
+    message: Mapped[str] = mapped_column(String(500))
+    evidence: Mapped[dict] = mapped_column(JsonDict, default=dict)
+    options: Mapped[list] = mapped_column(JsonDict, default=list)
+    status: Mapped[str] = mapped_column(String(16), default="proposed", server_default="proposed")
+    choice: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    helpful: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

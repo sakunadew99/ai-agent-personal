@@ -20,6 +20,8 @@ import { GoalForecast } from "@/components/GoalForecast";
 import { RewardsPage } from "@/components/RewardsPage";
 import { CommandBar } from "@/components/CommandBar";
 import { AiControls } from "@/components/AiControls";
+import { StudyPage } from "@/components/StudyPage";
+import { CoachCard } from "@/components/CoachCard";
 import { GoogleConnect, TaskCalendarButton } from "@/components/GoogleConnect";
 import { TimeEngine } from "@/components/TimeEngine";
 import { appendSpeech, VoiceButton, VoiceLanguageSelect } from "@/components/VoiceButton";
@@ -42,6 +44,7 @@ const navigation = [
   { label: "Career", icon: "briefcase", hint: "Skills, job tracker, freelance work" },
   { label: "Learning", icon: "book", hint: "Flashcards, German & English, mistake notebook" },
   { label: "Rewards", icon: "flame", hint: "Points, streak, quests and treats" },
+  { label: "Study abroad", icon: "arrow", hint: "Programs, checklist, costs, scholarships" },
   { label: "Experiences", icon: "compass", hint: "Places, events and moments" },
   { label: "Weekly review", icon: "review", group: "REFLECT", hint: "Plan vs actual, three changes" },
   { label: "Insights", icon: "chart", hint: "Snapshot of priorities and goals" },
@@ -349,7 +352,7 @@ export default function Home() {
 
   function renderPage(): ReactNode {
     switch (page) {
-      case "Home": return <><Overview dashboard={dashboard} onNavigate={navigate} reply={chatReply} text={chatText} setText={setChatText} ask={askAssistant} pending={askingAssistant} onCompleteTask={async id => { await call(`/tasks/${id}/complete`, token, { method: "PATCH" }); setToast("Task completed"); await fetchPage("Home", token); }} quickStart={<><CommandBar token={token} onChanged={() => void fetchPage("Home", token)}/><QuickStart onNavigate={navigate} onCapture={() => setPaletteOpen(true)} openTasks={Number(dashboard.task_counts?.open ?? tasks.length)}/><SecondBrainCard token={token} onChanged={() => { call<Row[]>("/approvals", token).then(rows => setPendingApprovals(toList(rows).filter(row => row.status === "pending").length)).catch(() => undefined); }}/></>} /></>;
+      case "Home": return <><Overview dashboard={dashboard} onNavigate={navigate} reply={chatReply} text={chatText} setText={setChatText} ask={askAssistant} pending={askingAssistant} onCompleteTask={async id => { await call(`/tasks/${id}/complete`, token, { method: "PATCH" }); setToast("Task completed"); await fetchPage("Home", token); }} quickStart={<><CommandBar token={token} onChanged={() => void fetchPage("Home", token)}/><CoachCard token={token} onNavigate={navigate} onChanged={() => void fetchPage("Home", token)}/><QuickStart onNavigate={navigate} onCapture={() => setPaletteOpen(true)} openTasks={Number(dashboard.task_counts?.open ?? tasks.length)}/><SecondBrainCard token={token} onChanged={() => { call<Row[]>("/approvals", token).then(rows => setPendingApprovals(toList(rows).filter(row => row.status === "pending").length)).catch(() => undefined); }}/></>} /></>;
       case "Weekly review": return <WeeklyReview tasks={toList(data.tasks)} sessions={toList(data.sessions)} dashboard={data.dashboard || {}} reviews={toList(data.reviews)} save={async content => { await submit("/memories", { content, category: "decision" }); }} />;
       case "My life": return <MyLife tasks={tasks} goals={goals} habits={toList(data.habits)} token={token} refresh={() => fetchPage()} submit={submit} />;
       case "Assistant": return <ChatPage token={token} conversations={toList(data.conversations)} onChanged={() => { call<Row[]>("/conversations", token).then(rows => setData(current => ({ ...current, conversations: rows }))).catch(() => undefined); }} />;
@@ -359,6 +362,7 @@ export default function Home() {
       case "Career": return <Career profile={data.profile || {}} projects={toList(data.projects)} submit={submit} token={token} />;
       case "Learning": return <LearningPage token={token} />;
       case "Rewards": return <RewardsPage token={token} />;
+      case "Study abroad": return <StudyPage token={token} />;
       case "Health": return <Health records={toList(data.records)} workouts={toList(data.workouts)} sleep={toList(data.sleep)} submit={submit} />;
       case "Focus": return <FocusPage sessions={toList(data.sessions)} tasks={toList(data.tasks)} />;
       case "Experiences": return <Experiences entries={toList(data.entries)} submit={submit} />;

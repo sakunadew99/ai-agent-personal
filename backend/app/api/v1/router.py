@@ -22,7 +22,7 @@ from app.models.entities import (
     Expense, FocusSession, FreelanceProject, Goal, Habit, HabitLog, HealthRecord,
     Income, JobApplication, Liability, LifeEntry, Memory, Message, Notification,
     PlanItem, RefreshToken, SleepRecord, Task, User, UserProfile, Workout, CareerProfile, GoalMilestone,
-    Flashcard, Mistake, Quest, Treat, CapturedCommand, FinancialAccount, AccountAdjustment, Envelope, WishlistItem, PriceNote, BuyListItem,
+    Flashcard, Mistake, Quest, Treat, CapturedCommand, StudyProgram, ProgramRequirement, StudyCost, Scholarship, CoachSuggestion, FinancialAccount, AccountAdjustment, Envelope, WishlistItem, PriceNote, BuyListItem,
 )
 from app.schemas import dto
 from app.services.actions import (
@@ -38,7 +38,7 @@ from app.services.permissions import seed_user_defaults
 from app.services.learning import (
     clean_deck, create_card, due_cards, import_cards, job_summary, learning_stats, mistake_again, mistake_to_card, review_card,
 )
-from app.services import commands, game, gcalendar, goal_engine, google_oauth
+from app.services import coach, commands, game, gcalendar, goal_engine, google_oauth, study
 from app.services.audit import audit
 from app.services import money as money_svc
 from app.services.time_engine import insights as time_insights
@@ -521,6 +521,147 @@ def job_update(job_id: uuid.UUID, data: dto.JobUpdate, db: Session = Depends(get
 @router.delete("/career/jobs/{job_id}", status_code=204)
 def job_delete(job_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     db.delete(owned(db, JobApplication, user.id, job_id)); db.commit()
+
+
+# ---------- Study abroad planner (guide 39). Never submits, pays or contacts anyone. ----------
+
+@router.get("/study")
+def study_overview(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return study.overview(db, user.id)
+
+
+@router.get("/study/programs", response_model=list[dto.ProgramOut])
+def study_programs(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return list(db.scalars(query_user(db, StudyProgram, user.id).order_by(StudyProgram.deadline.asc().nullslast(), StudyProgram.created_at)).all())
+
+
+@router.post("/study/programs", response_model=dto.ProgramOut, status_code=201)
+def study_program_create(data: dto.ProgramIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = StudyProgram(user_id=user.id, **data.model_dump()); db.add(row); db.commit(); db.refresh(row); return row
+
+
+@router.patch("/study/programs/{program_id}", response_model=dto.ProgramOut)
+def study_program_update(program_id: uuid.UUID, data: dto.ProgramUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, StudyProgram, user.id, program_id)
+    changes = data.model_dump(exclude_unset=True)
+    verified = changes.pop("verified", None)
+    for key, value in changes.items():
+        if key in ("country", "university", "course", "stage") and value is None: continue
+        setattr(row, key, value)
+    study.mark_verified(row) if verified else study.touch(row)
+    db.commit(); db.refresh(row); return row
+
+
+@router.delete("/study/programs/{program_id}", status_code=204)
+def study_program_delete(program_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    db.delete(owned(db, StudyProgram, user.id, program_id)); db.commit()
+
+
+@router.post("/study/programs/{program_id}/checklist", response_model=list[dto.RequirementOut])
+def study_checklist(program_id: uuid.UUID, data: dto.ChecklistIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    rows = study.build_checklist(db, owned(db, StudyProgram, user.id, program_id), data.create_tasks, data.portfolio); db.commit(); return rows
+
+
+@router.get("/study/programs/{program_id}/requirements", response_model=list[dto.RequirementOut])
+def study_requirements(program_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    owned(db, StudyProgram, user.id, program_id)
+    return list(db.scalars(select(ProgramRequirement).where(ProgramRequirement.user_id == user.id, ProgramRequirement.program_id == program_id)
+                           .order_by(ProgramRequirement.due_date.asc().nullslast())).all())
+
+
+@router.patch("/study/requirements/{req_id}", response_model=dto.RequirementOut)
+def study_requirement_update(req_id: uuid.UUID, data: dto.RequirementUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, ProgramRequirement, user.id, req_id)
+    changes = data.model_dump(exclude_unset=True)
+    if changes.get("status") in ("done", "todo"): study.requirement_done(db, row, changes["status"] == "done")
+    elif changes.get("status") == "na": row.status = "na"
+    if "due_date" in changes: row.due_date = changes["due_date"]
+    if "notes" in changes: row.notes = changes["notes"]
+    study.touch(row); db.commit(); db.refresh(row); return row
+
+
+@router.get("/study/programs/{program_id}/costs")
+def study_costs(program_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return study.cost_plan(db, owned(db, StudyProgram, user.id, program_id))
+
+
+@router.post("/study/programs/{program_id}/costs", status_code=201)
+def study_cost_add(program_id: uuid.UUID, data: dto.StudyCostIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    program = owned(db, StudyProgram, user.id, program_id)
+    db.add(StudyCost(user_id=user.id, program_id=program.id, **data.model_dump())); db.commit()
+    return study.cost_plan(db, program)
+
+
+@router.delete("/study/costs/{cost_id}", status_code=204)
+def study_cost_delete(cost_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    db.delete(owned(db, StudyCost, user.id, cost_id)); db.commit()
+
+
+@router.post("/study/programs/{program_id}/fund-goal", response_model=dto.GoalOut, status_code=201)
+def study_fund_goal(program_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    goal = study.create_fund_goal(db, owned(db, StudyProgram, user.id, program_id)); db.commit(); db.refresh(goal); return goal
+
+
+@router.get("/study/scholarships", response_model=list[dto.ScholarshipOut])
+def study_scholarships(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return list(db.scalars(query_user(db, Scholarship, user.id).order_by(Scholarship.deadline.asc().nullslast())).all())
+
+
+@router.post("/study/scholarships", response_model=dto.ScholarshipOut, status_code=201)
+def study_scholarship_create(data: dto.ScholarshipIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    values = data.model_dump()
+    if values.get("program_id"): owned(db, StudyProgram, user.id, values["program_id"])
+    values["currency"] = values["currency"].upper() if values.get("currency") else None
+    row = Scholarship(user_id=user.id, **values); db.add(row); db.commit(); db.refresh(row); return row
+
+
+@router.patch("/study/scholarships/{sch_id}", response_model=dto.ScholarshipOut)
+def study_scholarship_update(sch_id: uuid.UUID, data: dto.ScholarshipUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, Scholarship, user.id, sch_id)
+    changes = data.model_dump(exclude_unset=True)
+    verified = changes.pop("verified", None)
+    for key, value in changes.items():
+        if key in ("name", "status") and value is None: continue
+        setattr(row, key, value)
+    study.mark_verified(row) if verified else study.touch(row)
+    db.commit(); db.refresh(row); return row
+
+
+@router.delete("/study/scholarships/{sch_id}", status_code=204)
+def study_scholarship_delete(sch_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    db.delete(owned(db, Scholarship, user.id, sch_id)); db.commit()
+
+
+# ---------- Coach moments (guide 26): code finds patterns, you choose ----------
+
+@router.get("/coach")
+def coach_today(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    out = coach.today_view(db, user.id); db.commit(); return out
+
+
+@router.post("/coach/checkin")
+def coach_checkin(data: dto.DailyCheckinIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    _row, distress = coach.checkin(db, user.id, data.energy, data.mood, data.win, data.note); db.commit()
+    return {"saved": True, "care": coach.CARE if distress else None}
+
+
+@router.post("/coach/suggestions/{suggestion_id}/decide")
+def coach_decide(suggestion_id: uuid.UUID, data: dto.CoachDecideIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    result = coach.decide(db, owned(db, CoachSuggestion, user.id, suggestion_id), data.option_id, data.helpful); db.commit(); return result
+
+
+@router.patch("/coach/settings")
+def coach_settings_update(data: dto.CoachSettingsIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    cfg = coach.settings_for(db, user.id)
+    for key, value in data.model_dump(exclude_unset=True).items():
+        if value is not None: setattr(cfg, key, sorted(set(value)) if key == "muted_kinds" else value)
+    cfg.updated_at = now_utc(); db.commit()
+    return {"tone": cfg.tone, "daily_cap": cfg.daily_cap, "muted_kinds": cfg.muted_kinds}
+
+
+@router.get("/coach/history")
+def coach_history(days: int = Query(30, ge=1, le=365), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return coach.history(db, user.id, days)
 
 
 # ---------- "Say it once" commands (guide 34): text or voice -> task, one question if unclear, Undo ----------

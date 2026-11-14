@@ -12,11 +12,12 @@ import { JobsScreen, LearningScreen } from "./src/screens/LearningScreens";
 import { MoneyListsScreen, TimeCard } from "./src/screens/MoneyListsScreen";
 import { RewardsScreen } from "./src/screens/RewardsScreen";
 import { AiScreen, CommandCard } from "./src/screens/CommandAiScreens";
+import { CoachCardMobile, StudyScreen } from "./src/screens/StudyCoachScreens";
 import { cancelFocusEnd, scheduleFocusEnd, syncReminders } from "./src/notify";
 import { appendSpeech, MicButton } from "./src/voice";
 
 type Tab = "Home" | "Plan" | "Capture" | "Focus" | "More";
-const SUB_TITLES: Record<MoreTarget, string> = { Assistant: "Assistant", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
+const SUB_TITLES: Record<MoreTarget, string> = { Assistant: "Assistant", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
 
 export default function App() {
   const [email, setEmail] = useState("");
@@ -147,7 +148,7 @@ export default function App() {
       {!(tab === "More" && sub) && <TouchableOpacity onPress={() => void loadTab(tab)}><Text style={styles.refresh}>Refresh ↻</Text></TouchableOpacity>}</View>
     {!!error && <Text style={styles.errorBox}>{error}</Text>}{!!notice && <TouchableOpacity onPress={() => setNotice("")}><Text style={styles.notice}>{notice}  ×</Text></TouchableOpacity>}
     <View style={styles.screen}>
-      {tab === "Home" && <HomeScreen dashboard={dashboard} finance={finance} health={health} onComplete={completeTask} onOpenPlan={() => setTab("Plan")} top={<BrainCard api={api}/>}/>}
+      {tab === "Home" && <HomeScreen dashboard={dashboard} finance={finance} health={health} onComplete={completeTask} onOpenPlan={() => setTab("Plan")} top={<><CoachCardMobile api={api} onError={showError}/><BrainCard api={api}/></>}/>}
       {tab === "Plan" && <PlanScreen plan={plan} busy={busy} generate={generatePlan} extra={<><TimeCard api={api}/><MonthAgenda api={api}/></>}/>}
       {tab === "Capture" && <CaptureScreen captures={captures} text={captureText} setText={setCaptureText} save={saveCapture} confirm={confirmCapture} busy={busy} top={<CommandCard api={api} onError={showError}/>}/>}
       {tab === "Focus" && <FocusScreen seconds={focusSeconds} active={focusActive} setActive={setFocusActive} setSeconds={setFocusSeconds}/>}
@@ -156,6 +157,7 @@ export default function App() {
       {tab === "More" && sub === "Life" && <LifeScreen api={api} onError={showError}/>}
       {tab === "More" && sub === "Learning" && <LearningScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Jobs" && <JobsScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "Study" && <StudyScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "AI" && <AiScreen api={api} onError={showError}/>}
       {tab === "More" && sub === "Rewards" && <RewardsScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Money" && <MoneyListsScreen api={api} onError={showError} onNotice={showNotice}/>}
