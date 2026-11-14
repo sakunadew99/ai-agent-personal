@@ -187,7 +187,7 @@ def test_ignored_three_times_asks_keep_or_stop(api):
     assert [o["id"] for o in s["options"]][:2] == ["keep", "mute"]
     api("POST", f"/coach/suggestions/{s['id']}/decide", {"option_id": "mute"}, 200)
     with SessionLocal() as db:
-        assert db.query(User).get(uid) is not None
+        assert db.get(User, uid) is not None
     assert "low_sleep" in api("PATCH", "/coach/settings", {}, 200).json()["muted_kinds"]
 
 

@@ -59,7 +59,7 @@ export function CoachCard({ token, onNavigate, onChanged }: { token: string; onN
     {(c.suggestions as Row[]).map(s => <div className="coach-suggestion" key={s.id}>
       <small className="eyebrow">{KIND_LABEL[s.kind] || s.kind}</small>
       <p>{s.message}</p>
-      <small className="muted">Based on: {Object.entries(s.evidence as Row).map(([k, v]) => `${k.replaceAll("_", " ")} ${v}`).join(" · ")}</small>
+      <small className="muted">Based on: {Object.entries(s.evidence as Row).filter(([, v]) => v !== null && v !== undefined && v !== "").map(([k, v]) => `${k.replaceAll("_", " ")}: ${v}`).join(" · ")}</small>
       <div className="row-actions" style={{ justifyContent: "flex-start" }}>{(s.options as Row[]).map(o => <button key={o.id} className={o.action === "none" ? "outline" : "primary"}
         onClick={() => void run(apiRequest<Row>(`/coach/suggestions/${s.id}/decide`, token, postJson({ option_id: o.id })), r => {
           if (r.open) onNavigate(r.open); setMsg(r.moved != null ? `Moved ${r.moved} task(s) to next Monday.` : r.task_id ? "Added to your tasks." : "");

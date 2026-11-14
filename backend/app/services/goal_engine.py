@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -192,10 +192,10 @@ def forecast(db: Session, goal: Goal) -> dict:
 
 def set_levels(db: Session, goal: Goal, levels: list) -> list[GoalLevel]:
     if len({lv.level for lv in levels}) != len(levels):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Each level can appear once")
+        raise HTTPException(422, "Each level can appear once")
     by = {lv.level: lv for lv in levels}
     if "floor" in by and "stretch" in by and by["floor"].target_value > by["stretch"].target_value:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Floor should not be above stretch")
+        raise HTTPException(422, "Floor should not be above stretch")
     existing = {row.level: row for row in db.scalars(select(GoalLevel).where(GoalLevel.goal_id == goal.id)).all()}
     for name, row in existing.items():
         if name not in by:
@@ -211,5 +211,5 @@ def set_levels(db: Session, goal: Goal, levels: list) -> list[GoalLevel]:
 
 def validate_metric(metric: str | None, currency: str | None) -> str | None:
     if metric in MONEY_METRICS and not currency:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Money goals need a currency, e.g. LKR or USD")
+        raise HTTPException(422, "Money goals need a currency, e.g. LKR or USD")
     return currency.upper() if currency else None

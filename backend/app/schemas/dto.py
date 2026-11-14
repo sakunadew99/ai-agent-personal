@@ -1075,4 +1075,49 @@ class CoachDecideIn(BaseModel):
 class CoachSettingsIn(BaseModel):
     tone: Literal["gentle", "direct"] | None = None
     daily_cap: int | None = Field(default=None, ge=0, le=8)
-    muted_kinds: list[Literal["low_sleep", "overdue_pileup", "overloaded", "focus_drop", "no_exercise", "habit_slipping", "goal_behind", "envelope_over"]] | None = None
+    muted_kinds: list[Literal["low_sleep", "document_expiring", "overdue_pileup", "overloaded", "focus_drop", "no_exercise", "habit_slipping", "goal_behind", "envelope_over"]] | None = None
+
+
+# ---------- Life balance (guide 20) and document vault ----------
+
+class AreaIn(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    unit: str = Field(default="times", max_length=20)
+    weekly_target: Decimal = Field(default=Decimal("3"), ge=0, le=1000, max_digits=8, decimal_places=2)
+
+
+class AreaUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=60)
+    unit: str | None = Field(default=None, min_length=1, max_length=20)
+    weekly_target: Decimal | None = Field(default=None, ge=0, le=1000, max_digits=8, decimal_places=2)
+    active: bool | None = None
+
+
+class AreaLogIn(BaseModel):
+    amount: Decimal = Field(default=Decimal("1"), gt=0, le=100, max_digits=6, decimal_places=2)
+    note: str | None = Field(default=None, max_length=200)
+
+
+DocKind = Literal["passport", "visa", "national_id", "driving_license", "insurance", "warranty", "certificate", "transcript", "language_test", "other"]
+
+
+class DocumentIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    kind: DocKind = "other"
+    number: str | None = Field(default=None, max_length=60)
+    issued_on: date | None = None
+    expires_on: date | None = None
+    renew_lead_days: int | None = Field(default=None, ge=0, le=730)
+    location_note: str | None = Field(default=None, max_length=300)
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class DocumentUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    kind: DocKind | None = None
+    number: str | None = Field(default=None, max_length=60)   # "" removes it
+    issued_on: date | None = None
+    expires_on: date | None = None
+    renew_lead_days: int | None = Field(default=None, ge=0, le=730)
+    location_note: str | None = Field(default=None, max_length=300)
+    notes: str | None = Field(default=None, max_length=2000)

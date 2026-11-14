@@ -1,0 +1,199 @@
+/* ==========================================================================
+   Sakuna design layer: one consistent look for every form, button and card.
+   Loaded last. Uses only theme tokens, so light and dark themes both work.
+   :where() keeps specificity at zero, so any component rule still wins.
+   ========================================================================== */
+
+:root {
+  --radius-field: 10px;
+  --radius-card: 16px;
+  --field-bg: var(--c-0e1411);
+  --field-border: var(--line);
+  --field-focus: var(--green);
+  --ring: 0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent);
+  --shadow-card: 0 1px 0 color-mix(in srgb, var(--text) 4%, transparent) inset, 0 10px 30px -18px rgba(0, 0, 0, .55);
+  --ease-out: cubic-bezier(.2, .7, .2, 1);
+}
+
+/* ---------- Text fields, selects, text areas (everywhere in the app) ---------- */
+:where(.content, .palette) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea) {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 40px;
+  padding: 9px 12px;
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius-field);
+  background-color: var(--field-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  outline: none;
+  transition: border-color .15s var(--ease-out), box-shadow .15s var(--ease-out), background-color .15s var(--ease-out);
+}
+:where(.content) :where(textarea) { min-height: 72px; resize: vertical; line-height: 1.55; }
+:where(.content, .palette) :where(input, select, textarea):hover:not(:disabled):not(:focus) { border-color: color-mix(in srgb, var(--green) 35%, var(--line)); }
+:where(.content, .palette) :where(input, select, textarea):focus { border-color: var(--field-focus); box-shadow: var(--ring); }
+:where(.content, .palette) :where(input, textarea)::placeholder { color: color-mix(in srgb, var(--muted) 85%, transparent); opacity: 1; }
+:where(.content) :where(input, select, textarea):disabled { opacity: .55; cursor: not-allowed; }
+:where(.content) :where(select) {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b9a91' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  cursor: pointer;
+}
+:where(.content) :where(input[type="date"], input[type="time"], input[type="datetime-local"], input[type="month"]) { font-variant-numeric: tabular-nums; }
+:where(.content) :where(input[type="checkbox"], input[type="radio"]) { width: 16px; height: 16px; accent-color: var(--green); cursor: pointer; }
+:where(.content) :where(input[type="number"]) { font-variant-numeric: tabular-nums; }
+
+/* Fields sitting next to a mic button stretch; the mic keeps its size. */
+.with-mic { align-items: center; }
+.with-mic > input, .with-mic > textarea { width: 100%; }
+
+/* Compact forms in a row: equal, flexible fields that wrap nicely. */
+.inline-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 10px; }
+.inline-form > input, .inline-form > select { flex: 1 1 150px; }
+.inline-form > .with-mic { flex: 2 1 240px; }
+.inline-form > .cur-input { flex: 0 0 76px; text-align: center; text-transform: uppercase; letter-spacing: .06em; }
+.inline-form > .qty-input { flex: 0 0 84px; }
+.inline-form > button { flex: 0 0 auto; }
+
+/* Labelled field grid for bigger forms (Study abroad, etc.). */
+.field-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px 14px; margin-top: 8px; }
+.field-grid label { display: grid; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.field-grid label > input, .field-grid label > select, .field-grid label > textarea { width: 100%; text-transform: none; letter-spacing: normal; font-weight: 400; }
+.field-grid .span-2 { grid-column: span 2; }
+.field-grid .span-all { grid-column: 1 / -1; }
+.form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
+@media (max-width: 560px) { .field-grid .span-2 { grid-column: auto; } }
+
+/* Single-line inputs inside cards fill the width. */
+.checkin input, .command-form .with-mic input, .milestone-add input:first-child, .search-input { width: 100%; }
+
+/* ---------- Buttons ---------- */
+.primary, .outline {
+  min-height: 38px;
+  border-radius: var(--radius-field);
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 650;
+  transition: transform .12s var(--ease-out), box-shadow .15s var(--ease-out), background-color .15s var(--ease-out), border-color .15s var(--ease-out);
+}
+.primary { background: linear-gradient(180deg, color-mix(in srgb, var(--green) 92%, white), var(--green)); box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--green) 70%, transparent); }
+.primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 22px -10px color-mix(in srgb, var(--green) 80%, transparent); }
+.outline { background: color-mix(in srgb, var(--text) 3%, var(--panel)); }
+.outline:hover:not(:disabled) { border-color: var(--green); color: var(--green); }
+.primary:active:not(:disabled), .outline:active:not(:disabled) { transform: translateY(0); }
+:where(button, a, [role="button"]):focus-visible { outline: 2px solid var(--green); outline-offset: 2px; border-radius: var(--radius-field); }
+.primary:disabled, .outline:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+.text-button { font-size: 12px; font-weight: 600; border-radius: 8px; padding: 6px 8px; }
+.text-button:hover:not(:disabled) { background: color-mix(in srgb, var(--green) 10%, transparent); }
+.danger-link { font-size: 12px; border-radius: 8px; padding: 6px 8px; }
+.danger-link:hover:not(:disabled) { background: color-mix(in srgb, var(--red) 10%, transparent); }
+
+/* ---------- Cards and panels ---------- */
+.panel {
+  border-radius: var(--radius-card);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--text) 2.5%, var(--panel)), var(--panel));
+  box-shadow: var(--shadow-card);
+}
+.panel-head h2 { font-size: 19px; letter-spacing: -.02em; }
+.eyebrow { letter-spacing: .14em; }
+.metric { position: relative; overflow: hidden; }
+.metric::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: linear-gradient(90deg, var(--green), color-mix(in srgb, var(--green) 10%, transparent)); opacity: .85; }
+.metric h2 { font-size: 26px; letter-spacing: -.03em; }
+.empty-state { border-radius: 12px; padding: 22px 16px; background: color-mix(in srgb, var(--text) 2%, transparent); line-height: 1.6; }
+.notice-card { border-radius: 12px; }
+.success-note, .warning-copy { border-radius: 10px; }
+.success-note { font-size: 12px; padding: 10px 12px; }
+.badge { font-size: 10px; font-weight: 700; padding: 4px 9px; }
+.progress { height: 6px; }
+.progress span { background: linear-gradient(90deg, var(--green), color-mix(in srgb, var(--green) 70%, var(--blue, #7cb8ff))); }
+.tab-bar { gap: 2px; }
+.tab-bar button { font-size: 13px; font-weight: 600; border-radius: 10px 10px 0 0; transition: color .15s, background-color .15s; }
+.tab-bar button:hover { color: var(--text); background: color-mix(in srgb, var(--text) 3%, transparent); }
+
+/* Rows inside lists */
+.money-row, .card-row, .mistake-row, .wish-row, .treat-row, .quest-row, .buy-row, .job-closed-row, .ledger-row { transition: background-color .12s; border-radius: 8px; }
+.money-row:hover, .card-row:hover, .wish-row:hover, .treat-row:hover, .buy-row:hover { background: color-mix(in srgb, var(--text) 2.5%, transparent); }
+
+/* Home: Say-it-once bar stands out a little. */
+.command-bar { background: linear-gradient(135deg, color-mix(in srgb, var(--green) 9%, var(--panel)), var(--panel) 55%); }
+.command-form input { min-height: 46px; font-size: 15px; padding-left: 16px; }
+.command-form .primary { min-height: 46px; padding: 0 22px; }
+
+/* Coach check-in pills */
+.dot-btn { min-width: 40px; height: 40px; font-size: 15px; transition: transform .12s var(--ease-out), background-color .15s, border-color .15s; }
+.dot-btn:hover { border-color: var(--green); transform: translateY(-1px); }
+.checkin { gap: 10px; padding: 16px; }
+.coach-suggestion { background: color-mix(in srgb, var(--blue, #7cb8ff) 4%, var(--panel)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .primary, .outline, .dot-btn, .money-row { transition: none; }
+  .primary:hover:not(:disabled) { transform: none; }
+}
+
+/* ---------- Life balance ---------- */
+.balance-hero { display: grid; grid-template-columns: auto 1fr auto; gap: 18px; align-items: center;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--green) 10%, var(--panel)), var(--panel) 60%); }
+.balance-week { display: flex; align-items: center; gap: 12px; }
+.balance-week h2 { margin: 0; font-size: 20px; }
+.balance-score { display: flex; align-items: baseline; gap: 8px; justify-self: center; }
+.balance-score b { font-size: 40px; letter-spacing: -.04em; color: var(--green); }
+.balance-score span { color: var(--muted); font-size: 13px; }
+.balance-mini { display: flex; gap: 4px; align-items: flex-end; height: 42px; }
+.balance-mini .mini { width: 10px; height: 100%; border-radius: 6px; background: linear-gradient(to top, var(--green) var(--p), color-mix(in srgb, var(--text) 8%, transparent) var(--p)); }
+.balance-mini .mini.status-zero { background: color-mix(in srgb, var(--amber) 30%, transparent); }
+.balance-warn { margin: 12px 0 0; border-color: color-mix(in srgb, var(--amber) 45%, var(--line)); background: color-mix(in srgb, var(--amber) 8%, var(--panel)); font-size: 13px; }
+.area-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin: 14px 0; }
+.area-card { display: grid; gap: 12px; align-content: start; transition: transform .15s var(--ease-out), border-color .15s; }
+.area-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--green) 35%, var(--line)); }
+.area-card.status-met { border-color: color-mix(in srgb, var(--green) 45%, var(--line)); }
+.area-top { display: flex; align-items: center; gap: 10px; }
+.area-top b { flex: 1; font-size: 15px; }
+.area-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; background: color-mix(in srgb, var(--text) 5%, transparent); font-size: 18px; }
+.area-chip { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: color-mix(in srgb, var(--blue) 16%, transparent); color: var(--blue); }
+.area-chip.status-met { background: color-mix(in srgb, var(--green) 18%, transparent); color: var(--green); }
+.area-chip.status-zero { background: color-mix(in srgb, var(--muted) 15%, transparent); color: var(--muted); }
+.area-ring { --p: 0%; width: 112px; height: 112px; margin: 2px auto; border-radius: 50%; display: grid; place-items: center;
+  background: conic-gradient(var(--green) var(--p), color-mix(in srgb, var(--text) 7%, transparent) 0); }
+.area-card.status-zero .area-ring { background: conic-gradient(var(--amber) 0, color-mix(in srgb, var(--text) 7%, transparent) 0); }
+.area-ring > div { display: grid; place-items: center; width: 86px; height: 86px; border-radius: 50%; background: var(--panel); text-align: center; }
+.area-ring b { font-size: 22px; letter-spacing: -.03em; line-height: 1; }
+.area-ring small { font-size: 10px; color: var(--muted); max-width: 72px; }
+.area-spark { display: flex; align-items: flex-end; gap: 6px; height: 34px; justify-content: center; }
+.area-spark span { width: 18px; border-radius: 5px 5px 2px 2px; background: color-mix(in srgb, var(--text) 12%, transparent); }
+.area-spark span.now { background: var(--green); }
+.area-how { text-align: center; min-height: 30px; }
+.target-edit { display: flex; gap: 6px; }
+.target-edit input { width: 72px; min-height: 34px !important; }
+.target-edit .primary { min-height: 34px; padding: 6px 12px; }
+@media (max-width: 760px) { .balance-hero { grid-template-columns: 1fr; justify-items: start; } .balance-score { justify-self: start; } }
+
+/* ---------- Document vault ---------- */
+.vault-metric.status-expired::before { background: linear-gradient(90deg, var(--red), transparent); }
+.vault-metric.status-renew_now::before { background: linear-gradient(90deg, var(--amber), transparent); }
+.vault-metric.status-no_expiry::before { background: linear-gradient(90deg, var(--muted), transparent); }
+.needs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.need { display: flex; gap: 10px; padding: 12px; border-radius: 12px; border: 1px solid var(--line); }
+.need > span { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; font-weight: 900; flex-shrink: 0; }
+.need.have > span { background: color-mix(in srgb, var(--green) 20%, transparent); color: var(--green); }
+.need.missing { border-style: dashed; }
+.need.missing > span { background: color-mix(in srgb, var(--amber) 18%, transparent); color: var(--amber); }
+.need > div { display: grid; gap: 2px; }
+.doc-list { display: grid; gap: 8px; }
+.doc-row { display: grid; grid-template-columns: auto 1fr auto; gap: 6px 12px; align-items: center; padding: 12px; border-radius: 12px; border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--text) 1.5%, transparent); transition: border-color .15s; }
+.doc-row:hover { border-color: color-mix(in srgb, var(--green) 30%, var(--line)); }
+.doc-row.status-expired { border-color: color-mix(in srgb, var(--red) 45%, var(--line)); }
+.doc-row.status-renew_now { border-color: color-mix(in srgb, var(--amber) 45%, var(--line)); }
+.doc-row .row-actions { grid-column: 2 / -1; justify-content: flex-start; }
+.doc-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; font-size: 20px; background: color-mix(in srgb, var(--text) 5%, transparent); }
+.doc-main { display: grid; gap: 3px; min-width: 0; }
+.doc-chip { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); white-space: nowrap; }
+.doc-chip.status-expired { background: color-mix(in srgb, var(--red) 16%, transparent); color: var(--red); }
+.doc-chip.status-renew_now { background: color-mix(in srgb, var(--amber) 18%, transparent); color: var(--amber); }
+.doc-chip.status-no_expiry { background: color-mix(in srgb, var(--muted) 15%, transparent); color: var(--muted); }

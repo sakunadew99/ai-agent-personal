@@ -1019,3 +1019,63 @@ class CoachSuggestion(Base):
     helpful: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+
+# ---------- Whole-life balance (guide 20) ----------
+
+class LifeArea(Base):
+    """A life area with a weekly target. 'metric' says how actual is measured from data you already log."""
+    __tablename__ = "life_areas"
+    __table_args__ = (UniqueConstraint("user_id", "key", name="uq_life_areas_user_key"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    key: Mapped[str] = mapped_column(String(32))
+    name: Mapped[str] = mapped_column(String(60))
+    metric: Mapped[str] = mapped_column(String(32), default="manual")
+    unit: Mapped[str] = mapped_column(String(20), default="times")
+    weekly_target: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("3"))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AreaEntry(Base):
+    """Manual 'I did this' log for an area (rest block, called a friend...). Adds to the measured actual."""
+    __tablename__ = "area_entries"
+    __table_args__ = (Index("ix_area_entries_user_date", "user_id", "local_date"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    area_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("life_areas.id", ondelete="CASCADE"), index=True)
+    local_date: Mapped[date] = mapped_column(Date)
+    amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("1"))
+    note: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# ---------- Document vault (guide 39.6 / 32): what you have, where it is, when it expires ----------
+
+class VaultDocument(Base):
+    """No files are uploaded. The document number (if you add one) is encrypted with TOKEN_ENCRYPTION_KEY."""
+    __tablename__ = "vault_documents"
+    __table_args__ = (CheckConstraint(
+        "kind IN ('passport','visa','national_id','driving_license','insurance','warranty','certificate','transcript','language_test','other')",
+        name="ck_vault_documents_kind"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    name: Mapped[str] = mapped_column(String(120))
+    kind: Mapped[str] = mapped_column(String(20), default="other")
+    number_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    number_hint: Mapped[str | None] = mapped_column(String(4), nullable=True)   # last 3 characters, for recognising it
+    issued_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    expires_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    renew_lead_days: Mapped[int] = mapped_column(Integer, default=30)
+    location_note: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reminder_task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

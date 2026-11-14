@@ -22,11 +22,14 @@ import { CommandBar } from "@/components/CommandBar";
 import { AiControls } from "@/components/AiControls";
 import { StudyPage } from "@/components/StudyPage";
 import { CoachCard } from "@/components/CoachCard";
+import { BalancePage } from "@/components/BalancePage";
+import { VaultPage } from "@/components/VaultPage";
 import { GoogleConnect, TaskCalendarButton } from "@/components/GoogleConnect";
 import { TimeEngine } from "@/components/TimeEngine";
 import { appendSpeech, VoiceButton, VoiceLanguageSelect } from "@/components/VoiceButton";
 import "./home.css";
 import "./upgrade.css";
+import "./polish.css";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "";
 type Row = JsonRecord;
@@ -45,8 +48,10 @@ const navigation = [
   { label: "Learning", icon: "book", hint: "Flashcards, German & English, mistake notebook" },
   { label: "Rewards", icon: "flame", hint: "Points, streak, quests and treats" },
   { label: "Study abroad", icon: "arrow", hint: "Programs, checklist, costs, scholarships" },
+  { label: "Documents", icon: "copy", hint: "Passport, visas, IDs and expiry reminders" },
   { label: "Experiences", icon: "compass", hint: "Places, events and moments" },
-  { label: "Weekly review", icon: "review", group: "REFLECT", hint: "Plan vs actual, three changes" },
+  { label: "Life balance", icon: "sun", group: "REFLECT", hint: "Target vs actual per life area" },
+  { label: "Weekly review", icon: "review", hint: "Plan vs actual, three changes" },
   { label: "Insights", icon: "chart", hint: "Snapshot of priorities and goals" },
   { label: "Memory", icon: "brain", hint: "What Sakuna remembers about you" },
   { label: "Approvals", icon: "shield", group: "CONTROL", hint: "AI proposals waiting for your yes" },
@@ -363,6 +368,8 @@ export default function Home() {
       case "Learning": return <LearningPage token={token} />;
       case "Rewards": return <RewardsPage token={token} />;
       case "Study abroad": return <StudyPage token={token} />;
+      case "Documents": return <VaultPage token={token} />;
+      case "Life balance": return <BalancePage token={token} />;
       case "Health": return <Health records={toList(data.records)} workouts={toList(data.workouts)} sleep={toList(data.sleep)} submit={submit} />;
       case "Focus": return <FocusPage sessions={toList(data.sessions)} tasks={toList(data.tasks)} />;
       case "Experiences": return <Experiences entries={toList(data.entries)} submit={submit} />;

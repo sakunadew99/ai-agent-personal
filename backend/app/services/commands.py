@@ -499,7 +499,7 @@ def answer(db: Session, cmd: CapturedCommand, value: str) -> CapturedCommand:
         if t is None and re.fullmatch(r"\d{1,2}:\d{2}", value):
             t = time.fromisoformat(value.zfill(5))
         if t is None:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Say a time like 15:00 or 3 pm.")
+            raise HTTPException(422, "Say a time like 15:00 or 3 pm.")
         p["time"] = t.strftime("%H:%M")
         p["ambiguity"] = [a for a in p.get("ambiguity", []) if a != "meridian"]
     elif kind == "date":
@@ -508,7 +508,7 @@ def answer(db: Session, cmd: CapturedCommand, value: str) -> CapturedCommand:
         else:
             d, _, _ = parse_date(value, today)
             if d is None:
-                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Say a day like tomorrow, Friday or 20 Nov.")
+                raise HTTPException(422, "Say a day like tomorrow, Friday or 20 Nov.")
             p["date"] = d.isoformat()
     elif kind == "past":
         if value == "tomorrow":

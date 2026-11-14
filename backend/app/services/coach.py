@@ -24,7 +24,7 @@ from app.models.entities import (
 )
 from app.services.audit import audit
 
-KINDS = ("low_sleep", "overdue_pileup", "overloaded", "focus_drop", "no_exercise", "habit_slipping", "goal_behind", "envelope_over")
+KINDS = ("low_sleep", "document_expiring", "overdue_pileup", "overloaded", "focus_drop", "no_exercise", "habit_slipping", "goal_behind", "envelope_over")
 OPEN = ("inbox", "todo", "in_progress")
 DISTRESS = re.compile(r"\b(suicid\w*|kill myself|end (?:my|it all)|self[- ]?harm|hurt myself|want to die|don'?t want to (?:live|be here)|"
                       r"no reason to live|can'?t go on|hopeless|better off dead)\b", re.I)
@@ -136,11 +136,12 @@ def rule_no_exercise(db: Session, user_id, tz, today: date, gentle: bool) -> Fin
     ever_steps = db.scalar(select(func.count()).select_from(HealthRecord).where(HealthRecord.user_id == user_id, HealthRecord.metric == "steps")) or 0
     if last is None and not ever_steps:
         return None  # never tracked exercise: don't nag
-    days = (now_utc() - as_utc(last)).days if last else 99
-    if days < 7:
+    days = (now_utc() - as_utc(last)).days if last else None
+    if days is not None and days < 7:
         return None
-    return Finding("no_exercise", f"No workout logged in {days if days < 99 else 'over 7'} days. A short walk counts.",
-                   {"days_since_workout": days if days < 99 else None},
+    text = f"No workout logged in {days} days." if days is not None else "No workout logged yet (you do track steps)."
+    return Finding("no_exercise", f"{text} A short walk counts.",
+                   {"days_since_last_workout": days} if days is not None else {"workouts_logged": 0},
                    [_opt("walk", "Add a 20-min walk tomorrow 07:30", "task_tomorrow:20-minute walk:07:30:20"), _opt("dismiss", "Not now", "none")])
 
 
@@ -186,7 +187,21 @@ def rule_envelope_over(db: Session, user_id, tz, today: date, gentle: bool) -> F
                    [_opt("look", "Open the Money hub", "open:Finance"), _opt("dismiss", "Okay", "none")])
 
 
-RULES = {"low_sleep": rule_low_sleep, "overdue_pileup": rule_overdue, "overloaded": rule_overloaded, "focus_drop": rule_focus_drop,
+def rule_document_expiring(db: Session, user_id, tz, today: date, gentle: bool) -> Finding | None:
+    from app.models.entities import VaultDocument
+    from app.services.vault import status_of
+    for doc in db.scalars(select(VaultDocument).where(VaultDocument.user_id == user_id, VaultDocument.expires_on.is_not(None))
+                          .order_by(VaultDocument.expires_on)).all():
+        state, days = status_of(doc, today)
+        if state in ("renew_now", "expired") and doc.reminder_task_id is None:
+            when = f"expired {-days} days ago" if state == "expired" else f"expires in {days} days"
+            return Finding("document_expiring", f"Your {doc.name} {when}. Renewals can take weeks, so it's worth starting now.",
+                           {"document": doc.name, "expires_on": doc.expires_on.isoformat(), "days_left": days},
+                           [_opt("remind", "Add a renewal task", f"doc_reminder:{doc.id}"), _opt("dismiss", "Not now", "none")])
+    return None
+
+
+RULES = {"low_sleep": rule_low_sleep, "document_expiring": rule_document_expiring, "overdue_pileup": rule_overdue, "overloaded": rule_overloaded, "focus_drop": rule_focus_drop,
          "no_exercise": rule_no_exercise, "habit_slipping": rule_habit_slipping, "goal_behind": rule_goal_behind, "envelope_over": rule_envelope_over}
 
 
@@ -243,7 +258,7 @@ def decide(db: Session, row: CoachSuggestion, option_id: str, helpful: bool | No
         raise HTTPException(status.HTTP_409_CONFLICT, "This suggestion was already handled.")
     option = next((o for o in row.options if o["id"] == option_id), None)
     if option is None:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown option")
+        raise HTTPException(422, "Unknown option")
     profile = _profile(db, row.user_id)
     tz = zone(profile.timezone if profile else None)
     today = datetime.now(tz).date()
@@ -267,6 +282,13 @@ def decide(db: Session, row: CoachSuggestion, option_id: str, helpful: bool | No
             task.updated_at = now_utc()
             moved += 1
         result["moved"] = moved
+    elif action.startswith("doc_reminder:"):
+        import uuid as _uuid
+        from app.models.entities import VaultDocument
+        from app.services.vault import add_reminder
+        doc = db.get(VaultDocument, _uuid.UUID(action.split(":", 1)[1]))
+        if doc is not None and doc.user_id == row.user_id:
+            result["task_id"] = str(add_reminder(db, doc).id)
     elif action == "mute":
         cfg = settings_for(db, row.user_id)
         cfg.muted_kinds = sorted(set(cfg.muted_kinds or []) | {row.kind})

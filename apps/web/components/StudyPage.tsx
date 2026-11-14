@@ -56,18 +56,20 @@ export function StudyPage({ token }: { token: string }) {
 
     <section className="panel">
       <div className="panel-head"><div><p className="eyebrow">PROGRAMS</p><h2>Explore → Shortlist → Apply → Visa → Move</h2></div></div>
-      <form className="inline-form" onSubmit={add}>
-        <input value={form.university} onChange={e => setForm({ ...form, university: e.target.value })} placeholder="University" required maxLength={200}/>
-        <input value={form.course} onChange={e => setForm({ ...form, course: e.target.value })} placeholder="Course (e.g. MSc Data Science)" required maxLength={200}/>
-        <input value={form.country} onChange={e => setForm({ ...form, country: e.target.value })} placeholder="Country" required maxLength={80}/>
-        <input type="date" value={form.deadline} onChange={e => setForm({ ...form, deadline: e.target.value })} aria-label="Deadline"/>
-        <input value={form.language_test} onChange={e => setForm({ ...form, language_test: e.target.value })} placeholder="Language test (IELTS 6.5)" maxLength={80}/>
-        <input value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value.toUpperCase() })} maxLength={3} className="cur-input" aria-label="Currency"/>
-        <input value={form.tuition_per_year} onChange={e => setForm({ ...form, tuition_per_year: e.target.value })} placeholder="Tuition / year" inputMode="decimal"/>
-        <input value={form.living_per_month} onChange={e => setForm({ ...form, living_per_month: e.target.value })} placeholder="Living / month" inputMode="decimal"/>
-        <input value={form.application_fee} onChange={e => setForm({ ...form, application_fee: e.target.value })} placeholder="Application fee" inputMode="decimal"/>
-        <input value={form.link} onChange={e => setForm({ ...form, link: e.target.value })} placeholder="Official page link" maxLength={500}/>
-        <button className="primary" disabled={!form.university.trim() || !form.course.trim() || !form.country.trim()}>Add program</button>
+      <form onSubmit={add}>
+        <div className="field-grid">
+          <label className="span-2">University<input value={form.university} onChange={e => setForm({ ...form, university: e.target.value })} placeholder="e.g. TU Munich" required maxLength={200}/></label>
+          <label className="span-2">Course<input value={form.course} onChange={e => setForm({ ...form, course: e.target.value })} placeholder="e.g. MSc Data Science" required maxLength={200}/></label>
+          <label>Country<input value={form.country} onChange={e => setForm({ ...form, country: e.target.value })} placeholder="e.g. Germany" required maxLength={80}/></label>
+          <label>Application deadline<input type="date" value={form.deadline} onChange={e => setForm({ ...form, deadline: e.target.value })}/></label>
+          <label>Language test<input value={form.language_test} onChange={e => setForm({ ...form, language_test: e.target.value })} placeholder="e.g. IELTS 6.5" maxLength={80}/></label>
+          <label>Currency<input value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value.toUpperCase() })} maxLength={3} placeholder="EUR"/></label>
+          <label>Tuition / year<input value={form.tuition_per_year} onChange={e => setForm({ ...form, tuition_per_year: e.target.value })} placeholder="0 if free" inputMode="decimal"/></label>
+          <label>Living / month<input value={form.living_per_month} onChange={e => setForm({ ...form, living_per_month: e.target.value })} placeholder="e.g. 1100" inputMode="decimal"/></label>
+          <label>Application fee<input value={form.application_fee} onChange={e => setForm({ ...form, application_fee: e.target.value })} placeholder="e.g. 75" inputMode="decimal"/></label>
+          <label className="span-all">Official page link<input value={form.link} onChange={e => setForm({ ...form, link: e.target.value })} placeholder="https://…" maxLength={500}/></label>
+        </div>
+        <div className="form-actions"><button className="primary" disabled={!form.university.trim() || !form.course.trim() || !form.country.trim()}>Add program</button></div>
       </form>
       <div className="card-list">{programs.map(p => <ProgramCard key={p.id} token={token} p={p} open={open === p.id} toggle={() => setOpen(open === p.id ? null : p.id)} run={run}/>)}
         {!programs.length && <div className="empty-state">Add programs you're considering. Facts you enter get a “last verified” date so you know when to re-check.</div>}</div>

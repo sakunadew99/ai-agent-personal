@@ -141,7 +141,7 @@ def envelope_status(db: Session, user_id, month: str | None = None) -> list[dict
             year, mon = (int(x) for x in month.split("-"))
             first = date(year, mon, 1)
         except ValueError as exc:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "month must look like 2026-11") from exc
+            raise HTTPException(422, "month must look like 2026-11") from exc
     else:
         first = _month_start(datetime.now(tz).date())
     lo = datetime.combine(first, time.min, tzinfo=tz).astimezone(timezone.utc)
@@ -215,7 +215,7 @@ def decide_wish(db: Session, row: WishlistItem, action: str, record_expense: boo
         paid = amount if amount is not None else row.price
         if record_expense:
             if paid is None or paid <= 0:
-                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Enter the amount you paid to record the expense")
+                raise HTTPException(422, "Enter the amount you paid to record the expense")
             expense = create_expense(db, row.user_id, ExpenseIn(amount=paid, currency=row.currency, category=row.category,
                                                                  merchant=None, notes=f"Wish list: {row.name}"))
             row.expense_id = expense.id
@@ -228,7 +228,7 @@ def decide_wish(db: Session, row: WishlistItem, action: str, record_expense: boo
 def affordability(db: Session, user_id, row: WishlistItem) -> dict:
     """Numbers only (guide 36.2): what's safe to spend, fun money left, upcoming commitments, effect on your savings target."""
     if row.price is None:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Add a price to check affordability")
+        raise HTTPException(422, "Add a price to check affordability")
     price, cur = q(row.price), row.currency
     view = balance_view(db, user_id, cur)["currencies"][0]
     fun = [e for e in envelope_status(db, user_id) if e["kind"] == "fun" and e["currency"] == cur]
@@ -269,7 +269,7 @@ def checkout(db: Session, user_id, items: list[BuyListItem], amount: Decimal | N
     if not items:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
     if any(i.currency != currency for i in items if i.est_price is not None) and amount is None:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Items use different currencies; enter the amount you paid")
+        raise HTTPException(422, "Items use different currencies; enter the amount you paid")
     total = q(amount) if amount is not None else q(sum((Decimal(i.est_price) for i in items if i.est_price is not None), ZERO))
     expense = None
     if total > 0:

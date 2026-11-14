@@ -111,7 +111,7 @@ def add_task(db: Session, user_id, task: Task, popup_minutes: int | None, email_
     if g.CAL_EVENTS not in conn.scopes.split():
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Calendar is connected read-only. Reconnect and allow adding events.")
     if task.due_at is None:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Give the task a date and time first.")
+        raise HTTPException(422, "Give the task a date and time first.")
     if task.calendar_event_id:
         raise HTTPException(status.HTTP_409_CONFLICT, "This task is already in your Google Calendar.")
     profile = db.scalar(select(UserProfile).where(UserProfile.user_id == user_id))

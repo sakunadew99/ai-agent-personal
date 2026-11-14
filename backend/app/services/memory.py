@@ -16,7 +16,7 @@ def save_memory(db, user_id, content: str, category: str, source: str, allow_sen
     sensitivity = sensitivity_of(content)
     if sensitivity == "sensitive" and not allow_sensitive:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            422,
             "This looks sensitive and was not saved. Confirm explicitly if you still want it stored.",
         )
     if check_duplicates:
@@ -52,7 +52,7 @@ def update_memory(db, row: Memory, content: str | None, category: str | None, pi
         sensitivity = sensitivity_of(content)
         if sensitivity == "sensitive" and not allow_sensitive:
             raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                422,
                 "This looks sensitive and was not saved. Confirm explicitly if you still want it stored.",
             )
         row.content = content.strip()

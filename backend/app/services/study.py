@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -55,7 +55,7 @@ def needs_verify(row, today: date) -> bool:
 def build_checklist(db: Session, program: StudyProgram, create_tasks: bool, portfolio: bool = False) -> list[ProgramRequirement]:
     """Requirement items with due dates counted back from the deadline. Existing kinds are kept (idempotent)."""
     if program.deadline is None:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Add the application deadline first; the checklist counts back from it.")
+        raise HTTPException(422, "Add the application deadline first; the checklist counts back from it.")
     tz = _tz(db, program.user_id)
     today = datetime.now(tz).date()
     existing = {r.kind: r for r in db.scalars(select(ProgramRequirement).where(ProgramRequirement.program_id == program.id)).all()}
@@ -151,7 +151,7 @@ def create_fund_goal(db: Session, program: StudyProgram):
     else:
         target, currency = plan["first_year_total"], program.currency
     if not target:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Add costs (tuition, living, fees) first.")
+        raise HTTPException(422, "Add costs (tuition, living, fees) first.")
     goal = create_goal(db, program.user_id, GoalIn(title=f"Study fund: {program.university}"[:200], category="finance", target_value=target,
                                                    unit=currency, due_date=program.deadline, metric="savings_balance", metric_currency=currency))
     return goal

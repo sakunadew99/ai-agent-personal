@@ -310,7 +310,7 @@ def add_quest(db: Session, user_id, data) -> Quest:
 
 def redeem(db: Session, user_id, treat: Treat, confirm: bool, over_budget_ok: bool) -> dict:
     if not confirm:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Please confirm the redemption.")
+        raise HTTPException(422, "Please confirm the redemption.")
     if not treat.active:
         raise HTTPException(status.HTTP_409_CONFLICT, "This treat is not active.")
     have = balance(db, user_id)

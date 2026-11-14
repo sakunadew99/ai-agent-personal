@@ -47,7 +47,7 @@ export function CoachCardMobile({ api, onError }: { api: Api; onError: (m: strin
       <Btn kind="link" title="Drop" onPress={() => run(api(`/tasks/${t.id}`, "PATCH", { status: "cancelled" }))}/></Line>)}
     {(c.suggestions as Row[]).map(s => <View key={s.id} style={{ gap: 4, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: C.line }}>
       <Text style={{ color: C.text }}>{s.message}</Text>
-      <Muted small>{`Based on: ${Object.entries(s.evidence as Row).map(([k, v]) => `${k.replaceAll("_", " ")} ${v}`).join(" · ")}`}</Muted>
+      <Muted small>{`Based on: ${Object.entries(s.evidence as Row).filter(([, v]) => v !== null && v !== undefined && v !== "").map(([k, v]) => `${k.replaceAll("_", " ")}: ${v}`).join(" · ")}`}</Muted>
       <Line style={{ flexWrap: "wrap" }}>{(s.options as Row[]).map(o => <Btn key={o.id} kind={o.action === "none" ? "outline" : "primary"} title={o.label}
         onPress={() => run(api(`/coach/suggestions/${s.id}/decide`, "POST", { option_id: o.id }))}/>)}</Line>
     </View>)}

@@ -22,7 +22,7 @@ from app.models.entities import (
     Expense, FocusSession, FreelanceProject, Goal, Habit, HabitLog, HealthRecord,
     Income, JobApplication, Liability, LifeEntry, Memory, Message, Notification,
     PlanItem, RefreshToken, SleepRecord, Task, User, UserProfile, Workout, CareerProfile, GoalMilestone,
-    Flashcard, Mistake, Quest, Treat, CapturedCommand, StudyProgram, ProgramRequirement, StudyCost, Scholarship, CoachSuggestion, FinancialAccount, AccountAdjustment, Envelope, WishlistItem, PriceNote, BuyListItem,
+    Flashcard, Mistake, Quest, Treat, CapturedCommand, StudyProgram, ProgramRequirement, StudyCost, Scholarship, CoachSuggestion, LifeArea, AreaEntry, VaultDocument, FinancialAccount, AccountAdjustment, Envelope, WishlistItem, PriceNote, BuyListItem,
 )
 from app.schemas import dto
 from app.services.actions import (
@@ -38,7 +38,7 @@ from app.services.permissions import seed_user_defaults
 from app.services.learning import (
     clean_deck, create_card, due_cards, import_cards, job_summary, learning_stats, mistake_again, mistake_to_card, review_card,
 )
-from app.services import coach, commands, game, gcalendar, goal_engine, google_oauth, study
+from app.services import balance, coach, commands, game, gcalendar, goal_engine, google_oauth, study, vault
 from app.services.audit import audit
 from app.services import money as money_svc
 from app.services.time_engine import insights as time_insights
@@ -521,6 +521,82 @@ def job_update(job_id: uuid.UUID, data: dto.JobUpdate, db: Session = Depends(get
 @router.delete("/career/jobs/{job_id}", status_code=204)
 def job_delete(job_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     db.delete(owned(db, JobApplication, user.id, job_id)); db.commit()
+
+
+# ---------- Whole-life balance (guide 20): weekly target vs actual per area ----------
+
+@router.get("/balance")
+def balance_view(week: date | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    out = balance.view(db, user.id, week); db.commit(); return out
+
+
+@router.post("/balance/areas", status_code=201)
+def balance_area_create(data: dto.AreaIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    balance.add_area(db, user.id, data.name, data.unit, data.weekly_target); db.commit(); return balance.view(db, user.id)
+
+
+@router.patch("/balance/areas/{area_id}")
+def balance_area_update(area_id: uuid.UUID, data: dto.AreaUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, LifeArea, user.id, area_id)
+    for key, value in data.model_dump(exclude_unset=True).items():
+        if value is not None: setattr(row, key, value.strip() if isinstance(value, str) else value)
+    balance.touch(row); db.commit(); return balance.view(db, user.id)
+
+
+@router.post("/balance/areas/{area_id}/log", status_code=201)
+def balance_area_log(area_id: uuid.UUID, data: dto.AreaLogIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    entry = balance.log_entry(db, owned(db, LifeArea, user.id, area_id), data.amount, data.note); db.commit()
+    return {"id": entry.id, "view": balance.view(db, user.id)}
+
+
+@router.delete("/balance/entries/{entry_id}", status_code=204)
+def balance_entry_delete(entry_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    db.delete(owned(db, AreaEntry, user.id, entry_id)); db.commit()
+
+
+# ---------- Document vault: details and expiry, never files; numbers encrypted ----------
+
+@router.get("/vault")
+def vault_overview(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return vault.overview(db, user.id)
+
+
+@router.post("/vault/documents", status_code=201)
+def vault_create(data: dto.DocumentIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    values = data.model_dump(exclude={"number"})
+    if values.get("renew_lead_days") is None: values["renew_lead_days"] = vault.LEAD_DAYS.get(data.kind, 30)
+    row = VaultDocument(user_id=user.id, **values)
+    vault.set_number(row, data.number)
+    db.add(row); db.flush(); audit(db, user.id, "vault.create", "vault_document", row.id, {"kind": row.kind})
+    db.commit(); db.refresh(row)
+    return vault.out(row, datetime.now(zone(profile_for(db, user).timezone)).date())
+
+
+@router.patch("/vault/documents/{doc_id}")
+def vault_update(doc_id: uuid.UUID, data: dto.DocumentUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, VaultDocument, user.id, doc_id)
+    changes = data.model_dump(exclude_unset=True)
+    if "number" in changes: vault.set_number(row, changes.pop("number") or "")
+    for key, value in changes.items():
+        if key in ("name", "kind", "renew_lead_days") and value is None: continue
+        setattr(row, key, value)
+    row.updated_at = now_utc(); db.commit(); db.refresh(row)
+    return vault.out(row, datetime.now(zone(profile_for(db, user).timezone)).date())
+
+
+@router.delete("/vault/documents/{doc_id}", status_code=204)
+def vault_delete(doc_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, VaultDocument, user.id, doc_id); audit(db, user.id, "vault.delete", "vault_document", row.id); db.delete(row); db.commit()
+
+
+@router.post("/vault/documents/{doc_id}/reveal")
+def vault_reveal(doc_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    value = vault.reveal(db, owned(db, VaultDocument, user.id, doc_id)); db.commit(); return {"number": value}
+
+
+@router.post("/vault/documents/{doc_id}/reminder", status_code=201)
+def vault_reminder(doc_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    task = vault.add_reminder(db, owned(db, VaultDocument, user.id, doc_id)); db.commit(); return {"task_id": task.id, "title": task.title, "due_at": task.due_at}
 
 
 # ---------- Study abroad planner (guide 39). Never submits, pays or contacts anyone. ----------

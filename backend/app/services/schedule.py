@@ -51,7 +51,7 @@ def month_view(db: Session, user_id, month: str | None) -> dict:
             year, mon = (int(part) for part in month.split("-"))
             first = date(year, mon, 1)
         except ValueError as exc:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "month must look like 2026-11") from exc
+            raise HTTPException(422, "month must look like 2026-11") from exc
     else:
         first = datetime.now(tz).date().replace(day=1)
     following = date(first.year + (first.month == 12), first.month % 12 + 1, 1)
@@ -97,6 +97,10 @@ def month_view(db: Session, user_id, month: str | None) -> dict:
     for sch in db.scalars(select(Scholarship).where(Scholarship.user_id == user_id, Scholarship.deadline >= first,
                                                     Scholarship.deadline < following, Scholarship.status.in_(("researching", "preparing")))).all():
         put(sch.deadline, {"kind": "deadline", "id": str(sch.id), "title": f"Scholarship: {sch.name}", "at": None, "status": sch.status})
+    from app.models.entities import VaultDocument
+    for doc in db.scalars(select(VaultDocument).where(VaultDocument.user_id == user_id, VaultDocument.expires_on >= first,
+                                                      VaultDocument.expires_on < following)).all():
+        put(doc.expires_on, {"kind": "expiry", "id": str(doc.id), "title": f"Expires: {doc.name}", "at": None, "status": "expiry"})
     # Google Calendar events (read-only view). If the calendar isn't connected or Google fails, the plan still works.
     from app.services.gcalendar import list_events
     events, calendar_status = list_events(db, user_id, start, end)

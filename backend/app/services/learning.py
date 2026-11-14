@@ -61,7 +61,7 @@ def _local_day_bounds(tz, day: date) -> tuple[datetime, datetime]:
 def clean_deck(name: str) -> str:
     deck = " ".join(name.strip().lower().split())[:64]
     if not deck:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Deck name is required")
+        raise HTTPException(422, "Deck name is required")
     return deck
 
 
@@ -70,7 +70,7 @@ def clean_deck(name: str) -> str:
 def create_card(db: Session, user_id, deck: str, front: str, back: str, example: str | None = None) -> Flashcard:
     deck, front, back = clean_deck(deck), front.strip(), back.strip()
     if not front or not back:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Both sides of the card are needed")
+        raise HTTPException(422, "Both sides of the card are needed")
     exists = db.scalar(select(Flashcard).where(Flashcard.user_id == user_id, Flashcard.deck == deck, Flashcard.front == front))
     if exists is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, f"“{front}” is already in the {deck} deck")
@@ -131,7 +131,7 @@ def review_card(db: Session, row: Flashcard, grade: str) -> Flashcard:
     try:
         nxt = schedule(row.ease, row.interval_days, row.repetitions, row.lapses, grade, now)
     except ValueError as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+        raise HTTPException(422, str(exc)) from exc
     row.ease, row.interval_days, row.repetitions, row.lapses, row.due_at = nxt.ease, nxt.interval_days, nxt.repetitions, nxt.lapses, nxt.due_at
     row.last_reviewed_at = row.updated_at = now
     db.add(FlashcardReview(user_id=row.user_id, card_id=row.id, grade=grade, interval_days=nxt.interval_days, reviewed_at=now))
