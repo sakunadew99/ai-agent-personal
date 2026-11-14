@@ -315,3 +315,5 @@ h1 { font-size: 30px; font-weight: 700; }
   .msg.user .msg-body { max-width: 88%; }
 }
 @media (max-width: 760px) { .chat-layout { height: calc(100dvh - 190px); } }
+.chat-banner.error { background: color-mix(in srgb, var(--red) 12%, transparent); border-color: color-mix(in srgb, var(--red) 40%, transparent); }
+.chat-banner.error .icon { color: var(--red); }

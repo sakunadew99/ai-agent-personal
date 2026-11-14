@@ -68,3 +68,21 @@ def test_assistant_status_never_exposes_the_key(monkeypatch):
     status = routes.assistant_status(user=None)
     assert status["ai_enabled"] is True and status["provider"] == "api.groq.com"
     assert "secret-key-value" not in str(status)
+
+
+def test_provider_error_is_remembered_without_the_key(monkeypatch):
+    import httpx
+    key = "sk-test-secret-123"
+    monkeypatch.setattr(ai_client.settings, "ai_api_key", key)
+    monkeypatch.setattr(ai_client.settings, "ai_base_url", "https://api.openai.com/v1")
+    request = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
+    response = httpx.Response(429, request=request, json={"error": {"message": f"You exceeded your current quota ({key})", "code": "insufficient_quota"}})
+
+    def fake_post(*args, **kwargs):
+        return response
+
+    monkeypatch.setattr(ai_client.httpx, "post", fake_post)
+    assert ai_client.chat_complete(_Db(), None, "conversation", "gpt-4.1-nano", [{"role": "user", "content": "hi"}]) is None
+    assert ai_client.last_error["status"] == 429
+    assert "exceeded your current quota" in ai_client.last_error["message"]
+    assert key not in ai_client.last_error["message"]

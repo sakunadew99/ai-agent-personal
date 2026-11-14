@@ -18,6 +18,30 @@ def _url(path: str) -> str:
     return f"{settings.ai_base_url.rstrip('/')}/{path.lstrip('/')}"
 
 
+# Last provider failure, for the in-app status (provider's message only; the API key is never included).
+last_error: dict | None = None
+
+
+def _remember_error(exc: Exception) -> None:
+    global last_error
+    status = None
+    message = type(exc).__name__
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code
+        try:
+            body = exc.response.json()
+            err = body.get("error", body) if isinstance(body, dict) else body
+            message = (err.get("message") or err.get("code") or str(err)) if isinstance(err, dict) else str(err)
+        except ValueError:
+            message = exc.response.text[:300] or message
+    elif isinstance(exc, httpx.HTTPError):
+        message = f"Could not reach the AI provider ({type(exc).__name__})"
+    key = _api_key()
+    if key:
+        message = message.replace(key, "***")
+    last_error = {"status": status, "message": str(message)[:300]}
+
+
 def ai_enabled() -> bool:
     """True when a language-model provider key is configured."""
     return bool(_api_key())
@@ -65,9 +89,12 @@ def chat_complete(db: Session, user_id, feature: str, model: str, messages: list
         response.raise_for_status()
         data = response.json()
         _record(db, user_id, feature, model, data.get("usage") or {})
+        global last_error
+        last_error = None
         return data["choices"][0]["message"]["content"]
-    except (httpx.HTTPError, KeyError, IndexError):
+    except (httpx.HTTPError, KeyError, IndexError) as exc:
         logger.exception("chat completion failed")
+        _remember_error(exc)
         return None
 
 

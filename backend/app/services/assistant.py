@@ -282,7 +282,11 @@ def _phrase(db, user, conversation, message, draft, intent) -> str:
     messages.append({"role": "user", "content": message})
     messages.append({"role": "system", "content": f"Facts and action log:\n{draft}"})
     phrased = chat_complete(db, user.id, intent, model_for("analysis" if intent in {"finance", "productivity"} else "conversation"), messages, temperature=0.4)
-    return phrased or draft
+    if phrased:
+        return phrased
+    # Provider call failed: give the readable rule-based reply, never the raw fact sheet.
+    note = "_(The AI provider didn't answer this time, so this is a basic reply. See the note at the top of the chat.)_"
+    return f"{_local_reply(message, draft, intent)}\n\n{note}"
 
 
 def _local_reply(message: str, draft: str, intent: str) -> str:

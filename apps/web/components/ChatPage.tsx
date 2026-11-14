@@ -14,6 +14,14 @@ const STARTERS = [
   { title: "Learn something", prompt: "Explain spaced repetition and how I can use it to learn German vocabulary." },
 ];
 
+function providerHint(err: Row): string {
+  const text = `${err.status ?? ""} ${err.message ?? ""}`.toLowerCase();
+  if (text.includes("401") || text.includes("api key") || text.includes("invalid_api_key")) return "Check the key in Render → Environment (no spaces; a newly created key replaces the old one).";
+  if (text.includes("quota") || text.includes("billing") || text.includes("429")) return "OpenAI: check Settings → Billing has credit and that the key's project can use it. New credit can take a few minutes.";
+  if (text.includes("model") || text.includes("404")) return "The model name may be wrong or not allowed for this key's project. Check the OPENAI_MODEL_* values and the project's model permissions.";
+  return "Check the AI settings on Render, then send the message again.";
+}
+
 /** Full chat experience: thread with history, past conversations, Markdown replies, Enter to send. */
 export function ChatPage({ token, conversations, onChanged }: { token: string; conversations: Row[]; onChanged: () => void }) {
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -27,7 +35,8 @@ export function ChatPage({ token, conversations, onChanged }: { token: string; c
   const scroller = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => { apiRequest<Row>("/assistant/status", token).then(setStatus).catch(() => setStatus(null)); }, [token]);
+  const loadStatus = useCallback(() => { apiRequest<Row>("/assistant/status", token).then(setStatus).catch(() => setStatus(null)); }, [token]);
+  useEffect(() => { loadStatus(); }, [loadStatus]);
   useEffect(() => { // follow the conversation; with no messages, keep the welcome screen at the top
     if (!scroller.current) return;
     if (messages.length === 0 && !sending) scroller.current.scrollTo({ top: 0 });
@@ -67,7 +76,7 @@ export function ChatPage({ token, conversations, onChanged }: { token: string; c
       setMessages(current => [...current, { id: `e-${Date.now()}`, role: "assistant", error: true,
         content: `I couldn't get a reply (${message}). The free server may still be waking up. Tap **Retry** in a moment.` }]);
       setText(content);
-    } finally { window.clearTimeout(slowTimer); setSending(false); setSlow(false); }
+    } finally { window.clearTimeout(slowTimer); setSending(false); setSlow(false); loadStatus(); }
   }
 
   function onSubmit(event: FormEvent) { event.preventDefault(); void send(); }
@@ -97,6 +106,9 @@ export function ChatPage({ token, conversations, onChanged }: { token: string; c
           <span className="dot"/>{status?.ai_enabled ? `AI · ${status.model}` : "Basic mode"}</span>
       </header>
 
+      {status?.ai_enabled && status.last_error && <div className="chat-banner error"><Icon name="bolt" size={15}/>
+        <span><b>The AI provider refused the last request{status.last_error.status ? ` (${status.last_error.status})` : ""}:</b> {String(status.last_error.message)}<br/>
+          {providerHint(status.last_error)}</span></div>}
       {status && !status.ai_enabled && <div className="chat-banner"><Icon name="bolt" size={15}/>
         <span><b>Basic mode:</b> no AI provider key is configured, so replies are short summaries of your records. Add an AI key on the server to get full assistant answers.</span></div>}
 
