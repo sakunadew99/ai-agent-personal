@@ -8,12 +8,15 @@ sessions (refresh tokens) for the account are signed out.
 """
 import sys
 from getpass import getpass
+from pathlib import Path
 
-from sqlalchemy import delete, select
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # make the backend "app" package importable
 
-from app.core.database import SessionLocal
-from app.core.security import hash_password
-from app.models.entities import RefreshToken, User
+from sqlalchemy import delete, select  # noqa: E402
+
+from app.core.database import SessionLocal  # noqa: E402
+from app.core.security import hash_password  # noqa: E402
+from app.models.entities import RefreshToken, User  # noqa: E402
 
 
 def main() -> int:
