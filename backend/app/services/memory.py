@@ -8,15 +8,25 @@ from app.models.entities import Memory, MemoryEmbedding
 from app.services.ai_client import embed_text
 from app.services.audit import audit
 from app.services.capture import sensitivity_of
+from app.services.second_brain import INTENT_TYPES, classify, find_duplicate
 
 
-def save_memory(db, user_id, content: str, category: str, source: str, allow_sensitive: bool, pinned: bool = False) -> Memory:
+def save_memory(db, user_id, content: str, category: str, source: str, allow_sensitive: bool, pinned: bool = False,
+                intent_type: str | None = None, check_duplicates: bool = False) -> Memory:
     sensitivity = sensitivity_of(content)
     if sensitivity == "sensitive" and not allow_sensitive:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             "This looks sensitive and was not saved. Confirm explicitly if you still want it stored.",
         )
+    if check_duplicates:
+        duplicate = find_duplicate(db, user_id, content)
+        if duplicate is not None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"Possible duplicate of a memory you already saved: “{duplicate.content[:120]}”. Save anyway to keep both.",
+            )
+    detected_type, topic = classify(content)
     row = Memory(
         user_id=user_id,
         content=content.strip(),
@@ -24,6 +34,8 @@ def save_memory(db, user_id, content: str, category: str, source: str, allow_sen
         source=source,
         sensitivity=sensitivity,
         pinned=pinned,
+        intent_type=intent_type if intent_type in INTENT_TYPES else detected_type,
+        topic=topic,
     )
     db.add(row)
     db.flush()
@@ -34,7 +46,8 @@ def save_memory(db, user_id, content: str, category: str, source: str, allow_sen
     return row
 
 
-def update_memory(db, row: Memory, content: str | None, category: str | None, pinned: bool | None, allow_sensitive: bool) -> Memory:
+def update_memory(db, row: Memory, content: str | None, category: str | None, pinned: bool | None, allow_sensitive: bool,
+                  intent_type: str | None = None) -> Memory:
     if content is not None:
         sensitivity = sensitivity_of(content)
         if sensitivity == "sensitive" and not allow_sensitive:
@@ -50,6 +63,10 @@ def update_memory(db, row: Memory, content: str | None, category: str | None, pi
             db.add(MemoryEmbedding(memory_id=row.id, user_id=row.user_id, embedding=vector, model="text-embedding-3-small"))
     if category is not None:
         row.category = category
+    if intent_type in INTENT_TYPES:
+        row.intent_type = intent_type
+        if intent_type in ("interest", "intention"):
+            row.dismissed_at = None  # re-enable resurfacing if the user re-classifies it
     if pinned is not None:
         row.pinned = pinned
     row.updated_at = now_utc()

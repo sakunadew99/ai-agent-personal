@@ -219,7 +219,40 @@ def goal_delete(goal_id: uuid.UUID, db: Session = Depends(get_db), user: User = 
 
 @router.post("/memories", response_model=dto.MemoryOut, status_code=201)
 def memory_create(data: dto.MemoryIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    row = save_memory(db, user.id, data.content, data.category, "user", data.allow_sensitive, data.pinned); db.commit(); db.refresh(row); return row
+    row = save_memory(db, user.id, data.content, data.category, "user", data.allow_sensitive, data.pinned,
+                      intent_type=data.intent_type, check_duplicates=not data.allow_duplicate)
+    db.commit(); db.refresh(row); return row
+
+
+@router.get("/memories/resurface")
+def memory_resurface_list(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Interests/intentions worth bringing back gently (at most 2; nothing is changed by reading)."""
+    from app.services.second_brain import ASK_KEEP_AFTER, resurface_candidates
+    return [{**dto.MemoryOut.model_validate(row).model_dump(mode="json"), "ask_keep": row.surface_count >= ASK_KEEP_AFTER}
+            for row in resurface_candidates(db, user.id)]
+
+
+@router.post("/memories/{memory_id}/resurface")
+def memory_resurface_act(memory_id: uuid.UUID, data: dto.ResurfaceAction, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """plan: propose a first small step (approval flow); later: snooze with back-off; dismiss: never ask again; keep: restart."""
+    from app.services import second_brain
+    from app.services.actions import queue_or_run
+    row = owned(db, Memory, user.id, memory_id)
+    outcome = None
+    if data.action == "plan":
+        outcome = queue_or_run(db, user, "create_task", {
+            "title": second_brain.first_step_title(row), "priority": "low", "category": "personal", "duration_minutes": 20,
+            "notes": f"From your second brain: {row.content[:500]}",
+        }, f"Plan a first step for: {row.topic or row.content[:60]}")
+        row.planned_at = now_utc()
+    elif data.action == "later":
+        second_brain.snooze(row)
+    elif data.action == "dismiss":
+        second_brain.dismiss(row)
+    else:
+        second_brain.keep(row)
+    db.commit(); db.refresh(row)
+    return {"memory": dto.MemoryOut.model_validate(row).model_dump(mode="json"), "outcome": outcome}
 
 
 @router.get("/memories", response_model=list[dto.MemoryOut])
@@ -234,7 +267,7 @@ def memory_search(data: dto.MemorySearchIn, db: Session = Depends(get_db), user:
 
 @router.patch("/memories/{memory_id}", response_model=dto.MemoryOut)
 def memory_update(memory_id: uuid.UUID, data: dto.MemoryUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    row = owned(db, Memory, user.id, memory_id); update_memory(db, row, data.content, data.category, data.pinned, data.allow_sensitive); db.commit(); db.refresh(row); return row
+    row = owned(db, Memory, user.id, memory_id); update_memory(db, row, data.content, data.category, data.pinned, data.allow_sensitive, intent_type=data.intent_type); db.commit(); db.refresh(row); return row
 
 
 @router.delete("/memories/{memory_id}", status_code=204)

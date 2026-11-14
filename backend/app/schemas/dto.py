@@ -286,11 +286,16 @@ class ConversationDetail(ConversationOut):
     messages: list[MessageOut]
 
 
+IntentType = Literal["fact", "preference", "interest", "intention", "commitment"]
+
+
 class MemoryIn(BaseModel):
     content: str = Field(min_length=1, max_length=8000)
     category: str = Field(default="note", max_length=32)
     allow_sensitive: bool = False
     pinned: bool = False
+    intent_type: IntentType | None = None      # detected automatically when omitted
+    allow_duplicate: bool = False              # save even if a near-identical memory exists
 
 
 class MemoryUpdate(BaseModel):
@@ -298,6 +303,7 @@ class MemoryUpdate(BaseModel):
     category: str | None = None
     pinned: bool | None = None
     allow_sensitive: bool = False
+    intent_type: IntentType | None = None
 
 
 class MemoryOut(ORMModel):
@@ -309,6 +315,16 @@ class MemoryOut(ORMModel):
     pinned: bool
     created_at: datetime
     updated_at: datetime
+    intent_type: str = "fact"
+    topic: str | None = None
+    surface_count: int = 0
+    snooze_until: datetime | None = None
+    dismissed_at: datetime | None = None
+    planned_at: datetime | None = None
+
+
+class ResurfaceAction(BaseModel):
+    action: Literal["plan", "later", "dismiss", "keep"]
 
 
 class MemorySearchIn(BaseModel):

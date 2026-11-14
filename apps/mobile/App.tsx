@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { apiRequest as request, getServerUrl, loadServerUrl, saveServerUrl, type ApiRecord as Row } from "./src/api";
 import { ChatScreen } from "./src/screens/ChatScreen";
+import { BrainCard } from "./src/screens/BrainCard";
 import { LifeScreen } from "./src/screens/LifeScreen";
 import { ApprovalsScreen, FinanceScreen, MemoryScreen } from "./src/screens/MoneyMemoryScreens";
 import { HealthScreen, MoreScreen, ReviewScreen, type MoreTarget } from "./src/screens/HealthReviewScreens";
@@ -128,7 +129,7 @@ export default function App() {
       {!(tab === "More" && sub) && <TouchableOpacity onPress={() => void loadTab(tab)}><Text style={styles.refresh}>Refresh ↻</Text></TouchableOpacity>}</View>
     {!!error && <Text style={styles.errorBox}>{error}</Text>}{!!notice && <TouchableOpacity onPress={() => setNotice("")}><Text style={styles.notice}>{notice}  ×</Text></TouchableOpacity>}
     <View style={styles.screen}>
-      {tab === "Home" && <HomeScreen dashboard={dashboard} finance={finance} health={health} onComplete={completeTask} onOpenPlan={() => setTab("Plan")}/>}
+      {tab === "Home" && <HomeScreen dashboard={dashboard} finance={finance} health={health} onComplete={completeTask} onOpenPlan={() => setTab("Plan")} top={<BrainCard api={api}/>}/>}
       {tab === "Plan" && <PlanScreen plan={plan} busy={busy} generate={generatePlan}/>}
       {tab === "Capture" && <CaptureScreen captures={captures} text={captureText} setText={setCaptureText} save={saveCapture} confirm={confirmCapture} busy={busy}/>}
       {tab === "Focus" && <FocusScreen seconds={focusSeconds} active={focusActive} setActive={setFocusActive} setSeconds={setFocusSeconds}/>}
@@ -146,11 +147,11 @@ export default function App() {
   </View></SafeAreaView>;
 }
 
-function HomeScreen({ dashboard, finance, health, onComplete, onOpenPlan }: { dashboard: Row; finance: Row; health: Row; onComplete: (id: string) => void; onOpenPlan: () => void }) {
+function HomeScreen({ dashboard, finance, health, onComplete, onOpenPlan, top }: { dashboard: Row; finance: Row; health: Row; onComplete: (id: string) => void; onOpenPlan: () => void; top?: React.ReactNode }) {
   const tasks: Row[] = Array.isArray(dashboard.tasks) ? dashboard.tasks : [];
   const goals: Row[] = Array.isArray(dashboard.goals) ? dashboard.goals : [];
   const steps = (Array.isArray(health.records) ? health.records : []).find((record: Row) => record.metric === "steps");
-  return <ScrollView contentContainerStyle={styles.scroll}>
+  return <ScrollView contentContainerStyle={styles.scroll}>{top}
     <View style={styles.statRow}><View style={styles.stat}><Text style={styles.statLabel}>OPEN TASKS</Text><Text style={styles.statValue}>{tasks.length}</Text></View><View style={styles.stat}><Text style={styles.statLabel}>ACTIVE GOALS</Text><Text style={styles.statValue}>{goals.length}</Text></View></View>
     <View style={styles.statRow}><View style={styles.stat}><Text style={styles.statLabel}>NET WORTH</Text><Text style={styles.statValueSmall}>{finance.currency || "USD"} {finance.net_worth ?? "0.00"}</Text></View><View style={styles.stat}><Text style={styles.statLabel}>STEPS · RECENT</Text><Text style={styles.statValueSmall}>{steps ? `${steps.value} ${steps.unit}` : "—"}</Text></View></View>
     <View style={styles.headingRow}><Text style={styles.sectionTitle}>Today’s tasks</Text><TouchableOpacity onPress={onOpenPlan}><Text style={styles.linkSmall}>Daily plan →</Text></TouchableOpacity></View>

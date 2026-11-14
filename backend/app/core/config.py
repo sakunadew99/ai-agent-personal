@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     # Turn off on any internet-facing server once your own account exists, so strangers who find
     # the URL cannot sign up. Existing users can still sign in.
     registration_open: bool = True
+    # Second brain: an interest/intention is only resurfaced after it is this many days old.
+    resurface_min_age_days: int = 7
 
 
 @lru_cache

@@ -47,6 +47,7 @@ ID_ROUTES = [
     ("DELETE", "/goals/{goal}", None),
     ("PATCH", "/memories/{memory}", {"content": "hijacked"}),
     ("DELETE", "/memories/{memory}", None),
+    ("POST", "/memories/{memory}/resurface", {"action": "dismiss"}),
     ("POST", "/capture/{capture}/confirm", {}),
     ("POST", "/habits/{habit}/logs", {"completed": True}),
     ("PATCH", "/focus/sessions/{focus}/finish", {"distractions": 0}),

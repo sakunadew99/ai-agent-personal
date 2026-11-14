@@ -1,10 +1,10 @@
 import "./theme.css";
 import "./styles.css";
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import localFont from "next/font/local";
 
-// Self-hosted at build time by next/font (no runtime request to Google).
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
+// Inter (SIL Open Font License, see app/fonts/LICENSE.txt), bundled in the repo so builds never need to reach Google Fonts.
+const inter = localFont({ src: "./fonts/InterVariable.woff2", variable: "--font-sans", display: "swap", weight: "100 900" });
 
 export const metadata: Metadata = { title: "Sakuna AI", description: "Your personal life operating system" };
 export const viewport: Viewport = {

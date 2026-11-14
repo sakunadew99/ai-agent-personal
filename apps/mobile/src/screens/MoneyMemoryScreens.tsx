@@ -68,6 +68,7 @@ export function MemoryScreen({ api, onError }: { api: Api; onError: (m: string) 
   const [query, setQuery] = useState("");
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [duplicate, setDuplicate] = useState(false);
   const load = useCallback(async () => { try { setRows(await api<Row[]>("/memories")); } catch (reason) { onError(reason instanceof Error ? reason.message : "Could not load"); } }, [api, onError]);
   useEffect(() => { void load(); }, [load]);
 
@@ -78,8 +79,12 @@ export function MemoryScreen({ api, onError }: { api: Api; onError: (m: string) 
   async function add() {
     if (!text.trim()) return;
     setBusy(true);
-    try { await api("/memories", "POST", { content: text.trim(), category: "note" }); setText(""); await load(); }
-    catch (reason) { onError(reason instanceof Error ? reason.message : "Could not save"); } finally { setBusy(false); }
+    try { await api("/memories", "POST", { content: text.trim(), category: "note", allow_duplicate: duplicate }); setText(""); setDuplicate(false); await load(); }
+    catch (reason) {
+      const msg = reason instanceof Error ? reason.message : "Could not save";
+      if (/duplicate/i.test(msg)) setDuplicate(true);
+      onError(msg);
+    } finally { setBusy(false); }
   }
   function remove(row: Row) {
     Alert.alert("Delete memory?", String(row.content).slice(0, 120), [{ text: "Cancel", style: "cancel" },
@@ -88,13 +93,14 @@ export function MemoryScreen({ api, onError }: { api: Api; onError: (m: string) 
   return <Screen>
     <Card><Kicker>SAVE SOMETHING TO REMEMBER</Kicker>
       <Field value={text} onChangeText={setText} placeholder="e.g. I prefer deep work before 11am" multiline/>
-      <Btn title="Save memory" onPress={() => void add()} busy={busy} disabled={!text.trim()}/>
+      <Btn title={duplicate ? "Save anyway (keep both)" : "Save memory"} onPress={() => void add()} busy={busy} disabled={!text.trim()}/>
+      <Muted small>Type is detected automatically: “I like…” = interest, “I want to…” = intention (Sakuna may gently remind you later), “I prefer…” = preference.</Muted>
       <Muted small>Sensitive details (passwords, health, money) are blocked unless you save them from the web app with explicit consent.</Muted>
     </Card>
     <Field value={query} onChangeText={setQuery} placeholder="Search memories…" onSubmitEditing={() => void search()} returnKeyType="search"/>
     <Card><Kicker>MEMORIES · {rows.length}</Kicker>
       {rows.length ? rows.map(row => <View key={row.id} style={{ gap: 4, paddingVertical: 6, borderBottomColor: C.line, borderBottomWidth: 1 }}>
-        <Line><Badge>{row.category}</Badge>{row.sensitivity === "sensitive" && <Badge tone="amber">sensitive</Badge>}<View style={{ flex: 1 }}/>
+        <Line><Badge>{row.category}</Badge>{row.intent_type && row.intent_type !== "fact" && <Badge tone="amber">{`${row.intent_type}${row.topic ? ` · ${row.topic}` : ""}`}</Badge>}{row.sensitivity === "sensitive" && <Badge tone="amber">sensitive</Badge>}<View style={{ flex: 1 }}/>
           <TouchableOpacity onPress={() => remove(row)}><Text style={{ color: "#f18c80" }}>Delete</Text></TouchableOpacity></Line>
         <Text style={{ color: C.text, lineHeight: 20 }}>{row.content}</Text><Muted small>{niceDate(row.updated_at)}</Muted>
       </View>) : <Empty>No memories yet.</Empty>}

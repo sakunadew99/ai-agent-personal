@@ -118,6 +118,14 @@ class Memory(Base):
     source: Mapped[str] = mapped_column(String(32), default="user")
     sensitivity: Mapped[str] = mapped_column(String(16), default="normal")
     pinned: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Second brain (Phase 2): what kind of memory this is, and gentle resurfacing state.
+    intent_type: Mapped[str] = mapped_column(String(16), default="fact", server_default="fact")  # fact|preference|interest|intention|commitment
+    topic: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    surface_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    last_surfaced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    snooze_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    planned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
