@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import type { ApiRecord as Row } from "../api";
 import { Btn, C, H2, Muted } from "../ui";
+import { appendSpeech, MicButton } from "../voice";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 type Msg = { id: string; role: "user" | "assistant"; content: string; error?: boolean; meta?: Row };
@@ -95,6 +96,7 @@ export function ChatScreen({ api }: { api: Api }) {
     </ScrollView>
     <View style={m.composer}>
       <TextInput style={m.input} value={text} onChangeText={setText} placeholder="Message Sakuna…" placeholderTextColor={C.muted} multiline maxLength={8000}/>
+      <MicButton size={42} onText={spoken => setText(current => appendSpeech(current, spoken))}/>
       <TouchableOpacity style={[m.send, (!text.trim() || sending) && { opacity: 0.5 }]} disabled={!text.trim() || sending} onPress={() => void send()}><Text style={m.sendText}>↑</Text></TouchableOpacity>
     </View>
     <Modal visible={showList} animationType="slide" onRequestClose={() => setShowList(false)}>

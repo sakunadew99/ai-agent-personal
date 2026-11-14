@@ -52,7 +52,7 @@ export function FinanceScreen({ api, onError, onNotice }: { api: Api; onError: (
       <Line><View style={{ flex: 2 }}><Field value={amount} onChangeText={setAmount} placeholder="Amount" keyboardType="decimal-pad"/></View>
         <View style={{ flex: 1 }}><Field value={currency} onChangeText={setCurrency} placeholder="LKR" autoCapitalize="characters" maxLength={3}/></View></Line>
       {kind === "expense" ? <Chips options={EXPENSE_CATS} value={category} onChange={setCategory}/> : <Chips options={SOURCES} value={source} onChange={setSource}/>}
-      <Field value={note} onChangeText={setNote} placeholder="Note (optional)"/>
+      <Field voice value={note} onChangeText={setNote} placeholder="Note (optional)"/>
       <Btn title={`Save ${kind}`} onPress={() => void save()} busy={busy}/>
     </Card>
     <Card><Kicker>SPENDING BY CATEGORY</Kicker>
@@ -92,12 +92,12 @@ export function MemoryScreen({ api, onError }: { api: Api; onError: (m: string) 
   }
   return <Screen>
     <Card><Kicker>SAVE SOMETHING TO REMEMBER</Kicker>
-      <Field value={text} onChangeText={setText} placeholder="e.g. I prefer deep work before 11am" multiline/>
+      <Field voice value={text} onChangeText={setText} placeholder="e.g. I prefer deep work before 11am" multiline/>
       <Btn title={duplicate ? "Save anyway (keep both)" : "Save memory"} onPress={() => void add()} busy={busy} disabled={!text.trim()}/>
       <Muted small>Type is detected automatically: “I like…” = interest, “I want to…” = intention (Sakuna may gently remind you later), “I prefer…” = preference.</Muted>
       <Muted small>Sensitive details (passwords, health, money) are blocked unless you save them from the web app with explicit consent.</Muted>
     </Card>
-    <Field value={query} onChangeText={setQuery} placeholder="Search memories…" onSubmitEditing={() => void search()} returnKeyType="search"/>
+    <Field voice value={query} onChangeText={setQuery} placeholder="Search memories…" onSubmitEditing={() => void search()} returnKeyType="search"/>
     <Card><Kicker>MEMORIES · {rows.length}</Kicker>
       {rows.length ? rows.map(row => <View key={row.id} style={{ gap: 4, paddingVertical: 6, borderBottomColor: C.line, borderBottomWidth: 1 }}>
         <Line><Badge>{row.category}</Badge>{row.intent_type && row.intent_type !== "fact" && <Badge tone="amber">{`${row.intent_type}${row.topic ? ` · ${row.topic}` : ""}`}</Badge>}{row.sensitivity === "sensitive" && <Badge tone="amber">sensitive</Badge>}<View style={{ flex: 1 }}/>

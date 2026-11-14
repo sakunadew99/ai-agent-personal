@@ -2,6 +2,7 @@
 
 import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "./Icon";
+import { appendSpeech, VoiceButton } from "./VoiceButton";
 
 export type PaletteAction = { id: string; label: string; hint?: string; icon: string; run: () => void | Promise<void> };
 
@@ -43,7 +44,8 @@ export function CommandPalette({ open, onClose, actions, onCapture }: {
     <div className="palette" role="dialog" aria-modal="true" aria-label="Quick capture and commands" onMouseDown={event => event.stopPropagation()}>
       <div className="palette-input"><Icon name="search" size={18}/>
         <input ref={input} value={text} onChange={event => { setText(event.target.value); setIndex(0); }} onKeyDown={onKey}
-          placeholder="Capture a thought, or type a page name…" aria-label="Capture or search"/>
+          placeholder="Capture a thought (or tap the mic and say it), or type a page name…" aria-label="Capture or search"/>
+        <VoiceButton onText={spoken => { setText(v => appendSpeech(v, spoken)); setIndex(0); input.current?.focus(); }}/>
         <kbd>Esc</kbd></div>
       <ul className="palette-list" role="listbox">
         {items.map((item, i) => <li key={item.id} role="option" aria-selected={i === index}>

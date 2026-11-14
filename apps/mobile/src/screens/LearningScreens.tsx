@@ -89,9 +89,9 @@ function AddCards({ api, onError, onNotice, onChanged }: Props & { onChanged: ()
   return <>
     <Card><Kicker>NEW CARD</Kicker>
       <Chips options={DECKS} value={deck} onChange={setDeck}/>
-      <Field value={front} onChangeText={setFront} placeholder="Front, e.g. der Bahnhof" maxLength={500}/>
-      <Field value={back} onChangeText={setBack} placeholder="Back, e.g. the train station" maxLength={1000}/>
-      <Field value={example} onChangeText={setExample} placeholder="Example sentence (optional)" maxLength={1000}/>
+      <Field voice value={front} onChangeText={setFront} placeholder="Front, e.g. der Bahnhof" maxLength={500}/>
+      <Field voice value={back} onChangeText={setBack} placeholder="Back, e.g. the train station" maxLength={1000}/>
+      <Field voice value={example} onChangeText={setExample} placeholder="Example sentence (optional)" maxLength={1000}/>
       <Btn title="Add card" onPress={() => void add()} busy={busy} disabled={!front.trim() || !back.trim()}/>
     </Card>
     <Card><Kicker>IMPORT A LIST</Kicker>
@@ -113,9 +113,9 @@ function Mistakes({ api, onError, onNotice, onChanged }: Props & { onChanged: ()
   return <>
     <Card><Kicker>LOG A MISTAKE</Kicker>
       <Chips options={SUBJECTS} value={subject} onChange={setSubject}/>
-      <Field value={what} onChangeText={setWhat} placeholder="What I did / said" maxLength={1000}/>
-      <Field value={fix} onChangeText={setFix} placeholder="The right way" maxLength={1000}/>
-      <Field value={lesson} onChangeText={setLesson} placeholder="Why / the rule (optional)" maxLength={2000}/>
+      <Field voice value={what} onChangeText={setWhat} placeholder="What I did / said" maxLength={1000}/>
+      <Field voice value={fix} onChangeText={setFix} placeholder="The right way" maxLength={1000}/>
+      <Field voice value={lesson} onChangeText={setLesson} placeholder="Why / the rule (optional)" maxLength={2000}/>
       <Btn title="Save mistake" disabled={!what.trim() || !fix.trim()} onPress={() => {
         run(api("/mistakes", "POST", { subject, what_happened: what, correction: fix, ...(lesson.trim() ? { lesson } : {}) }), "Saved.");
         setWhat(""); setFix(""); setLesson("");
@@ -164,8 +164,8 @@ export function JobsScreen({ api, onError, onNotice }: Props) {
     </Line></Card>
     {followUps.length > 0 && <Card accent><Kicker>FOLLOW-UPS DUE</Kicker>{followUps.map(f => <Text key={f.id} style={{ color: C.text }}>{f.company} · {f.role}{f.next_step ? `: ${f.next_step}` : ""}</Text>)}</Card>}
     <Card><Kicker>SAVE A JOB</Kicker>
-      <Field value={company} onChangeText={setCompany} placeholder="Company" maxLength={200}/>
-      <Field value={role} onChangeText={setRole} placeholder="Role" maxLength={200}/>
+      <Field voice value={company} onChangeText={setCompany} placeholder="Company" maxLength={200}/>
+      <Field voice value={role} onChangeText={setRole} placeholder="Role" maxLength={200}/>
       <Btn title="Save" disabled={!company.trim() || !role.trim()} onPress={() => { run(api("/career/jobs", "POST", { company, role }), "Saved."); setCompany(""); setRole(""); }}/>
     </Card>
     <Card><Kicker>{`${jobs.length} APPLICATIONS`}</Kicker>
@@ -176,7 +176,7 @@ export function JobsScreen({ api, onError, onNotice }: Props) {
         </TouchableOpacity>
         {open === job.id && <View style={{ gap: 6 }}>
           <Chips options={STAGES} value={job.status} onChange={status => run(api(`/career/jobs/${job.id}`, "PATCH", { status }))} labels={STAGE_LABEL}/>
-          <Field value={step} onChangeText={setStep} placeholder="Next step, e.g. Email recruiter" maxLength={200}/>
+          <Field voice value={step} onChangeText={setStep} placeholder="Next step, e.g. Email recruiter" maxLength={200}/>
           <Field value={follow} onChangeText={setFollow} placeholder="Follow up on YYYY-MM-DD" maxLength={10}/>
           <Line><Btn title="Save next step" style={{ flex: 1 }} onPress={() => {
             if (follow && !/^\d{4}-\d{2}-\d{2}$/.test(follow)) { onError("Date must look like 2026-12-01"); return; }

@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { apiRequest, patchJson, postJson, type JsonRecord as Row } from "@/lib/api";
 import { Icon } from "./Icon";
+import { appendSpeech, VoiceButton } from "./VoiceButton";
 
 type Tab = "Review" | "Cards" | "Mistakes";
 const SUBJECTS = ["german", "english", "coding", "work", "money", "health", "life", "other"];
@@ -125,13 +126,13 @@ function CardsPane({ token, decks, onChanged }: { token: string; decks: Row[]; o
       <form className="data-form" onSubmit={add}><div className="form-fields">
         <label>Deck<input list="deck-names" value={deck} onChange={e => setDeck(e.target.value)} required maxLength={64}/>
           <datalist id="deck-names">{["german", "english", ...decks.map(d => String(d.deck))].filter((v, i, a) => a.indexOf(v) === i).map(name => <option key={name} value={name}/>)}</datalist></label>
-        <label>Front<input value={front} onChange={e => setFront(e.target.value)} required maxLength={500} placeholder="der Bahnhof"/></label>
-        <label>Back<input value={back} onChange={e => setBack(e.target.value)} required maxLength={1000} placeholder="the train station"/></label>
-        <label className="wide-field">Example (optional)<input value={example} onChange={e => setExample(e.target.value)} maxLength={1000} placeholder="Wo ist der Bahnhof?"/></label>
+        <label>Front<span className="with-mic"><input value={front} onChange={e => setFront(e.target.value)} required maxLength={500} placeholder="der Bahnhof"/><VoiceButton onText={spoken => setFront(v => appendSpeech(v, spoken))}/></span></label>
+        <label>Back<span className="with-mic"><input value={back} onChange={e => setBack(e.target.value)} required maxLength={1000} placeholder="the train station"/><VoiceButton onText={spoken => setBack(v => appendSpeech(v, spoken))}/></span></label>
+        <label className="wide-field">Example (optional)<span className="with-mic"><input value={example} onChange={e => setExample(e.target.value)} maxLength={1000} placeholder="Wo ist der Bahnhof?"/><VoiceButton onText={spoken => setExample(v => appendSpeech(v, spoken))}/></span></label>
       </div><button className="primary" disabled={!front.trim() || !back.trim()}>Add card</button></form>
       <div className="form-section"><h3>Import many</h3>
         <p className="muted small-copy">One card per line: <code>front ; back ; example</code>. Tabs or “ - ” work too. Lines starting with # are skipped. Duplicates are skipped.</p>
-        <textarea rows={5} value={bulk} onChange={e => setBulk(e.target.value)} placeholder={"die Katze ; the cat\nlaufen ; to run ; Ich laufe jeden Morgen."}/>
+        <span className="with-mic"><textarea rows={5} value={bulk} onChange={e => setBulk(e.target.value)} placeholder={"die Katze ; the cat\nlaufen ; to run ; Ich laufe jeden Morgen."}/><VoiceButton onText={spoken => setBulk(v => appendSpeech(v, spoken))}/></span>
         <button className="outline" disabled={!bulk.trim()} onClick={() => void importBulk()}>Import into “{deck}”</button></div>
       {message && <p className="success-note">{message}</p>}{error && <p className="warning-copy">{error}</p>}
     </section>
@@ -175,9 +176,9 @@ function MistakesPane({ token, onChanged }: { token: string; onChanged: () => vo
       <div className="panel-head"><div><p className="eyebrow">MISTAKE NOTEBOOK</p><h2>Write it down once, fix it for good</h2></div><Icon name="book"/></div>
       <form className="data-form" onSubmit={add}><div className="form-fields">
         <label>Subject<select value={subject} onChange={e => setSubject(e.target.value)}>{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select></label>
-        <label className="wide-field">What I did / said<input value={what} onChange={e => setWhat(e.target.value)} required maxLength={1000} placeholder="Ich bin 25 Jahre"/></label>
-        <label className="wide-field">The right way<input value={fix} onChange={e => setFix(e.target.value)} required maxLength={1000} placeholder="Ich bin 25 Jahre alt"/></label>
-        <label className="wide-field">Why / the rule (optional)<textarea rows={2} value={lesson} onChange={e => setLesson(e.target.value)} maxLength={2000} placeholder="Age always needs “alt”."/></label>
+        <label className="wide-field">What I did / said<span className="with-mic"><input value={what} onChange={e => setWhat(e.target.value)} required maxLength={1000} placeholder="Ich bin 25 Jahre"/><VoiceButton onText={spoken => setWhat(v => appendSpeech(v, spoken))}/></span></label>
+        <label className="wide-field">The right way<span className="with-mic"><input value={fix} onChange={e => setFix(e.target.value)} required maxLength={1000} placeholder="Ich bin 25 Jahre alt"/><VoiceButton onText={spoken => setFix(v => appendSpeech(v, spoken))}/></span></label>
+        <label className="wide-field">Why / the rule (optional)<span className="with-mic"><textarea rows={2} value={lesson} onChange={e => setLesson(e.target.value)} maxLength={2000} placeholder="Age always needs “alt”."/><VoiceButton onText={spoken => setLesson(v => appendSpeech(v, spoken))}/></span></label>
       </div><button className="primary" disabled={!what.trim() || !fix.trim()}>Save mistake</button></form>
       {message && <p className="success-note">{message}</p>}{error && <p className="warning-copy">{error}</p>}
       <p className="muted small-copy">Tip: “Make a card” turns a mistake into a flashcard, so spaced repetition keeps it fixed. “Made it again” brings that card back for review today.</p>

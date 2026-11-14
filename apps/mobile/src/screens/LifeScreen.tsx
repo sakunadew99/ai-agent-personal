@@ -77,7 +77,7 @@ export function LifeScreen({ api, onError }: { api: Api; onError: (m: string) =>
     <Chips options={TABS} value={tab} onChange={setTab}/>
     <Card>
       <Kicker>{tab === "tasks" ? "ADD A TASK" : tab === "goals" ? "CREATE A GOAL" : "BUILD A HABIT"}</Kicker>
-      <Field value={title} onChangeText={setTitle} placeholder={tab === "tasks" ? "What needs doing?" : tab === "goals" ? "e.g. German B1 by June" : "e.g. Read 20 pages"} onSubmitEditing={add}/>
+      <Field voice value={title} onChangeText={setTitle} placeholder={tab === "tasks" ? "What needs doing?" : tab === "goals" ? "e.g. German B1 by June" : "e.g. Read 20 pages"} onSubmitEditing={add}/>
       {tab === "tasks" && <Chips options={PRIORITIES} value={priority} onChange={setPriority}/>}
       {tab !== "habits" && <Chips options={CATEGORIES} value={category} onChange={setCategory}/>}
       {tab === "tasks" && <>

@@ -66,7 +66,7 @@ export function GoalMilestones({ api, goalId, onError }: { api: Api; goalId: str
       <TouchableOpacity onPress={() => Alert.alert("Delete milestone?", String(row.title), [{ text: "Cancel", style: "cancel" },
         { text: "Delete", style: "destructive", onPress: () => run(api(`/milestones/${row.id}`, "DELETE")) }])}><Text style={{ color: "#f18c80" }}>✕</Text></TouchableOpacity>
     </Line>)}
-    <Line><View style={{ flex: 1 }}><Field value={title} onChangeText={setTitle} placeholder="Add a milestone…" onSubmitEditing={() => { if (title.trim()) { run(api(`/goals/${goalId}/milestones`, "POST", { title: title.trim(), position: rows.length })); setTitle(""); } }}/></View>
+    <Line><View style={{ flex: 1 }}><Field voice value={title} onChangeText={setTitle} placeholder="Add a milestone…" onSubmitEditing={() => { if (title.trim()) { run(api(`/goals/${goalId}/milestones`, "POST", { title: title.trim(), position: rows.length })); setTitle(""); } }}/></View>
       <Btn kind="outline" title="Add" disabled={!title.trim()} onPress={() => { run(api(`/goals/${goalId}/milestones`, "POST", { title: title.trim(), position: rows.length })); setTitle(""); }}/></Line>
   </View>;
 }

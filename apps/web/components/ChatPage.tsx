@@ -4,6 +4,7 @@ import { FormEvent, KeyboardEvent, useCallback, useEffect, useRef, useState } fr
 import { apiRequest, postJson, type JsonRecord as Row } from "@/lib/api";
 import { Icon } from "./Icon";
 import { Markdown } from "./Markdown";
+import { appendSpeech, VoiceButton } from "./VoiceButton";
 
 type Msg = { id: string; role: "user" | "assistant"; content: string; created_at?: string; pending?: boolean; error?: boolean; meta?: Row };
 
@@ -140,6 +141,7 @@ export function ChatPage({ token, conversations, onChanged }: { token: string; c
       <form className="composer" onSubmit={onSubmit}>
         <textarea ref={input} rows={1} value={text} onChange={e => setText(e.target.value)} onKeyDown={onKey}
           placeholder="Message Sakuna…" aria-label="Message Sakuna" maxLength={8000}/>
+        <VoiceButton className="composer-mic" onText={spoken => { setText(v => appendSpeech(v, spoken)); input.current?.focus(); }}/>
         <button className="primary composer-send" disabled={sending || !text.trim()} aria-label="Send"><Icon name="send" size={17}/></button>
       </form>
       <p className="composer-hint">Enter to send · Shift + Enter for a new line · Sakuna proposes changes; you approve them.</p>

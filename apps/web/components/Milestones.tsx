@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { apiRequest, patchJson, postJson, type JsonRecord as Row } from "@/lib/api";
+import { appendSpeech, VoiceButton } from "./VoiceButton";
 
 /** Checklist of milestones for one goal (Phase 3). */
 export function Milestones({ token, goalId }: { token: string; goalId: string }) {
@@ -40,7 +41,7 @@ export function Milestones({ token, goalId }: { token: string; goalId: string })
       <button className="danger-link" aria-label={`Delete ${row.title}`} onClick={() => remove(row)}>×</button>
     </div>)}
     <form className="milestone-add" onSubmit={add}>
-      <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Add a milestone…" maxLength={200}/>
+      <span className="with-mic"><input value={title} onChange={e => setTitle(e.target.value)} placeholder="Add a milestone…" maxLength={200}/><VoiceButton onText={spoken => setTitle(v => appendSpeech(v, spoken))}/></span>
       <input type="date" value={due} onChange={e => setDue(e.target.value)} aria-label="Milestone date"/>
       <button className="outline" disabled={!title.trim()}>Add</button>
     </form>

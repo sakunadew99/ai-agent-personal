@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { apiRequest, patchJson, postJson, type JsonRecord as Row } from "@/lib/api";
+import { appendSpeech, VoiceButton } from "./VoiceButton";
 
 export const JOB_STAGES = ["draft", "applied", "interview", "offer", "accepted", "rejected", "withdrawn"] as const;
 const STAGE_LABEL: Record<string, string> = { draft: "Saved", applied: "Applied", interview: "Interview", offer: "Offer", accepted: "Accepted", rejected: "Rejected", withdrawn: "Withdrawn" };
@@ -38,8 +39,8 @@ export function JobTracker({ token }: { token: string }) {
       <small className="muted">{summary.interview_rate_percent != null ? `${summary.interview_rate_percent}% of applications reached interview` : "Track every role from saved to offer"}</small></div>
     {followUps.length > 0 && <div className="notice-card"><b>Follow-ups due</b>{followUps.map(f => <p key={f.id}>{f.company} · {f.role}{f.next_step ? `: ${f.next_step}` : ""} <small className="muted">({f.follow_up_on})</small></p>)}</div>}
     <form className="job-add" onSubmit={add}>
-      <input value={company} onChange={e => setCompany(e.target.value)} placeholder="Company" required maxLength={200}/>
-      <input value={role} onChange={e => setRole(e.target.value)} placeholder="Role" required maxLength={200}/>
+      <span className="with-mic"><input value={company} onChange={e => setCompany(e.target.value)} placeholder="Company" required maxLength={200}/><VoiceButton onText={spoken => setCompany(v => appendSpeech(v, spoken))}/></span>
+      <span className="with-mic"><input value={role} onChange={e => setRole(e.target.value)} placeholder="Role" required maxLength={200}/><VoiceButton onText={spoken => setRole(v => appendSpeech(v, spoken))}/></span>
       <input value={url} onChange={e => setUrl(e.target.value)} placeholder="Job link (optional)" maxLength={500}/>
       <button className="primary" disabled={!company.trim() || !role.trim()}>Save job</button>
     </form>

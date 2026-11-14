@@ -1,6 +1,8 @@
 import React, { ReactNode } from "react";
 import { ActivityIndicator, ScrollView, StyleProp, StyleSheet, Text, TextInput, TextInputProps, TouchableOpacity, View, ViewStyle } from "react-native";
 
+import { appendSpeech, MicButton } from "./voice";
+
 /** Shared look for all mobile screens (matches the web app's dark theme). */
 export const C = {
   bg: "#0d1110", panel: "#141b18", panel2: "#19211e", line: "#27312d", text: "#edf4ef", muted: "#8b9a91",
@@ -27,10 +29,14 @@ export function Btn({ title, onPress, kind = "primary", disabled, busy, style }:
   </TouchableOpacity>;
 }
 
-export function Field(props: TextInputProps & { label?: string }) {
-  const { label, style, ...rest } = props;
+/** Text input. `voice` adds a mic button: speak instead of typing (free, uses the phone's speech recognizer). */
+export function Field(props: TextInputProps & { label?: string; voice?: boolean }) {
+  const { label, style, voice, ...rest } = props;
+  const input = <TextInput placeholderTextColor={C.muted} {...rest} style={[u.input, rest.multiline && { minHeight: 80, textAlignVertical: "top" }, voice && { flex: 1 }, style]}/>;
   return <View style={{ gap: 6 }}>{label && <Text style={u.label}>{label}</Text>}
-    <TextInput placeholderTextColor={C.muted} {...rest} style={[u.input, rest.multiline && { minHeight: 80, textAlignVertical: "top" }, style]}/></View>;
+    {voice && rest.onChangeText
+      ? <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>{input}<MicButton onText={spoken => rest.onChangeText?.(appendSpeech(String(rest.value ?? ""), spoken))}/></View>
+      : input}</View>;
 }
 
 export function Chips<T extends string>({ options, value, onChange, labels }: { options: readonly T[]; value: T; onChange: (v: T) => void; labels?: Partial<Record<T, string>> }) {
