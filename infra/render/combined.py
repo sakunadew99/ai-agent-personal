@@ -15,7 +15,9 @@ os.environ.setdefault("BACKEND_URL", f"http://127.0.0.1:{PORT}")
 from app.main import app as api_app  # noqa: E402  (backend package)
 
 # The MCP service also names its package "app", so load its module from file under another name.
-_spec = importlib.util.spec_from_file_location("sakuna_mcp_main", Path(__file__).with_name("sakuna_mcp_main.py"))
+# Docker image: copied next to this file. Vercel: read straight from the repo (SAKUNA_MCP_MAIN).
+_mcp_path = os.getenv("SAKUNA_MCP_MAIN") or str(Path(__file__).with_name("sakuna_mcp_main.py"))
+_spec = importlib.util.spec_from_file_location("sakuna_mcp_main", _mcp_path)
 _mcp_module = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mcp_module)
 mcp_app = _mcp_module.app

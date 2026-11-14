@@ -10,6 +10,23 @@ from app.models.entities import AiUsage
 logger = logging.getLogger(__name__)
 
 
+def _api_key() -> str:
+    return settings.ai_api_key or settings.openai_api_key
+
+
+def _url(path: str) -> str:
+    return f"{settings.ai_base_url.rstrip('/')}/{path.lstrip('/')}"
+
+
+def ai_enabled() -> bool:
+    """True when a language-model provider key is configured."""
+    return bool(_api_key())
+
+
+def embeddings_enabled() -> bool:
+    return ai_enabled() and settings.ai_embeddings
+
+
 def _cost(input_tokens: int, output_tokens: int) -> Decimal | None:
     if settings.openai_input_price_per_million == 0 and settings.openai_output_price_per_million == 0:
         return None
@@ -35,14 +52,14 @@ def _record(db: Session, user_id, feature: str, model: str, usage: dict) -> None
     )
 
 
-def chat_complete(db: Session, user_id, feature: str, model: str, messages: list[dict]) -> str | None:
-    if not settings.openai_api_key:
+def chat_complete(db: Session, user_id, feature: str, model: str, messages: list[dict], temperature: float = 0.2) -> str | None:
+    if not ai_enabled():
         return None
     try:
         response = httpx.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {settings.openai_api_key}"},
-            json={"model": model, "temperature": 0.2, "messages": messages},
+            _url("chat/completions"),
+            headers={"Authorization": f"Bearer {_api_key()}"},
+            json={"model": model, "temperature": temperature, "messages": messages},
             timeout=60,
         )
         response.raise_for_status()
@@ -55,12 +72,12 @@ def chat_complete(db: Session, user_id, feature: str, model: str, messages: list
 
 
 def embed_text(db: Session, user_id, text: str) -> list[float] | None:
-    if not settings.openai_api_key:
+    if not embeddings_enabled():
         return None
     try:
         response = httpx.post(
-            "https://api.openai.com/v1/embeddings",
-            headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+            _url("embeddings"),
+            headers={"Authorization": f"Bearer {_api_key()}"},
             json={"model": settings.openai_embedding_model, "input": text},
             timeout=30,
         )
@@ -74,12 +91,12 @@ def embed_text(db: Session, user_id, text: str) -> list[float] | None:
 
 
 def transcribe_audio(db: Session, user_id, filename: str, content: bytes, content_type: str) -> str | None:
-    if not settings.openai_api_key:
+    if not (ai_enabled() and settings.ai_transcription):
         return None
     try:
         response = httpx.post(
-            "https://api.openai.com/v1/audio/transcriptions",
-            headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+            _url("audio/transcriptions"),
+            headers={"Authorization": f"Bearer {_api_key()}"},
             data={"model": settings.openai_transcription_model},
             files={"file": (filename or "audio.webm", content, content_type or "application/octet-stream")},
             timeout=60,

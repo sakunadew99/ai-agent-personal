@@ -6,11 +6,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.clock import now_utc
-from app.core.config import settings
 from app.models.entities import Conversation, Goal, Message, Task, User
 from app.schemas.dto import ActionRef
 from app.services.actions import combine_local, create_daily_plan, queue_or_run
-from app.services.ai_client import chat_complete, model_for
+from app.services.ai_client import ai_enabled, chat_complete, embeddings_enabled, model_for
 from app.services.capture import parse_capture
 from app.services.finance_query import finance_summary
 from app.services.insights import insight_facts
@@ -192,9 +191,9 @@ def _relevant_memories(db: Session, user: User, message: str, limit: int = 4):
         term for term in re.findall(r"[a-z0-9]{3,}", message.lower())
         if term not in {"what", "when", "where", "which", "with", "this", "that", "have", "about", "help", "please", "could", "would", "should", "from", "your", "does"}
     }
-    if not query_terms and not settings.openai_api_key:
+    if not query_terms and not embeddings_enabled():
         return []
-    if query_terms and not settings.openai_api_key:
+    if query_terms and not embeddings_enabled():
         rows.sort(key=lambda item: (
             sum(term in item.content.lower() for term in query_terms),
             bool(item.pinned),
@@ -252,7 +251,7 @@ def _draft(facts: str, proposed, completed, refused) -> str:
 
 
 def _phrase(db, user, conversation, message, draft, intent) -> str:
-    if not settings.openai_api_key:
+    if not ai_enabled():
         return _local_reply(message, draft, intent)
     history = db.scalars(
         select(Message).where(Message.conversation_id == conversation.id).order_by(Message.created_at.desc()).limit(12)
@@ -261,8 +260,13 @@ def _phrase(db, user, conversation, message, draft, intent) -> str:
         {
             "role": "system",
             "content": (
-                "You are Sakuna, a personal life assistant. Use only the facts provided. "
+                "You are Sakuna, a warm, capable personal assistant (like a thoughtful mix of a coach and a chief of staff). "
+                "Answer general questions (explanations, writing, ideas, learning, code) helpfully from general knowledge. "
+                "For anything about the user's own life (tasks, goals, money, health, plans, memories), rely only on the "
+                "facts and action log provided below and never invent personal data; if something isn't recorded, say so. "
                 "Use relevant saved memories when they help, and say when a recommendation is based on one. "
+                "Format answers in Markdown when it helps (short headings, bullet or numbered lists, bold for key points). "
+                "Keep replies focused: lead with the answer, then the details. "
                 "For task design, give a concise outcome, ordered steps, and a suggested first step. "
                 "Do not create, schedule, spend, or change data unless the user clearly asked for that action. "
                 "Never claim an action happened unless it is listed as completed. "
@@ -277,7 +281,7 @@ def _phrase(db, user, conversation, message, draft, intent) -> str:
             messages.append({"role": item.role, "content": item.content})
     messages.append({"role": "user", "content": message})
     messages.append({"role": "system", "content": f"Facts and action log:\n{draft}"})
-    phrased = chat_complete(db, user.id, intent, model_for("analysis" if intent in {"finance", "productivity"} else "conversation"), messages)
+    phrased = chat_complete(db, user.id, intent, model_for("analysis" if intent in {"finance", "productivity"} else "conversation"), messages, temperature=0.4)
     return phrased or draft
 
 
@@ -294,9 +298,9 @@ def _local_reply(message: str, draft: str, intent: str) -> str:
     if intent == "focus":
         tasks = next((line for line in facts if line.startswith("Open tasks:")), "")
         priorities = next((line for line in facts if line.startswith("Highest priority:")), "" )
-        if priorities.endswith("none.") or priorities.endswith("none"):
-            return f"{tasks} I don’t see a high priority task recorded yet. Choose the most important open task and give it a focused 25 minute session.{memory_note}"
         priority_names = priorities.removeprefix("Highest priority:").strip().rstrip(".")
+        if not priority_names or priority_names.lower() == "none":
+            return f"{tasks} I don’t see a high priority task recorded yet. Choose the most important open task and give it a focused 25 minute session.{memory_note}"
         return f"Start with {priority_names}. {tasks} Set aside a focused 25 minute session, then choose the next task.{memory_note}"
     if intent == "goals":
         goals = next((line for line in facts if line.startswith("Active goals:")), "Active goals: none.")
@@ -361,7 +365,7 @@ def _maybe_summarize(db, user, conversation: Conversation) -> None:
     ).all()
     extract = " | ".join(item.content[:120] for item in older)
     summary = extract[:800]
-    if settings.openai_api_key:
+    if ai_enabled():
         generated = chat_complete(
             db,
             user.id,

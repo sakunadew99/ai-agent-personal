@@ -30,6 +30,10 @@ const paths: Record<string, string> = {
   steps: "M8 3c2 0 3 2 3 5s-1 5-3 5-3-2-3-5 1-5 3-5zM16 9c2 0 3 2 3 5s-1 5-3 5-3-2-3-5 1-5 3-5z",
   flame: "M12 21c4 0 7-2.7 7-7 0-4-3-6-4-9-1 2-2 3-3 3-.5-1.5-.5-3 0-5-4 2-7 6-7 11 0 4.3 3 7 7 7z",
   bell: "M6 16V11a6 6 0 1 1 12 0v5l2 2H4zM10 21h4",
+  sun: "M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4",
+  monitor: "M3 4h18v12H3zM8 20h8M12 16v4",
+  send: "M4 12l16-8-6 16-2-7z",
+  copy: "M8 8h12v12H8zM4 16V4h12",
 };
 
 export function Icon({ name, size = 18, className = "" }: { name: keyof typeof paths | string; size?: number; className?: string }) {

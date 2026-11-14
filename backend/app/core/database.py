@@ -1,8 +1,9 @@
+import os
 from collections.abc import Generator
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool, StaticPool
 
 from app.core.config import settings
 
@@ -19,6 +20,10 @@ def _engine():
             connect_args={"check_same_thread": False},
             poolclass=StaticPool,
         )
+    if os.getenv("DB_NULLPOOL", "").lower() in {"1", "true", "yes"}:
+        # Serverless (Vercel): no idle pooled connections per instance; the Supabase pooler does the pooling.
+        # prepare_threshold=None keeps psycopg compatible with transaction-mode poolers too.
+        return create_engine(url, poolclass=NullPool, connect_args={"prepare_threshold": None})
     return create_engine(url, pool_pre_ping=True)
 
 

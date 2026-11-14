@@ -493,6 +493,16 @@ def chat(data: dto.ChatIn, db: Session = Depends(get_db), user: User = Depends(g
     return converse(db, user, data.message, data.conversation_id)
 
 
+@router.get("/assistant/status")
+def assistant_status(user: User = Depends(get_current_user)):
+    """Whether a language-model provider is configured (never returns the key)."""
+    from urllib.parse import urlparse
+    from app.services.ai_client import ai_enabled
+    enabled = ai_enabled()
+    return {"ai_enabled": enabled, "provider": urlparse(settings.ai_base_url).hostname if enabled else None,
+            "model": settings.openai_model_balanced if enabled else None}
+
+
 @router.get("/conversations", response_model=list[dto.ConversationOut])
 def conversations(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     return list(db.scalars(query_user(db, Conversation, user.id).order_by(Conversation.updated_at.desc()).limit(100)).all())

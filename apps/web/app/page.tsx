@@ -8,6 +8,8 @@ import { FocusProvider, formatClock, useFocus } from "@/components/FocusContext"
 import { FocusPage } from "@/components/FocusPage";
 import { WeeklyReview } from "@/components/WeeklyReview";
 import { CommandPalette, type PaletteAction } from "@/components/CommandPalette";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { ChatPage } from "@/components/ChatPage";
 import "./home.css";
 import "./upgrade.css";
 
@@ -272,7 +274,7 @@ export default function Home() {
     catch (reason) { setError(reason instanceof Error ? reason.message : "Could not resolve approval"); }
   }
 
-  if (!token) return <main className="auth"><form className="auth-card" onSubmit={authenticate}>
+  if (!token) return <main className="auth"><div className="auth-theme"><ThemeToggle compact/></div><form className="auth-card" onSubmit={authenticate}>
     <BrandMark/><p className="eyebrow">PERSONAL LIFE OPERATING SYSTEM</p><h1>{authMode === "login" ? "Welcome back" : "Create your space"}</h1><p className="muted">A calmer place to organize what matters.</p>
     {authMode === "register" && <input required placeholder="Your name" value={fullName} onChange={event => setFullName(event.target.value)} />}
     <input required type="email" placeholder="Email address" value={email} onChange={event => setEmail(event.target.value)} />
@@ -304,7 +306,7 @@ export default function Home() {
       <header className={page === "Home" ? "home-header" : ""}><div>{page === "Home" ? <p className="eyebrow">SAKUNA AI · LIFE OS</p> : <><p className="eyebrow">{current.hint.toUpperCase()}</p><h1>{page}</h1></>}</div>
         <div className="header-actions"><HeaderTimer onOpen={() => navigate("Focus")}/><span className="sync-state">{loading ? "Syncing…" : "● Connected"}</span>
           <button className="outline search-button" onClick={() => setPaletteOpen(true)}><Icon name="search" size={15}/><span className="refresh-label">Capture or jump</span><kbd>Ctrl K</kbd></button>
-          <button className="outline icon-only" aria-label="Refresh" title="Refresh" onClick={() => void fetchPage()}><Icon name="refresh" size={15}/></button></div></header>
+          <ThemeToggle compact/><button className="outline icon-only" aria-label="Refresh" title="Refresh" onClick={() => void fetchPage()}><Icon name="refresh" size={15}/></button></div></header>
       {error && <ErrorNotice>{error}</ErrorNotice>}
       {toast && <div className="toast" role="status">✓ {toast}</div>}
       {loading && !Object.keys(data).length ? <Panel><div className="loading"><span className="spinner"/>Loading your data…</div></Panel> : <div className="page-enter" key={page}>{renderPage()}</div>}
@@ -323,7 +325,7 @@ export default function Home() {
       case "Home": return <><Overview dashboard={dashboard} onNavigate={navigate} reply={chatReply} text={chatText} setText={setChatText} ask={askAssistant} pending={askingAssistant} onCompleteTask={async id => { await call(`/tasks/${id}/complete`, token, { method: "PATCH" }); setToast("Task completed"); await fetchPage("Home", token); }} quickStart={<QuickStart onNavigate={navigate} onCapture={() => setPaletteOpen(true)} openTasks={Number(dashboard.task_counts?.open ?? tasks.length)}/>} /></>;
       case "Weekly review": return <WeeklyReview tasks={toList(data.tasks)} sessions={toList(data.sessions)} dashboard={data.dashboard || {}} reviews={toList(data.reviews)} save={async content => { await submit("/memories", { content, category: "decision" }); }} />;
       case "My life": return <MyLife tasks={tasks} goals={goals} habits={toList(data.habits)} token={token} refresh={() => fetchPage()} submit={submit} />;
-      case "Assistant": return <Assistant text={chatText} setText={setChatText} ask={askAssistant} reply={chatReply} conversations={toList(data.conversations)} pending={askingAssistant} newChat={() => { setChatConversationId(null); setChatReply(null); setChatText(""); }} />;
+      case "Assistant": return <ChatPage token={token} conversations={toList(data.conversations)} onChanged={() => { call<Row[]>("/conversations", token).then(rows => setData(current => ({ ...current, conversations: rows }))).catch(() => undefined); }} />;
       case "Capture inbox": return <Capture captures={toList(data.captures)} submit={submit} />;
       case "Planner": return <Planner plan={data.plan || {}} week={toList(data.week)} submit={submit} />;
       case "Finance": return <Finance summary={data.summary || {}} month={month} setMonth={setMonth} submit={submit} />;
@@ -397,10 +399,6 @@ function MyLife({ tasks, goals, habits, token, refresh, submit }: { tasks: Row[]
   </>;
 }
 function GoalCard({ goal, actions }: { goal: Row; actions?: ReactNode }) { const pct = goal.target_value ? Math.min(100, Number(goal.current_value || 0) / Number(goal.target_value) * 100) : 0; return <div className="goal"><div className="goal-title"><b>{goal.title}</b><span>{goal.status}</span></div><p className="muted small-copy">{goal.description || `${goal.current_value || 0} / ${goal.target_value ?? "—"} ${goal.unit || ""}`}</p><div className="progress"><span style={{ width: `${pct}%` }}/></div>{actions && <div className="goal-actions">{actions}</div>}</div>; }
-
-function Assistant({ text, setText, ask, reply, conversations, pending, newChat }: { text: string; setText: (value: string) => void; ask: (event: FormEvent<HTMLFormElement>) => void; reply: Row | null; conversations: Row[]; pending: boolean; newChat: () => void }) {
-  return <div className="grid assistant-layout"><Panel className="chat-panel" aria-busy={pending}><div className="assistant-welcome"><div className="sparkle">✳</div><p className="eyebrow">SAKUNA ASSISTANT</p><h2>What’s on your mind?</h2><p className="muted">Ask about your priorities, goals, plans, habits, or financial records. Sakuna can use relevant saved memories to personalize its help.</p></div>{reply && <div className="chat-answer" aria-live="polite"><div className="chat-label">SAKUNA · JUST NOW</div><p>{reply.reply}</p>{reply.relevant_memories?.length > 0 && <div className="memory-context"><b>Relevant saved context</b>{reply.relevant_memories.map((memory: string, index: number) => <small key={index}>{memory}</small>)}</div>}{reply.actions_proposed?.length > 0 && <div className="proposal-note">Suggested actions are waiting for your approval. They have not been completed.</div>}{reply.actions_completed?.length > 0 && <div className="success-note">{reply.actions_completed.map((item: Row) => item.summary).join(" · ")}</div>}</div>}{pending && <div className="chat-answer" role="status"><div className="chat-label">SAKUNA · THINKING</div><p>Looking at your question and relevant saved context…</p></div>}<div className="suggestion-row"><span>Try asking</span>{["What should I focus on today?", "How am I doing on my goals?", "Help me plan tomorrow", "Break a task into steps"].map(prompt => <button key={prompt} onClick={() => setText(prompt)}>{prompt}</button>)}</div><form className="chat-form" onSubmit={ask}><input value={text} onChange={event => setText(event.target.value)} placeholder="Ask Sakuna anything…" aria-label="Ask Sakuna anything"/><button className="primary" disabled={pending || !text.trim()}>{pending ? "Sending…" : "Send ↗"}</button></form><button className="text-button new-chat-button" type="button" onClick={newChat}>＋ New conversation</button></Panel><Panel><SectionHeading eyebrow="YOUR CONTEXT" title="Recent conversations" action={<button className="text-button" onClick={newChat}>＋ New chat</button>}/>{conversations.length ? <div className="record-list">{conversations.map(item => <div className="record-row" key={item.id}><span className="record-icon">✳</span><div className="record-copy"><b>{item.title}</b><small>{niceDate(item.updated_at)}</small></div></div>)}</div> : <Empty>Your conversations will be listed here.</Empty>}<p className="privacy-note">Sakuna uses relevant, non-sensitive saved memories to personalize answers. Manage memories in the Memory section.</p></Panel></div>;
-}
 
 function Capture({ captures, submit }: { captures: Row[]; submit: (path: string, body: Row, options?: RequestInit) => Promise<void> }) {
   const [text, setText] = useState("");
