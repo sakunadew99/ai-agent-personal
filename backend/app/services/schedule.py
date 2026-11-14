@@ -89,9 +89,18 @@ def month_view(db: Session, user_id, month: str | None) -> dict:
     for stone in stones:
         put(stone.due_date, {"kind": "milestone", "id": str(stone.id), "goal_id": str(stone.goal_id), "title": stone.title,
                              "at": None, "status": "done" if stone.done_at else "open"})
+    # Google Calendar events (read-only view). If the calendar isn't connected or Google fails, the plan still works.
+    from app.services.gcalendar import list_events
+    events, calendar_status = list_events(db, user_id, start, end)
+    for ev in events:
+        local = date.fromisoformat(ev["start_date"]) if ev["all_day"] and ev.get("start_date") else ev["start"].astimezone(tz).date()
+        if first <= local < following and not ev["from_sakuna"]:  # tasks you sent to Google already show as tasks
+            put(local, {"kind": "event", "id": ev["id"], "title": ev["title"], "at": None if ev["all_day"] else ev["start"].isoformat(),
+                        "status": "busy" if ev["busy"] else "free"})
     for entries in days.values():
         entries.sort(key=lambda e: (e["at"] is None, e["at"] or "", e["title"]))
-    return {"month": first.strftime("%Y-%m"), "timezone": str(tz), "first_weekday": 0, "days": dict(sorted(days.items()))}
+    return {"month": first.strftime("%Y-%m"), "timezone": str(tz), "first_weekday": 0, "calendar": calendar_status,
+            "days": dict(sorted(days.items()))}
 
 
 def _goal(db: Session, user_id, goal_id: uuid.UUID) -> Goal:

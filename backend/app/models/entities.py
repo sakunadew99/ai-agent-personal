@@ -176,6 +176,7 @@ class Task(Base):
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     duration_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     recurrence: Mapped[str | None] = mapped_column(String(200), nullable=True)  # RRULE subset, see services/recurrence.py
+    calendar_event_id: Mapped[str | None] = mapped_column(String(1024), nullable=True)  # set when you add it to Google Calendar
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -496,3 +496,10 @@ h1 { font-size: 30px; font-weight: 700; }
 .gmail-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .badge.status-connected { background: color-mix(in srgb, var(--green) 18%, transparent); color: var(--green); }
 .badge.status-expired, .badge.status-error { background: color-mix(in srgb, var(--amber) 20%, transparent); color: var(--amber); }
+
+/* ---------- Google Calendar ---------- */
+.connect-list { display: grid; gap: 10px; }
+.month-chip.kind-event { background: color-mix(in srgb, var(--muted) 18%, transparent); color: var(--muted); }
+.month-dot.kind-event { background: var(--muted); }
+.cal-select { max-width: 92px; padding: 3px 6px; font-size: 12px; border-radius: 8px; }
+.cal-btn { font-size: 13px; white-space: nowrap; }

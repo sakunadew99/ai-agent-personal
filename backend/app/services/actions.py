@@ -63,7 +63,8 @@ def _spawn_next(db: Session, row: Task) -> Task | None:
         return None
     nxt = Task(user_id=row.user_id, goal_id=row.goal_id, title=row.title, notes=row.notes, category=row.category,
                priority=row.priority, status="todo", due_at=due.astimezone(timezone.utc),
-               duration_minutes=row.duration_minutes, recurrence=row.recurrence)
+               duration_minutes=row.duration_minutes, recurrence=row.recurrence,
+               calendar_event_id=row.calendar_event_id)  # one recurring Google event covers the series
     db.add(nxt)
     db.flush()
     audit(db, row.user_id, "task.repeat", "task", nxt.id, {"from": str(row.id), "due_at": nxt.due_at.isoformat()})

@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 import hmac
+from typing import Literal
 
 from fastapi.responses import RedirectResponse
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, UploadFile, File
@@ -21,7 +22,7 @@ from app.models.entities import (
     Expense, FocusSession, FreelanceProject, Goal, Habit, HabitLog, HealthRecord,
     Income, JobApplication, Liability, LifeEntry, Memory, Message, Notification,
     PlanItem, RefreshToken, SleepRecord, Task, User, UserProfile, Workout, CareerProfile, GoalMilestone,
-    Flashcard, Mistake, IntegrationConnection, FinancialAccount, AccountAdjustment, Envelope, WishlistItem, PriceNote, BuyListItem,
+    Flashcard, Mistake, FinancialAccount, AccountAdjustment, Envelope, WishlistItem, PriceNote, BuyListItem,
 )
 from app.schemas import dto
 from app.services.actions import (
@@ -37,7 +38,7 @@ from app.services.permissions import seed_user_defaults
 from app.services.learning import (
     clean_deck, create_card, due_cards, import_cards, job_summary, learning_stats, mistake_again, mistake_to_card, review_card,
 )
-from app.services import gmail_oauth
+from app.services import gcalendar, google_oauth
 from app.services import money as money_svc
 from app.services.time_engine import insights as time_insights
 from app.services.schedule import create_milestone, list_milestones, month_view, update_milestone, upcoming_reminders
@@ -520,46 +521,72 @@ def job_delete(job_id: uuid.UUID, db: Session = Depends(get_db), user: User = De
     db.delete(owned(db, JobApplication, user.id, job_id)); db.commit()
 
 
-# ---------- Phase 5 (Fiverr F1): Gmail read-only connection. No sync yet; nothing is ever sent. ----------
+# ---------- Google connections: Gmail read-only (Fiverr F1) and Google Calendar. One OAuth client serves both. ----------
 
-def _gmail_conn(db: Session, user: User) -> IntegrationConnection | None:
-    return db.scalar(select(IntegrationConnection).where(IntegrationConnection.user_id == user.id,
-                                                         IntegrationConnection.provider == gmail_oauth.PROVIDER))
+ProviderKey = Literal["gmail", "calendar"]
 
 
 @router.get("/integrations")
 def integrations_list(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return {"gmail": {"configured": gmail_oauth.configured(), "connection": gmail_oauth.describe(_gmail_conn(db, user)),
-                      "scope": gmail_oauth.GMAIL_SCOPE}}
+    configured = google_oauth.configured()
+    return {
+        "gmail": {"configured": configured, "connection": google_oauth.describe(google_oauth.get_connection(db, user.id, "gmail")),
+                  "scope": google_oauth.GMAIL_SCOPE},
+        "calendar": {"configured": configured, "connection": google_oauth.describe(google_oauth.get_connection(db, user.id, "calendar")),
+                     "scope": google_oauth.CAL_READ},
+    }
 
 
-@router.post("/integrations/gmail/connect")
-def gmail_connect(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    url = gmail_oauth.start_connect(db, user.id); db.commit(); return {"auth_url": url}
+@router.post("/integrations/{provider}/connect")
+def integration_connect(provider: ProviderKey, data: dto.ConnectIn | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    url = google_oauth.start_connect(db, user.id, provider, write=bool(data and data.write and provider == "calendar"))
+    db.commit(); return {"auth_url": url}
 
 
 @router.get("/integrations/google/callback", include_in_schema=False)
-def gmail_callback(code: str | None = Query(None, max_length=2048), state: str | None = Query(None, max_length=512),
-                   error: str | None = Query(None, max_length=100), db: Session = Depends(get_db)):
+def google_callback(code: str | None = Query(None, max_length=2048), state: str | None = Query(None, max_length=512),
+                    error: str | None = Query(None, max_length=100), db: Session = Depends(get_db)):
     """Google redirects the browser here. Identified only by the one-time state; always lands back on the web app."""
-    ok, reason = gmail_oauth.finish_connect(db, code, state, error)
+    ok, provider, reason = google_oauth.finish_connect(db, code, state, error)
     db.commit()
     base = settings.web_app_url.rstrip("/") or ""
-    return RedirectResponse(f"{base}/?gmail={'connected' if ok else 'error'}&reason={reason}#settings", status_code=303)
+    key = provider or "google"
+    return RedirectResponse(f"{base}/?{key}={'connected' if ok else 'error'}&reason={reason}#settings", status_code=303)
 
 
-@router.post("/integrations/gmail/check")
-def gmail_check(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    conn = _gmail_conn(db, user)
-    if conn is None: raise HTTPException(404, "Gmail is not connected")
-    result = gmail_oauth.check(db, conn); db.commit(); return result
+@router.post("/integrations/{provider}/check")
+def integration_check(provider: ProviderKey, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    conn = google_oauth.get_connection(db, user.id, provider)
+    if conn is None: raise HTTPException(404, "Not connected")
+    result = google_oauth.check(db, conn); db.commit(); return result
 
 
-@router.delete("/integrations/gmail")
-def gmail_disconnect(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    conn = _gmail_conn(db, user)
-    if conn is None: raise HTTPException(404, "Gmail is not connected")
-    result = gmail_oauth.disconnect(db, conn); db.commit(); return result
+@router.delete("/integrations/{provider}")
+def integration_disconnect(provider: ProviderKey, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    conn = google_oauth.get_connection(db, user.id, provider)
+    if conn is None: raise HTTPException(404, "Not connected")
+    result = google_oauth.disconnect(db, conn); db.commit(); return result
+
+
+@router.get("/calendar/events")
+def calendar_events(start: datetime | None = None, end: datetime | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    lo = as_utc(start) if start else now_utc()
+    hi = as_utc(end) if end else lo + timedelta(days=7)
+    if hi <= lo or hi - lo > timedelta(days=62): raise HTTPException(422, "Choose a range of up to 62 days")
+    events, state = gcalendar.list_events(db, user.id, lo, hi); db.commit()
+    return {"status": state, "events": events}
+
+
+@router.post("/tasks/{task_id}/calendar", status_code=201)
+def task_to_calendar(task_id: uuid.UUID, data: dto.CalendarAddIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, Task, user.id, task_id)
+    result = gcalendar.add_task(db, user.id, row, data.popup_minutes, data.email_minutes); db.commit(); return result
+
+
+@router.delete("/tasks/{task_id}/calendar")
+def task_from_calendar(task_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, Task, user.id, task_id)
+    result = gcalendar.remove_task(db, user.id, row); db.commit(); return result
 
 
 # ---------- Phase 5: money lists, balances, envelopes (guide 36) and the time engine (guide 37) ----------

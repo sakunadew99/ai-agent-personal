@@ -206,6 +206,7 @@ class TaskOut(ORMModel):
     due_at: datetime | None
     duration_minutes: int | None
     recurrence: str | None = None
+    calendar_event_id: str | None = None
     completed_at: datetime | None
     created_at: datetime
 
@@ -830,3 +831,12 @@ class CheckoutIn(BaseModel):
     currency: Currency = "LKR"
     category: ExpenseCategory = "food"
     merchant: str | None = Field(default=None, max_length=200)
+
+
+class CalendarAddIn(BaseModel):
+    popup_minutes: int | None = Field(default=10, ge=0, le=40320)    # phone/browser pop-up before start; None = none
+    email_minutes: int | None = Field(default=None, ge=0, le=40320)  # Google emails your Gmail this long before; None = none
+
+
+class ConnectIn(BaseModel):
+    write: bool = False  # Calendar only: also allow adding events you confirm (calendar.events instead of calendar.readonly)

@@ -7,6 +7,7 @@ type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T
 const KIND: Record<string, { label: string; color: string }> = {
   task: { label: "Task", color: C.green }, repeat: { label: "Repeats", color: C.muted },
   goal: { label: "Goal deadline", color: C.amber }, milestone: { label: "Milestone", color: C.blue },
+  event: { label: "Google Calendar", color: C.muted },
 };
 
 function shift(month: string, by: number) {

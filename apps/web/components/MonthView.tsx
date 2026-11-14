@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiRequest, type JsonRecord as Row } from "@/lib/api";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const KIND_LABEL: Record<string, string> = { task: "Task", repeat: "Repeats", goal: "Goal deadline", milestone: "Milestone" };
+const KIND_LABEL: Record<string, string> = { task: "Task", repeat: "Repeats", goal: "Goal deadline", milestone: "Milestone", event: "Google Calendar" };
 
 function shift(month: string, by: number) {
   const [y, m] = month.split("-").map(Number);
@@ -63,6 +63,7 @@ export function MonthView({ token }: { token: string }) {
         <small className="muted">{KIND_LABEL[e.kind] || e.kind}{e.at ? ` · ${time(e.at)}` : ""}{e.status === "done" ? " · done" : ""}</small>
       </div>) : <p className="muted">Nothing planned.</p>}
     </div>}
-    <p className="muted small-copy">“Repeats” are upcoming copies of repeating tasks. Each one is created when you finish the previous one.</p>
+    <p className="muted small-copy">“Repeats” are upcoming copies of repeating tasks. Each one is created when you finish the previous one.
+      {data.calendar === "connected" ? " Grey items come from your Google Calendar." : data.calendar === "expired" ? " Google Calendar needs reconnecting (Settings)." : " Connect Google Calendar in Settings to see your events here."}</p>
   </div>;
 }

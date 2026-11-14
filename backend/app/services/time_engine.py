@@ -76,16 +76,23 @@ def insights(db: Session, user_id, days: int = 7) -> dict:
             continue
         day = max(today, due.astimezone(tz).date())  # overdue work lands on today
         load[day] += round((t.duration_minutes or DEFAULT_ESTIMATE) * m)
+    # Busy time from Google Calendar (meetings, classes) reduces each day's capacity. Optional; ignored if not connected.
+    from app.services.gcalendar import busy_minutes_by_day, list_events
+    day_list = [today + timedelta(days=i) for i in range(days)]
+    horizon_start = datetime.combine(today, time.min, tzinfo=tz).astimezone(timezone.utc)
+    events, calendar_status = list_events(db, user_id, horizon_start, horizon_end)
+    busy = busy_minutes_by_day([e for e in events if not e["from_sakuna"]], tz, day_list) if events else {}
     week = []
     warnings = []
-    for i in range(days):
-        day = today + timedelta(days=i)
+    for day in day_list:
         planned = load.get(day, 0)
-        week.append({"date": day.isoformat(), "planned_minutes": planned, "capacity_minutes": cap["plannable_minutes"],
-                     "free_minutes": cap["plannable_minutes"] - planned, "overbooked": planned > cap["plannable_minutes"]})
-        if planned > cap["plannable_minutes"]:
+        capacity = max(0, cap["plannable_minutes"] - busy.get(day, 0))
+        week.append({"date": day.isoformat(), "planned_minutes": planned, "calendar_busy_minutes": busy.get(day, 0),
+                     "capacity_minutes": capacity, "free_minutes": capacity - planned, "overbooked": planned > capacity})
+        if planned > capacity:
             warnings.append({"kind": "overbooked", "date": day.isoformat(),
-                             "message": f"{day.strftime('%a %d %b')} is overbooked by {planned - cap['plannable_minutes']} min (after your x{m} multiplier). Move, shrink or drop something."})
+                             "message": f"{day.strftime('%a %d %b')} is overbooked by {planned - capacity} min (after your x{m} multiplier"
+                                        + (f" and {busy.get(day, 0)} min of calendar events" if busy.get(day) else "") + "). Move, shrink or drop something."})
 
     # 3. Deadline risk: high-priority work due within 48 h whose (adjusted) time exceeds what is free before it.
     soon = [t for t in open_tasks if t.due_at and now < as_utc(t.due_at) <= now + timedelta(hours=48)]
@@ -128,7 +135,7 @@ def insights(db: Session, user_id, days: int = 7) -> dict:
         warnings.append({"kind": "area_at_zero", "message": f"No focus time yet this week for: {', '.join(idle)}."})
 
     return {
-        "timezone": str(tz), "multiplier": mult, "capacity": cap, "days": week, "warnings": warnings, "deep_work_window": deep,
+        "timezone": str(tz), "multiplier": mult, "capacity": cap, "days": week, "calendar": calendar_status, "warnings": warnings, "deep_work_window": deep,
         "top3": [{"id": str(t.id), "title": t.title, "priority": t.priority, "due_at": t.due_at,
                   "estimate_minutes": t.duration_minutes or DEFAULT_ESTIMATE,
                   "adjusted_minutes": round((t.duration_minutes or DEFAULT_ESTIMATE) * m)} for t in top],
