@@ -1,4 +1,0 @@
-expo.modules.sakunashield
-string sakuna_shield_service_description
-string sakuna_shield_service_label
-xml sakuna_shield_accessibility

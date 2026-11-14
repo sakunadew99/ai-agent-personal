@@ -45,3 +45,7 @@ infra/.env.prod
 
 # Android release signing key and its passwords (back these up; never commit)
 .signing/
+
+# Gradle output of local Expo native modules
+apps/mobile/modules/*/android/build/
+apps/mobile/modules/*/android/.cxx/

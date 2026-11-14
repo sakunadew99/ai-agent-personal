@@ -1,3 +1,0 @@
-int string sakuna_shield_service_description 0x0
-int string sakuna_shield_service_label 0x0
-int xml sakuna_shield_accessibility 0x0
