@@ -23,6 +23,7 @@ permissions:
 jobs:
   apk:
     runs-on: ubuntu-latest
+    environment: RENDER_SERVICE_TOKEN   # the signing-key secrets live in this environment
     defaults: { run: { working-directory: apps/mobile } }
     env:
       EXPO_PUBLIC_API_URL: ${{ inputs.api_url }}
