@@ -673,3 +673,160 @@ class AuditIn(BaseModel):
 class Recommendation(BaseModel):
     title: str
     detail: str
+
+
+# ---------- Phase 5: money lists, balances, envelopes (guide section 36) ----------
+
+Currency = Annotated[str, AfterValidator(_currency)]
+Money = Annotated[Decimal, Field(ge=0, max_digits=16, decimal_places=2)]
+AccountType = Literal["cash", "bank", "wallet", "savings", "other"]
+EnvelopeKind = Literal["needs", "savings", "fun", "goal", "other"]
+
+
+class AccountIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    account_type: AccountType = "bank"
+    currency: Currency = "LKR"
+    balance: Decimal = Field(default=Decimal("0"), max_digits=16, decimal_places=2)
+
+
+class AccountUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    account_type: AccountType | None = None
+    archived: bool | None = None
+
+
+class ReconcileIn(BaseModel):
+    balance: Decimal = Field(max_digits=16, decimal_places=2)
+    note: str | None = Field(default=None, max_length=500)
+    reason: Literal["reconcile", "correction"] = "reconcile"
+
+
+class AccountOut(ORMModel):
+    id: uuid.UUID
+    name: str
+    account_type: str
+    balance: Decimal
+    currency: str
+    balance_as_of: datetime | None = None
+    archived_at: datetime | None = None
+    created_at: datetime
+
+
+class AdjustmentOut(ORMModel):
+    id: uuid.UUID
+    account_id: uuid.UUID
+    previous_balance: Decimal
+    new_balance: Decimal
+    difference: Decimal
+    reason: str
+    note: str | None
+    created_at: datetime
+
+
+class EnvelopeIn(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    kind: EnvelopeKind = "needs"
+    currency: Currency = "LKR"
+    monthly_amount: Money
+    categories: list[ExpenseCategory] = Field(default_factory=list, max_length=12)
+
+
+class EnvelopeUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+    kind: EnvelopeKind | None = None
+    monthly_amount: Money | None = None
+    categories: list[ExpenseCategory] | None = Field(default=None, max_length=12)
+
+
+class WishIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    price: Money | None = None
+    currency: Currency = "LKR"
+    priority: int = Field(default=2, ge=1, le=3)
+    category: ExpenseCategory = "shopping"
+    link: str | None = Field(default=None, max_length=500)
+    notes: str | None = Field(default=None, max_length=2000)
+    target_date: date | None = None
+    cooling_days: int = Field(default=7, ge=0, le=365)
+
+
+class WishUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    price: Money | None = None
+    priority: int | None = Field(default=None, ge=1, le=3)
+    category: ExpenseCategory | None = None
+    link: str | None = Field(default=None, max_length=500)
+    notes: str | None = Field(default=None, max_length=2000)
+    target_date: date | None = None
+
+
+class WishDecision(BaseModel):
+    action: Literal["bought", "skipped", "reopen"]
+    record_expense: bool = True       # "bought": also log it as an expense (one tap)
+    amount: Money | None = None       # actual price paid, defaults to the wish price
+
+
+class WishOut(ORMModel):
+    id: uuid.UUID
+    name: str
+    price: Decimal | None
+    currency: str
+    priority: int
+    category: str
+    link: str | None
+    notes: str | None
+    target_date: date | None
+    status: str
+    state: str = "waiting"            # waiting | ready | bought | skipped (computed)
+    cooling_days: int
+    cooling_until: datetime
+    days_left: int = 0
+    decided_at: datetime | None
+    expense_id: uuid.UUID | None
+    created_at: datetime
+
+
+class BuyItemIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    qty: Decimal = Field(default=Decimal("1"), gt=0, max_digits=10, decimal_places=2)
+    unit: str | None = Field(default=None, max_length=16)
+    list_name: str = Field(default="groceries", min_length=1, max_length=32)
+    store: str | None = Field(default=None, max_length=100)
+    est_price: Money | None = None
+    currency: Currency = "LKR"
+    staple: bool = False
+
+
+class BuyItemUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    qty: Decimal | None = Field(default=None, gt=0, max_digits=10, decimal_places=2)
+    unit: str | None = Field(default=None, max_length=16)
+    list_name: str | None = Field(default=None, min_length=1, max_length=32)
+    store: str | None = Field(default=None, max_length=100)
+    est_price: Money | None = None
+    staple: bool | None = None
+    checked: bool | None = None
+
+
+class BuyItemOut(ORMModel):
+    id: uuid.UUID
+    name: str
+    qty: Decimal
+    unit: str | None
+    list_name: str
+    store: str | None
+    est_price: Decimal | None
+    currency: str
+    staple: bool
+    checked_at: datetime | None
+    expense_id: uuid.UUID | None
+    created_at: datetime
+
+
+class CheckoutIn(BaseModel):
+    item_ids: list[uuid.UUID] = Field(min_length=1, max_length=200)
+    amount: Money | None = None       # what you actually paid; defaults to the sum of estimates
+    currency: Currency = "LKR"
+    category: ExpenseCategory = "food"
+    merchant: str | None = Field(default=None, max_length=200)

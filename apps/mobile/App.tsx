@@ -9,11 +9,12 @@ import { HealthScreen, MoreScreen, ReviewScreen, type MoreTarget } from "./src/s
 import { ShieldPanel } from "./src/ShieldPanel";
 import { MonthAgenda } from "./src/screens/PlanExtras";
 import { JobsScreen, LearningScreen } from "./src/screens/LearningScreens";
+import { MoneyListsScreen, TimeCard } from "./src/screens/MoneyListsScreen";
 import { cancelFocusEnd, scheduleFocusEnd, syncReminders } from "./src/notify";
 import { appendSpeech, MicButton } from "./src/voice";
 
 type Tab = "Home" | "Plan" | "Capture" | "Focus" | "More";
-const SUB_TITLES: Record<MoreTarget, string> = { Assistant: "Assistant", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
+const SUB_TITLES: Record<MoreTarget, string> = { Assistant: "Assistant", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
 
 export default function App() {
   const [email, setEmail] = useState("");
@@ -145,7 +146,7 @@ export default function App() {
     {!!error && <Text style={styles.errorBox}>{error}</Text>}{!!notice && <TouchableOpacity onPress={() => setNotice("")}><Text style={styles.notice}>{notice}  ×</Text></TouchableOpacity>}
     <View style={styles.screen}>
       {tab === "Home" && <HomeScreen dashboard={dashboard} finance={finance} health={health} onComplete={completeTask} onOpenPlan={() => setTab("Plan")} top={<BrainCard api={api}/>}/>}
-      {tab === "Plan" && <PlanScreen plan={plan} busy={busy} generate={generatePlan} extra={<MonthAgenda api={api}/>}/>}
+      {tab === "Plan" && <PlanScreen plan={plan} busy={busy} generate={generatePlan} extra={<><TimeCard api={api}/><MonthAgenda api={api}/></>}/>}
       {tab === "Capture" && <CaptureScreen captures={captures} text={captureText} setText={setCaptureText} save={saveCapture} confirm={confirmCapture} busy={busy}/>}
       {tab === "Focus" && <FocusScreen seconds={focusSeconds} active={focusActive} setActive={setFocusActive} setSeconds={setFocusSeconds}/>}
       {tab === "More" && !sub && <MoreScreen open={target => { setError(""); setNotice(""); setSub(target); }}/>}
@@ -153,6 +154,7 @@ export default function App() {
       {tab === "More" && sub === "Life" && <LifeScreen api={api} onError={showError}/>}
       {tab === "More" && sub === "Learning" && <LearningScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Jobs" && <JobsScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "Money" && <MoneyListsScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Finance" && <FinanceScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Health" && <HealthScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Memory" && <MemoryScreen api={api} onError={showError}/>}

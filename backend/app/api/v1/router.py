@@ -20,7 +20,7 @@ from app.models.entities import (
     Expense, FocusSession, FreelanceProject, Goal, Habit, HabitLog, HealthRecord,
     Income, JobApplication, Liability, LifeEntry, Memory, Message, Notification,
     PlanItem, RefreshToken, SleepRecord, Task, User, UserProfile, Workout, CareerProfile, GoalMilestone,
-    Flashcard, Mistake,
+    Flashcard, Mistake, FinancialAccount, AccountAdjustment, Envelope, WishlistItem, PriceNote, BuyListItem,
 )
 from app.schemas import dto
 from app.services.actions import (
@@ -36,6 +36,8 @@ from app.services.permissions import seed_user_defaults
 from app.services.learning import (
     clean_deck, create_card, due_cards, import_cards, job_summary, learning_stats, mistake_again, mistake_to_card, review_card,
 )
+from app.services import money as money_svc
+from app.services.time_engine import insights as time_insights
 from app.services.schedule import create_milestone, list_milestones, month_view, update_milestone, upcoming_reminders
 from app.core.clock import as_utc, now_utc, zone
 
@@ -514,6 +516,172 @@ def job_update(job_id: uuid.UUID, data: dto.JobUpdate, db: Session = Depends(get
 @router.delete("/career/jobs/{job_id}", status_code=204)
 def job_delete(job_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     db.delete(owned(db, JobApplication, user.id, job_id)); db.commit()
+
+
+# ---------- Phase 5: money lists, balances, envelopes (guide 36) and the time engine (guide 37) ----------
+# Never buys, pays or transfers. No bank logins. Totals never mix currencies.
+
+@router.get("/money/balance")
+def money_balance(currency: str | None = Query(None, pattern=r"^[A-Za-z]{3}$"), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return money_svc.balance_view(db, user.id, currency.upper() if currency else None)
+
+
+@router.get("/money/accounts", response_model=list[dto.AccountOut])
+def accounts_list(include_archived: bool = False, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    statement = query_user(db, FinancialAccount, user.id)
+    if not include_archived: statement = statement.where(FinancialAccount.archived_at.is_(None))
+    return list(db.scalars(statement.order_by(FinancialAccount.currency, FinancialAccount.name)).all())
+
+
+@router.post("/money/accounts", response_model=dto.AccountOut, status_code=201)
+def account_create(data: dto.AccountIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = money_svc.open_account(db, user.id, data.name, data.account_type, data.currency, data.balance); db.commit(); db.refresh(row); return row
+
+
+@router.patch("/money/accounts/{account_id}", response_model=dto.AccountOut)
+def account_update(account_id: uuid.UUID, data: dto.AccountUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, FinancialAccount, user.id, account_id)
+    changes = data.model_dump(exclude_unset=True)
+    if changes.get("name"): row.name = changes["name"].strip()
+    if changes.get("account_type"): row.account_type = changes["account_type"]
+    if "archived" in changes and changes["archived"] is not None:
+        row.archived_at = now_utc() if changes["archived"] else None
+    row.updated_at = now_utc(); db.commit(); db.refresh(row); return row
+
+
+@router.post("/money/accounts/{account_id}/reconcile", response_model=dto.AdjustmentOut, status_code=201)
+def account_reconcile(account_id: uuid.UUID, data: dto.ReconcileIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, FinancialAccount, user.id, account_id)
+    adj = money_svc.reconcile(db, row, data.balance, data.note, data.reason); db.commit(); db.refresh(adj); return adj
+
+
+@router.get("/money/accounts/{account_id}/adjustments", response_model=list[dto.AdjustmentOut])
+def account_adjustments(account_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    owned(db, FinancialAccount, user.id, account_id)
+    return list(db.scalars(select(AccountAdjustment).where(AccountAdjustment.user_id == user.id, AccountAdjustment.account_id == account_id)
+                           .order_by(AccountAdjustment.created_at.desc()).limit(200)).all())
+
+
+@router.get("/money/envelopes")
+def envelopes_list(month: str | None = Query(None, pattern=r"^\d{4}-\d{2}$"), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return money_svc.envelope_status(db, user.id, month)
+
+
+@router.post("/money/envelopes", status_code=201)
+def envelope_create(data: dto.EnvelopeIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = Envelope(user_id=user.id, **{**data.model_dump(), "name": data.name.strip()})
+    db.add(row)
+    try: db.commit()
+    except IntegrityError: db.rollback(); raise HTTPException(409, "You already have an envelope with that name")
+    return next(e for e in money_svc.envelope_status(db, user.id) if e["id"] == row.id)
+
+
+@router.patch("/money/envelopes/{envelope_id}")
+def envelope_update(envelope_id: uuid.UUID, data: dto.EnvelopeUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, Envelope, user.id, envelope_id)
+    for key, value in data.model_dump(exclude_unset=True).items():
+        if value is None: continue
+        setattr(row, key, value.strip() if isinstance(value, str) else value)
+    row.updated_at = now_utc()
+    try: db.commit()
+    except IntegrityError: db.rollback(); raise HTTPException(409, "You already have an envelope with that name")
+    return next(e for e in money_svc.envelope_status(db, user.id) if e["id"] == row.id)
+
+
+@router.delete("/money/envelopes/{envelope_id}", status_code=204)
+def envelope_delete(envelope_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    db.delete(owned(db, Envelope, user.id, envelope_id)); db.commit()
+
+
+@router.get("/money/wishlist", response_model=list[dto.WishOut])
+def wishlist_list(include_closed: bool = False, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    statement = query_user(db, WishlistItem, user.id)
+    if not include_closed: statement = statement.where(WishlistItem.status == "active")
+    rows = db.scalars(statement.order_by(WishlistItem.priority, WishlistItem.cooling_until)).all()
+    return [money_svc.wish_out(r) for r in rows]
+
+
+@router.post("/money/wishlist", response_model=dto.WishOut, status_code=201)
+def wishlist_create(data: dto.WishIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = money_svc.add_wish(db, user.id, data); db.commit(); db.refresh(row); return money_svc.wish_out(row)
+
+
+@router.patch("/money/wishlist/{wish_id}", response_model=dto.WishOut)
+def wishlist_update(wish_id: uuid.UUID, data: dto.WishUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, WishlistItem, user.id, wish_id)
+    money_svc.update_wish(db, row, data.model_dump(exclude_unset=True)); db.commit(); db.refresh(row); return money_svc.wish_out(row)
+
+
+@router.post("/money/wishlist/{wish_id}/decide", response_model=dto.WishOut)
+def wishlist_decide(wish_id: uuid.UUID, data: dto.WishDecision, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, WishlistItem, user.id, wish_id)
+    money_svc.decide_wish(db, row, data.action, data.record_expense, data.amount); db.commit(); db.refresh(row); return money_svc.wish_out(row)
+
+
+@router.get("/money/wishlist/{wish_id}/affordability")
+def wishlist_affordability(wish_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return money_svc.affordability(db, user.id, owned(db, WishlistItem, user.id, wish_id))
+
+
+@router.get("/money/wishlist/{wish_id}/prices")
+def wishlist_prices(wish_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    owned(db, WishlistItem, user.id, wish_id)
+    rows = db.scalars(select(PriceNote).where(PriceNote.user_id == user.id, PriceNote.wish_id == wish_id).order_by(PriceNote.noted_at)).all()
+    return [{"price": r.price, "currency": r.currency, "noted_at": r.noted_at} for r in rows]
+
+
+@router.delete("/money/wishlist/{wish_id}", status_code=204)
+def wishlist_delete(wish_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    db.delete(owned(db, WishlistItem, user.id, wish_id)); db.commit()
+
+
+@router.get("/money/buy-list", response_model=list[dto.BuyItemOut])
+def buylist_list(include_checked: bool = True, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    statement = query_user(db, BuyListItem, user.id)
+    if not include_checked: statement = statement.where(BuyListItem.checked_at.is_(None))
+    return list(db.scalars(statement.order_by(BuyListItem.checked_at.asc().nullsfirst(), BuyListItem.list_name, BuyListItem.created_at)).all())
+
+
+@router.post("/money/buy-list", response_model=dto.BuyItemOut, status_code=201)
+def buylist_create(data: dto.BuyItemIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = BuyListItem(user_id=user.id, **{**data.model_dump(), "name": data.name.strip(), "list_name": data.list_name.strip().lower()})
+    db.add(row); db.commit(); db.refresh(row); return row
+
+
+@router.patch("/money/buy-list/{item_id}", response_model=dto.BuyItemOut)
+def buylist_update(item_id: uuid.UUID, data: dto.BuyItemUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, BuyListItem, user.id, item_id)
+    changes = data.model_dump(exclude_unset=True)
+    checked = changes.pop("checked", None)
+    for key, value in changes.items():
+        if key in ("name", "qty", "list_name", "staple") and value is None: continue
+        setattr(row, key, value)
+    if checked is True and row.checked_at is None: row.checked_at = now_utc()
+    elif checked is False: row.checked_at = None
+    row.updated_at = now_utc(); db.commit(); db.refresh(row); return row
+
+
+@router.post("/money/buy-list/checkout")
+def buylist_checkout(data: dto.CheckoutIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    ids = list(dict.fromkeys(data.item_ids))
+    items = list(db.scalars(select(BuyListItem).where(BuyListItem.user_id == user.id, BuyListItem.id.in_(ids))).all())
+    if len(items) != len(ids): raise HTTPException(404, "Not found")
+    result = money_svc.checkout(db, user.id, items, data.amount, data.currency, data.category, data.merchant); db.commit(); return result
+
+
+@router.post("/money/buy-list/restock")
+def buylist_restock(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    count = money_svc.restock_staples(db, user.id); db.commit(); return {"restocked": count}
+
+
+@router.delete("/money/buy-list/{item_id}", status_code=204)
+def buylist_delete(item_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    db.delete(owned(db, BuyListItem, user.id, item_id)); db.commit()
+
+
+@router.get("/time/insights")
+def time_engine_insights(days: int = Query(7, ge=1, le=14), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return time_insights(db, user.id, days)
 
 
 # ---------- Phase 4: learning (flashcards, spaced repetition) and the mistake notebook ----------

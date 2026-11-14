@@ -296,7 +296,100 @@ class FinancialAccount(Base):
     balance: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     currency: Mapped[str] = mapped_column(String(3), default="USD")
     record_kind: Mapped[str] = mapped_column(String(16), default="actual")
+    balance_as_of: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AccountAdjustment(Base):
+    """Every balance change is recorded; balances are never silently overwritten (guide 36.4)."""
+    __tablename__ = "account_adjustments"
+    __table_args__ = (CheckConstraint("reason IN ('opening','reconcile','correction')", name="ck_account_adjustments_reason"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("financial_accounts.id", ondelete="CASCADE"), index=True)
+    previous_balance: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    new_balance: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    difference: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    reason: Mapped[str] = mapped_column(String(16), default="reconcile")
+    note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Envelope(Base):
+    __tablename__ = "envelopes"
+    __table_args__ = (
+        UniqueConstraint("user_id", "name", name="uq_envelopes_user_name"),
+        CheckConstraint("kind IN ('needs','savings','fun','goal','other')", name="ck_envelopes_kind"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    name: Mapped[str] = mapped_column(String(64))
+    kind: Mapped[str] = mapped_column(String(16), default="needs")
+    currency: Mapped[str] = mapped_column(String(3))
+    monthly_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    categories: Mapped[list] = mapped_column(JsonDict, default=list)  # expense categories counted against it
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WishlistItem(Base):
+    __tablename__ = "wishlist_items"
+    __table_args__ = (
+        CheckConstraint("status IN ('active','bought','skipped')", name="ck_wishlist_items_status"),
+        CheckConstraint("priority BETWEEN 1 AND 3", name="ck_wishlist_items_priority"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    name: Mapped[str] = mapped_column(String(200))
+    price: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    currency: Mapped[str] = mapped_column(String(3))
+    priority: Mapped[int] = mapped_column(Integer, default=2, server_default="2")
+    category: Mapped[str] = mapped_column(String(32), default="shopping")
+    link: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    target_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="active", server_default="active")
+    cooling_days: Mapped[int] = mapped_column(Integer, default=7, server_default="7")
+    cooling_until: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expense_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("expenses.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PriceNote(Base):
+    __tablename__ = "price_notes"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    wish_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("wishlist_items.id", ondelete="CASCADE"), index=True)
+    price: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    currency: Mapped[str] = mapped_column(String(3))
+    noted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class BuyListItem(Base):
+    __tablename__ = "buy_list_items"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    name: Mapped[str] = mapped_column(String(200))
+    qty: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("1"), server_default="1")
+    unit: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    list_name: Mapped[str] = mapped_column(String(32), default="groceries", server_default="groceries")
+    store: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    est_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)  # estimated line total
+    currency: Mapped[str] = mapped_column(String(3))
+    staple: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expense_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("expenses.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class Asset(Base):

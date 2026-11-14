@@ -145,12 +145,13 @@ export function ReviewScreen({ api, onError, onNotice }: { api: Api; onError: (m
   </Screen>;
 }
 
-export type MoreTarget = "Assistant" | "Life" | "Learning" | "Jobs" | "Finance" | "Health" | "Memory" | "Review" | "Approvals" | "Profile";
+export type MoreTarget = "Assistant" | "Life" | "Learning" | "Jobs" | "Money" | "Finance" | "Health" | "Memory" | "Review" | "Approvals" | "Profile";
 const MENU: { key: MoreTarget; icon: string; title: string; hint: string }[] = [
   { key: "Assistant", icon: "✳", title: "Assistant", hint: "Chat with Sakuna" },
   { key: "Life", icon: "◫", title: "My life", hint: "Tasks, goals, habits" },
   { key: "Learning", icon: "✎", title: "Learning", hint: "Flashcards & mistakes" },
   { key: "Jobs", icon: "▣", title: "Job tracker", hint: "Applications & follow-ups" },
+  { key: "Money", icon: "◎", title: "Money hub", hint: "Balance, wishes, buy list" },
   { key: "Finance", icon: "$", title: "Finance", hint: "Spending & income" },
   { key: "Health", icon: "♡", title: "Health & Mi Band", hint: "Steps, sleep, heart rate" },
   { key: "Memory", icon: "◈", title: "Memory", hint: "What Sakuna remembers" },

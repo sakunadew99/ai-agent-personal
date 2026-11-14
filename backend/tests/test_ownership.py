@@ -40,6 +40,10 @@ def world():
         ids["card"] = make("/learning/cards", {"deck": "german", "front": "Alice card", "back": "x"})["id"]
         ids["mistake"] = make("/mistakes", {"what_happened": "Alice mistake", "correction": "y"})["id"]
         ids["job"] = make("/career/jobs", {"company": "Alice Co", "role": "Dev"})["id"]
+        ids["account"] = make("/money/accounts", {"name": "Alice bank", "currency": "LKR", "balance": "10"})["id"]
+        ids["envelope"] = make("/money/envelopes", {"name": "Alice fun", "currency": "LKR", "monthly_amount": "5"})["id"]
+        ids["wish"] = make("/money/wishlist", {"name": "Alice wish", "price": "100", "currency": "LKR"})["id"]
+        ids["buy"] = make("/money/buy-list", {"name": "Alice rice", "est_price": "10", "currency": "LKR"})["id"]
         ids["milestone"] = make(f"/goals/{ids['goal']}/milestones", {"title": "Alice milestone"})["id"]
         yield client, a, b, ids
 
@@ -63,6 +67,19 @@ ID_ROUTES = [
     ("POST", "/mistakes/{mistake}/card", {}),
     ("DELETE", "/mistakes/{mistake}", None),
     ("PATCH", "/career/jobs/{job}", {"status": "rejected"}),
+    ("PATCH", "/money/accounts/{account}", {"name": "hijacked"}),
+    ("POST", "/money/accounts/{account}/reconcile", {"balance": "0"}),
+    ("GET", "/money/accounts/{account}/adjustments", None),
+    ("PATCH", "/money/envelopes/{envelope}", {"monthly_amount": "1"}),
+    ("DELETE", "/money/envelopes/{envelope}", None),
+    ("PATCH", "/money/wishlist/{wish}", {"price": "1"}),
+    ("POST", "/money/wishlist/{wish}/decide", {"action": "skipped"}),
+    ("GET", "/money/wishlist/{wish}/affordability", None),
+    ("GET", "/money/wishlist/{wish}/prices", None),
+    ("DELETE", "/money/wishlist/{wish}", None),
+    ("PATCH", "/money/buy-list/{buy}", {"checked": True}),
+    ("POST", "/money/buy-list/checkout", {"item_ids": ["{buy}"], "currency": "LKR"}),
+    ("DELETE", "/money/buy-list/{buy}", None),
     ("DELETE", "/career/jobs/{job}", None),
     ("PATCH", "/memories/{memory}", {"content": "hijacked"}),
     ("DELETE", "/memories/{memory}", None),
@@ -79,11 +96,13 @@ ID_ROUTES = [
 @pytest.mark.parametrize(("method", "path", "body"), ID_ROUTES, ids=[f"{m} {p}" for m, p, _ in ID_ROUTES])
 def test_other_user_gets_404_on_my_records(world, method, path, body):
     client, _alice, bob, ids = world
+    if body is not None:
+        body = {k: ([x.format(**ids) for x in v] if isinstance(v, list) else v) for k, v in body.items()}
     response = client.request(method, "/api/v1" + path.format(**ids), headers=bob, **({"json": body} if body is not None else {}))
     assert response.status_code == 404, f"{method} {path} as another user -> {response.status_code}: {response.text}"
 
 
-@pytest.mark.parametrize("path", ["/tasks", "/goals", "/milestones", "/learning/cards", "/learning/review", "/mistakes", "/career/jobs", "/memories", "/capture", "/habits", "/focus/sessions", "/conversations", "/approvals"])
+@pytest.mark.parametrize("path", ["/tasks", "/goals", "/milestones", "/learning/cards", "/learning/review", "/mistakes", "/career/jobs", "/money/accounts", "/money/envelopes", "/money/wishlist", "/money/buy-list", "/memories", "/capture", "/habits", "/focus/sessions", "/conversations", "/approvals"])
 def test_other_users_lists_never_include_my_records(world, path):
     client, _alice, bob, ids = world
     response = client.get("/api/v1" + path, headers=bob)
@@ -104,3 +123,6 @@ def test_other_users_calendar_and_reminders_are_empty_of_my_records(world):
     assert not {str(r["task_id"]) for r in reminders} & set(ids.values())
     month = client.get("/api/v1/planner/monthly", headers=bob).json()["days"]
     assert not {e["id"] for entries in month.values() for e in entries} & set(ids.values())
+    balance = client.get("/api/v1/money/balance", headers=bob).json()["currencies"]
+    assert balance == []  # Bob has no accounts; Alice's are never counted
+    assert client.get("/api/v1/time/insights", headers=bob).json()["top3"] == []
