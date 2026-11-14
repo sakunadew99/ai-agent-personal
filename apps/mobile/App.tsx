@@ -1,10 +1,14 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { apiRequest as request, getServerUrl, loadServerUrl, saveServerUrl, type ApiRecord as Row } from "./src/api";
-import { connectHealthConnect, getHealthConnectStatus, readTodayHealth, type TodayHealth } from "./src/health/health-connect";
+import { ChatScreen } from "./src/screens/ChatScreen";
+import { LifeScreen } from "./src/screens/LifeScreen";
+import { ApprovalsScreen, FinanceScreen, MemoryScreen } from "./src/screens/MoneyMemoryScreens";
+import { HealthScreen, MoreScreen, ReviewScreen, type MoreTarget } from "./src/screens/HealthReviewScreens";
 import { ShieldPanel } from "./src/ShieldPanel";
 
-type Tab = "Home" | "Plan" | "Capture" | "AI" | "Health" | "Focus" | "Profile";
+type Tab = "Home" | "Plan" | "Capture" | "Focus" | "More";
+const SUB_TITLES: Record<MoreTarget, string> = { Assistant: "Assistant", Life: "My life", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
 
 export default function App() {
   const [email, setEmail] = useState("");
@@ -22,14 +26,16 @@ export default function App() {
   const [finance, setFinance] = useState<Row>({});
   const [health, setHealth] = useState<Row>({});
   const [captureText, setCaptureText] = useState("");
-  const [chatText, setChatText] = useState("");
-  const [chatReply, setChatReply] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [focusSeconds, setFocusSeconds] = useState(25 * 60);
   const [focusActive, setFocusActive] = useState(false);
-  const [todayHealth, setTodayHealth] = useState<TodayHealth>({ steps: null, heartRate: null, sleep: null });
+  const [sub, setSub] = useState<MoreTarget | null>(null);
+  // One API helper for all screens (adds the signed-in token).
+  const api = useCallback(<T = Row,>(path: string, method = "GET", body?: unknown) => request<T>(path, token, method, body), [token]);
+  const showError = useCallback((message: string) => { setNotice(""); setError(message); }, []);
+  const showNotice = useCallback((message: string) => { setError(""); setNotice(message); }, []);
 
   const loadTab = useCallback(async (selected: Tab, currentToken = token) => {
     if (!currentToken) return;
@@ -44,7 +50,7 @@ export default function App() {
         setPlan(await request<Row>("/planner/daily", currentToken));
       } else if (selected === "Capture") {
         setCaptures(await request<Row[]>("/capture", currentToken));
-      } else if (selected === "Profile") {
+      } else if (selected === "More") {
         const me = await request<Row>("/me", currentToken); setUser(me.user || {});
       }
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to load your data"); }
@@ -86,13 +92,6 @@ export default function App() {
     catch (reason) { setError(reason instanceof Error ? reason.message : "Could not process capture"); }
   }
 
-  async function sendMessage() {
-    if (!chatText.trim()) return;
-    setBusy(true);
-    try { const answer = await request<Row>("/chat", token, "POST", { message: chatText.trim() }); setChatReply(answer.reply); setChatText(""); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : "Assistant is unavailable"); }
-    finally { setBusy(false); }
-  }
 
   async function generatePlan() {
     setBusy(true);
@@ -101,44 +100,14 @@ export default function App() {
     finally { setBusy(false); }
   }
 
-  async function connectHealth() {
-    setBusy(true); setError("");
-    try {
-      const connected = await connectHealthConnect();
-      if (!connected) throw new Error("Step access was not granted. You can connect later from this screen.");
-      const result = await readTodayHealth(); setTodayHealth(result); setNotice("Health Connect is connected. Available Mi Band health data was read from your device.");
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not connect Health Connect"); }
-    finally { setBusy(false); }
-  }
 
-  async function syncHealth() {
-    setBusy(true); setError("");
-    try {
-      const result = await readTodayHealth();
-      const records: Row[] = Array.isArray(health.records) ? health.records : [];
-      const alreadySavedToday = (metric: string, value: number) => records.some(record => record.metric === metric && record.source === "health_connect" && Number(record.value) === value && new Date(record.recorded_at).toDateString() === new Date().toDateString());
-      let saved = 0;
-      if (result.steps && !alreadySavedToday("steps", result.steps.value)) {
-        await request("/health/records", token, "POST", { metric: "steps", value: result.steps.value, unit: "steps", recorded_at: result.steps.recordedAt, source: "health_connect" }); saved++;
-      }
-      if (result.heartRate && !alreadySavedToday("heart_rate", result.heartRate.value)) {
-        await request("/health/records", token, "POST", { metric: "heart_rate", value: result.heartRate.value, unit: "bpm", recorded_at: result.heartRate.recordedAt, source: "health_connect" }); saved++;
-      }
-      const savedSleep: Row[] = Array.isArray(health.sleep) ? health.sleep : [];
-      if (result.sleep && !savedSleep.some(row => row.source === "health_connect" && new Date(row.start_at).getTime() === new Date(result.sleep!.startAt).getTime())) {
-        await request("/health/sleep", token, "POST", { start_at: result.sleep.startAt, end_at: result.sleep.endAt, stages: { stage_codes: result.sleep.stages }, source: "health_connect" }); saved++;
-      }
-      setTodayHealth(result); await loadTab("Home"); setNotice(saved ? `${saved} available health record${saved === 1 ? "" : "s"} synced to Sakuna.` : "These Health Connect records are already saved, or no new Mi Band data is available yet.");
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not sync health data"); }
-    finally { setBusy(false); }
-  }
 
   async function completeTask(id: string) {
     try { await request(`/tasks/${id}/complete`, token, "PATCH"); await loadTab("Home"); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "Could not update the task"); }
   }
 
-  function signOut() { setToken(""); setUser({}); setDashboard({}); setPassword(""); setTab("Home"); }
+  function signOut() { setToken(""); setUser({}); setDashboard({}); setPassword(""); setSub(null); setTab("Home"); }
 
   if (!token) return <SafeAreaView style={styles.safe}><StatusBar barStyle="light-content"/><KeyboardAvoidingView style={styles.auth} behavior={Platform.OS === "ios" ? "padding" : undefined}>
     <Text style={styles.logo}>S</Text><Text style={styles.kicker}>PERSONAL LIFE OPERATING SYSTEM</Text><Text style={styles.title}>{registerMode ? "Create your space" : "Welcome back"}</Text><Text style={styles.subtitle}>A calmer place to organize what matters.</Text>
@@ -153,18 +122,27 @@ export default function App() {
   </KeyboardAvoidingView></SafeAreaView>;
 
   return <SafeAreaView style={styles.safe}><StatusBar barStyle="light-content"/><View style={styles.app}>
-    <View style={styles.topbar}><View><Text style={styles.kicker}>SAKUNA AI</Text><Text style={styles.topTitle}>{tab === "Home" ? "Your day, in focus." : tab}</Text></View><TouchableOpacity onPress={() => void loadTab(tab)}><Text style={styles.refresh}>Refresh ↻</Text></TouchableOpacity></View>
+    <View style={styles.topbar}>{tab === "More" && sub
+      ? <TouchableOpacity onPress={() => setSub(null)}><Text style={styles.kicker}>‹ MORE</Text><Text style={styles.topTitle}>{SUB_TITLES[sub]}</Text></TouchableOpacity>
+      : <View><Text style={styles.kicker}>SAKUNA AI</Text><Text style={styles.topTitle}>{tab === "Home" ? "Your day, in focus." : tab}</Text></View>}
+      {!(tab === "More" && sub) && <TouchableOpacity onPress={() => void loadTab(tab)}><Text style={styles.refresh}>Refresh ↻</Text></TouchableOpacity>}</View>
     {!!error && <Text style={styles.errorBox}>{error}</Text>}{!!notice && <TouchableOpacity onPress={() => setNotice("")}><Text style={styles.notice}>{notice}  ×</Text></TouchableOpacity>}
     <View style={styles.screen}>
       {tab === "Home" && <HomeScreen dashboard={dashboard} finance={finance} health={health} onComplete={completeTask} onOpenPlan={() => setTab("Plan")}/>}
       {tab === "Plan" && <PlanScreen plan={plan} busy={busy} generate={generatePlan}/>}
       {tab === "Capture" && <CaptureScreen captures={captures} text={captureText} setText={setCaptureText} save={saveCapture} confirm={confirmCapture} busy={busy}/>}
-      {tab === "AI" && <AiScreen text={chatText} setText={setChatText} reply={chatReply} send={sendMessage} busy={busy}/>}
-      {tab === "Health" && <HealthScreen health={health} todayHealth={todayHealth} busy={busy} connect={connectHealth} sync={syncHealth}/>}
       {tab === "Focus" && <FocusScreen seconds={focusSeconds} active={focusActive} setActive={setFocusActive} setSeconds={setFocusSeconds}/>}
-      {tab === "Profile" && <ProfileScreen user={user} signOut={signOut} onHealth={() => setTab("Health")}/>}
+      {tab === "More" && !sub && <MoreScreen open={target => { setError(""); setNotice(""); setSub(target); }}/>}
+      {tab === "More" && sub === "Assistant" && <ChatScreen api={api}/>}
+      {tab === "More" && sub === "Life" && <LifeScreen api={api} onError={showError}/>}
+      {tab === "More" && sub === "Finance" && <FinanceScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "Health" && <HealthScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "Memory" && <MemoryScreen api={api} onError={showError}/>}
+      {tab === "More" && sub === "Review" && <ReviewScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "Approvals" && <ApprovalsScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "Profile" && <ProfileScreen user={user} signOut={signOut} onHealth={() => setSub("Health")}/>}
     </View>
-    <View style={styles.tabbar}>{(["Home", "Plan", "Capture", "AI", "Health", "Focus", "Profile"] as Tab[]).map(item => <TouchableOpacity key={item} style={styles.tab} onPress={() => { setTab(item); setNotice(""); }}><Text style={[styles.tabIcon, tab === item && styles.tabIconActive]}>{({ Home: "⌂", Plan: "▦", Capture: "＋", AI: "✳", Health: "♡", Focus: "◷", Profile: "◉" } as Record<Tab, string>)[item]}</Text><Text style={[styles.tabText, tab === item && styles.tabTextActive]}>{item}</Text></TouchableOpacity>)}</View>
+    <View style={styles.tabbar}>{(["Home", "Plan", "Capture", "Focus", "More"] as Tab[]).map(item => <TouchableOpacity key={item} style={styles.tab} onPress={() => { setTab(item); setSub(null); setNotice(""); setError(""); }}><Text style={[styles.tabIcon, tab === item && styles.tabIconActive]}>{({ Home: "⌂", Plan: "▦", Capture: "＋", Focus: "◷", More: "☰" } as Record<Tab, string>)[item]}</Text><Text style={[styles.tabText, tab === item && styles.tabTextActive]}>{item}</Text></TouchableOpacity>)}</View>
   </View></SafeAreaView>;
 }
 
@@ -191,40 +169,7 @@ function CaptureScreen({ captures, text, setText, save, confirm, busy }: { captu
   return <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}><ScrollView contentContainerStyle={styles.scroll}><View style={styles.card}><Text style={styles.kicker}>QUICK CAPTURE</Text><TextInput multiline placeholder="A thought, task, idea, or note…" placeholderTextColor="#75877c" value={text} onChangeText={setText} style={[styles.input, styles.multiline]}/><TouchableOpacity style={styles.primary} onPress={save} disabled={busy}><Text style={styles.primaryText}>{busy ? "Saving…" : "Add to inbox"}</Text></TouchableOpacity><Text style={styles.muted}>Items that need clarification wait for your review.</Text></View><Text style={styles.sectionTitle}>Inbox · {captures.length}</Text>{captures.map(item => <View key={item.id} style={styles.card}><Text style={styles.badge}>{String(item.classified_type).replaceAll("_", " " )} · {String(item.status).replaceAll("_", " ")}</Text><Text style={styles.taskTitle}>{item.raw_text}</Text>{["pending", "needs_confirmation"].includes(item.status) && <TouchableOpacity style={styles.outlineButton} onPress={() => confirm(item.id)}><Text style={styles.outlineText}>Review & save</Text></TouchableOpacity>}</View>)}{!captures.length && <Text style={styles.empty}>Your quick captures will show up here.</Text>}</ScrollView></KeyboardAvoidingView>;
 }
 
-function AiScreen({ text, setText, reply, send, busy }: { text: string; setText: (value: string) => void; reply: string; send: () => void; busy: boolean }) {
-  return <KeyboardAvoidingView style={styles.aiScreen} behavior={Platform.OS === "ios" ? "padding" : undefined}><ScrollView contentContainerStyle={styles.scroll}><View style={styles.aiIntro}><Text style={styles.logoSmall}>✳</Text><Text style={styles.kicker}>SAKUNA ASSISTANT</Text><Text style={styles.sectionTitle}>How can I help?</Text><Text style={styles.muted}>Ask about your tasks, goals, finances, or plan for the day.</Text></View>{reply ? <View style={styles.answer}><Text style={styles.kicker}>SAKUNA</Text><Text style={styles.answerText}>{reply}</Text></View> : <View style={styles.prompts}>{["What should I focus on today?", "How are my goals going?", "Help me plan tomorrow"].map(prompt => <Text key={prompt} style={styles.prompt}>{prompt}</Text>)}</View>}</ScrollView><View style={styles.composer}><TextInput value={text} onChangeText={setText} placeholder="Message Sakuna…" placeholderTextColor="#75877c" style={[styles.input, { flex: 1, marginBottom: 0 }]}/><TouchableOpacity style={styles.send} onPress={send} disabled={busy}><Text style={styles.primaryText}>{busy ? "…" : "↑"}</Text></TouchableOpacity></View></KeyboardAvoidingView>;
-}
 
-function HealthScreen({ health, todayHealth, busy, connect, sync }: { health: Row; todayHealth: TodayHealth; busy: boolean; connect: () => void; sync: () => void }) {
-  const [status, setStatus] = useState("Checking Health Connect…");
-  const [connected, setConnected] = useState(false);
-  useEffect(() => {
-    let active = true;
-    void getHealthConnectStatus().then(result => {
-      if (!active) return;
-      setStatus(result.reason); setConnected(result.connected);
-    });
-    return () => { active = false; };
-  }, []);
-  const savedRecords: Row[] = Array.isArray(health.records) ? health.records : [];
-  const savedSteps = savedRecords.find((record: Row) => record.metric === "steps" && record.source === "health_connect");
-  const savedHeartRate = savedRecords.find((record: Row) => record.metric === "heart_rate" && record.source === "health_connect");
-  const savedSleep: Row[] = Array.isArray(health.sleep) ? health.sleep.filter((record: Row) => record.source === "health_connect") : [];
-  async function onConnect() {
-    await connect();
-    const result = await getHealthConnectStatus(); setStatus(result.reason); setConnected(result.connected);
-  }
-  return <ScrollView contentContainerStyle={styles.scroll}>
-    <View style={styles.card}><Text style={styles.kicker}>MI BAND · ANDROID HEALTH CONNECT</Text><Text style={styles.sectionTitle}>Device health</Text><Text style={styles.muted}>Mi Fitness syncs supported band data into Health Connect. Sakuna can read steps, heart-rate samples, and sleep sessions. Nothing is sent to the backend until you tap Sync.</Text><View style={styles.healthStatus}><View style={[styles.statusDot, connected && styles.statusDotOn]}/><Text style={styles.taskTitle}>{status}</Text></View>
-      <TouchableOpacity style={styles.primary} onPress={() => void onConnect()} disabled={busy}><Text style={styles.primaryText}>{busy ? "Connecting…" : connected ? "Refresh connection" : "Connect Health Connect"}</Text></TouchableOpacity>
-      {connected && <TouchableOpacity style={styles.outlineButton} onPress={sync} disabled={busy}><Text style={styles.outlineText}>{busy ? "Syncing…" : "Sync available Mi Band data to Sakuna"}</Text></TouchableOpacity>}
-    </View>
-    <View style={styles.statRow}><View style={styles.stat}><Text style={styles.statLabel}>TODAY’S STEPS</Text><Text style={styles.statValue}>{todayHealth.steps ? todayHealth.steps.value.toLocaleString() : "—"}</Text><Text style={styles.muted}>Health Connect total</Text></View><View style={styles.stat}><Text style={styles.statLabel}>LATEST HEART RATE</Text><Text style={styles.statValue}>{todayHealth.heartRate ? `${todayHealth.heartRate.value}` : "—"}</Text><Text style={styles.muted}>{todayHealth.heartRate ? "beats per minute" : "No sample today"}</Text></View></View>
-    <View style={[styles.card, { marginTop: 2 }]}><Text style={styles.kicker}>MOST RECENT SLEEP</Text><Text style={styles.taskTitle}>{todayHealth.sleep ? `${(todayHealth.sleep.minutes / 60).toFixed(1)} hours` : "No recent sleep session available"}</Text>{!!todayHealth.sleep && <Text style={styles.muted}>{new Date(todayHealth.sleep.startAt).toLocaleString()} – {new Date(todayHealth.sleep.endAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text>}</View>
-    <View style={[styles.card, { marginTop: 0 }]}><Text style={styles.kicker}>SAVED IN SAKUNA</Text><Text style={styles.taskTitle}>Steps: {savedSteps ? `${Number(savedSteps.value).toLocaleString()} ${savedSteps.unit || "steps"}` : "—"}</Text><Text style={styles.taskTitle}>Heart rate: {savedHeartRate ? `${savedHeartRate.value} ${savedHeartRate.unit || "bpm"}` : "—"}</Text><Text style={styles.taskTitle}>Sleep sessions: {savedSleep.length}</Text><Text style={styles.muted}>Manage saved records in the Sakuna web workspace. Revoke app access in Android Health Connect settings.</Text></View>
-    <Text style={styles.disclaimer}>Health data stays on your phone until you choose to sync it. Available measurements depend on Mi Fitness, Health Connect, and your device. This wellness view is not medical advice. Health Connect requires Android 9+ and Google Play services; Android 13 and below may need the Health Connect app.</Text>
-  </ScrollView>;
-}
 
 function FocusScreen({ seconds, active, setActive, setSeconds }: { seconds: number; active: boolean; setActive: (value: boolean) => void; setSeconds: (value: number) => void }) {
   const [minutes, setMinutes] = useState(25);
