@@ -328,3 +328,42 @@ h1 { font-size: 30px; font-weight: 700; }
 .badge.intent-interest, .badge.intent-intention { background: color-mix(in srgb, var(--blue) 18%, transparent); color: var(--blue); }
 .badge.intent-commitment { background: color-mix(in srgb, var(--amber) 18%, transparent); color: var(--amber); }
 .badge.intent-preference { background: color-mix(in srgb, var(--violet) 18%, transparent); color: var(--violet); }
+
+/* ---------- Phase 3: milestones and month plan ---------- */
+.milestones { display: grid; gap: 4px; margin: 10px 0 4px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.milestone { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 8px; font-size: 14px; }
+.milestone input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--green); }
+.milestone.done span { color: var(--muted); text-decoration: line-through; }
+.milestone .danger-link { padding: 0 4px; font-size: 16px; }
+.milestone-add { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; margin-top: 4px; }
+.milestone-add input { min-width: 0; }
+.month-panel { margin-top: 18px; }
+.month-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.month-bar b { min-width: 150px; text-align: center; font-size: 16px; }
+.month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.month-dow { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding: 0 4px 4px; }
+.month-cell { display: flex; flex-direction: column; align-items: stretch; gap: 3px; min-height: 92px; padding: 6px; text-align: left;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; color: var(--text); cursor: pointer; font: inherit; overflow: hidden;
+  transition: border-color .15s var(--ease); }
+.month-cell:hover { border-color: color-mix(in srgb, var(--green) 45%, var(--line)); }
+.month-cell.empty { background: transparent; border-color: transparent; cursor: default; }
+.month-cell.today .month-num { background: var(--green); color: var(--bg); }
+.month-cell.selected { border-color: var(--green); box-shadow: 0 0 0 1px var(--green) inset; }
+.month-num { align-self: flex-start; min-width: 22px; padding: 1px 6px; border-radius: 999px; font-size: 12px; font-weight: 700; text-align: center; }
+.month-chip { display: block; padding: 1px 6px; border-radius: 6px; font-size: 11px; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--text); }
+.month-chip.kind-repeat { background: transparent; border: 1px dashed color-mix(in srgb, var(--green) 55%, transparent); color: var(--muted); }
+.month-chip.kind-goal { background: color-mix(in srgb, var(--amber) 20%, transparent); }
+.month-chip.kind-milestone { background: color-mix(in srgb, var(--blue) 18%, transparent); }
+.month-chip.done { text-decoration: line-through; opacity: .6; }
+.month-detail { display: grid; gap: 6px; margin-top: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
+.month-detail-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; font-size: 14px; }
+.month-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--green); }
+.month-dot.kind-repeat { background: transparent; border: 1.5px dashed var(--green); }
+.month-dot.kind-goal { background: var(--amber); }
+.month-dot.kind-milestone { background: var(--blue); }
+@media (max-width: 720px) {
+  .month-cell { min-height: 48px; padding: 4px; }
+  .month-chip { height: 5px; padding: 0; font-size: 0; }
+  .month-cell small { display: none; }
+}

@@ -18,7 +18,7 @@ from app.models.entities import (
     Approval, Asset, CaptureItem, CheckinLog, CheckinSetting, Conversation,
     Expense, FocusSession, FreelanceProject, Goal, Habit, HabitLog, HealthRecord,
     Income, JobApplication, Liability, LifeEntry, Memory, Message, Notification,
-    PlanItem, RefreshToken, SleepRecord, Task, User, UserProfile, Workout, CareerProfile,
+    PlanItem, RefreshToken, SleepRecord, Task, User, UserProfile, Workout, CareerProfile, GoalMilestone,
 )
 from app.schemas import dto
 from app.services.actions import (
@@ -31,6 +31,7 @@ from app.services.finance import Flow, Balance, month_bounds, summarize
 from app.services.memory import delete_memory, save_memory, search_memories, update_memory
 from app.services.ai_client import transcribe_audio
 from app.services.permissions import seed_user_defaults
+from app.services.schedule import create_milestone, list_milestones, month_view, update_milestone, upcoming_reminders
 from app.core.clock import as_utc, now_utc, zone
 
 router = APIRouter()
@@ -217,6 +218,39 @@ def goal_delete(goal_id: uuid.UUID, db: Session = Depends(get_db), user: User = 
     db.delete(owned(db, Goal, user.id, goal_id)); db.commit()
 
 
+@router.get("/milestones", response_model=list[dto.MilestoneOut])
+def milestone_list(goal_id: uuid.UUID | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return list_milestones(db, user.id, goal_id)
+
+
+@router.get("/goals/{goal_id}/milestones", response_model=list[dto.MilestoneOut])
+def goal_milestones(goal_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return list_milestones(db, user.id, goal_id)
+
+
+@router.post("/goals/{goal_id}/milestones", response_model=dto.MilestoneOut, status_code=201)
+def milestone_create(goal_id: uuid.UUID, data: dto.MilestoneIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = create_milestone(db, user.id, goal_id, data); db.commit(); db.refresh(row); return row
+
+
+@router.patch("/milestones/{milestone_id}", response_model=dto.MilestoneOut)
+def milestone_update(milestone_id: uuid.UUID, data: dto.MilestoneUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, GoalMilestone, user.id, milestone_id); update_milestone(db, row, data); db.commit(); db.refresh(row); return row
+
+
+@router.delete("/milestones/{milestone_id}", status_code=204)
+def milestone_delete(milestone_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    db.delete(owned(db, GoalMilestone, user.id, milestone_id)); db.commit()
+
+
+@router.get("/reminders/upcoming")
+def reminders_upcoming(days: int = Query(7, ge=1, le=31), lead_minutes: int = Query(10, ge=0, le=1440),
+                       db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    data = upcoming_reminders(db, user.id, days, lead_minutes)
+    data["items"] = [dto.ReminderOut(**item) for item in data["items"]]
+    return data
+
+
 @router.post("/memories", response_model=dto.MemoryOut, status_code=201)
 def memory_create(data: dto.MemoryIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     row = save_memory(db, user.id, data.content, data.category, "user", data.allow_sensitive, data.pinned,
@@ -337,6 +371,11 @@ def planner_daily(day: date | None = None, db: Session = Depends(get_db), user: 
 def planner_weekly(start: date | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     start = start or datetime.now(zone(profile_for(db, user).timezone)).date()
     return [planner_daily(start + timedelta(days=i), db, user) for i in range(7)]
+
+
+@router.get("/planner/monthly")
+def planner_monthly(month: str | None = Query(None, pattern=r"^\d{4}-\d{2}$"), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return month_view(db, user.id, month)
 
 
 @router.patch("/planner/items/{item_id}", response_model=dto.PlanItemOut)

@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete, select
@@ -21,6 +21,7 @@ from app.schemas.dto import ExpenseIn, GoalIn, GoalUpdate, IncomeIn, TaskIn, Tas
 from app.services.audit import audit
 from app.services.memory import save_memory
 from app.services.planner import SchedTask, build_day
+from app.services.recurrence import next_occurrence
 from app.services.permissions import mode_for
 
 
@@ -42,16 +43,40 @@ def _goal_owned(db: Session, user_id, goal_id: uuid.UUID | None) -> None:
 def create_task(db: Session, user_id, data: TaskIn) -> Task:
     _goal_owned(db, user_id, data.goal_id)
     row = Task(user_id=user_id, **data.model_dump())
+    if row.due_at is not None:
+        row.due_at = as_utc(row.due_at)  # store UTC (project rule); display converts to the user's timezone
     db.add(row)
     db.flush()
     audit(db, user_id, "task.create", "task", row.id, {"title": row.title})
     return row
 
 
+def _spawn_next(db: Session, row: Task) -> Task | None:
+    """Repeating task finished: create the next occurrence in the user's timezone. Plain code, no AI."""
+    if not row.recurrence:
+        return None
+    tz = zone(_profile(db, row.user_id).timezone)
+    now = now_utc()
+    anchor = as_utc(row.due_at) if row.due_at else now
+    due = next_occurrence(row.recurrence, anchor, tz, now)
+    if due is None:  # series ended (UNTIL passed)
+        return None
+    nxt = Task(user_id=row.user_id, goal_id=row.goal_id, title=row.title, notes=row.notes, category=row.category,
+               priority=row.priority, status="todo", due_at=due.astimezone(timezone.utc),
+               duration_minutes=row.duration_minutes, recurrence=row.recurrence)
+    db.add(nxt)
+    db.flush()
+    audit(db, row.user_id, "task.repeat", "task", nxt.id, {"from": str(row.id), "due_at": nxt.due_at.isoformat()})
+    return nxt
+
+
 def update_task(db: Session, row: Task, data: TaskUpdate) -> Task:
     changes = data.model_dump(exclude_unset=True)
+    was_done = row.status == "done"
     if "goal_id" in changes:
         _goal_owned(db, row.user_id, changes["goal_id"])
+    if changes.get("due_at") is not None:
+        changes["due_at"] = as_utc(changes["due_at"])
     for key, value in changes.items():
         setattr(row, key, value)
     if changes.get("status") == "done" and row.completed_at is None:
@@ -60,14 +85,20 @@ def update_task(db: Session, row: Task, data: TaskUpdate) -> Task:
         row.completed_at = None
     row.updated_at = now_utc()
     audit(db, row.user_id, "task.update", "task", row.id)
+    if row.status == "done" and not was_done:
+        _spawn_next(db, row)
     return row
 
 
 def complete_task(db: Session, row: Task) -> Task:
+    """Mark done. Completing an already-done task changes nothing (so a double tap never spawns two repeats)."""
+    if row.status == "done":
+        return row
     row.status = "done"
     row.completed_at = now_utc()
     row.updated_at = now_utc()
     audit(db, row.user_id, "task.complete", "task", row.id)
+    _spawn_next(db, row)
     return row
 
 

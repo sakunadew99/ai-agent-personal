@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { apiRequest as request, getServerUrl, loadServerUrl, saveServerUrl, type ApiRecord as Row } from "./src/api";
 import { ChatScreen } from "./src/screens/ChatScreen";
@@ -7,6 +7,8 @@ import { LifeScreen } from "./src/screens/LifeScreen";
 import { ApprovalsScreen, FinanceScreen, MemoryScreen } from "./src/screens/MoneyMemoryScreens";
 import { HealthScreen, MoreScreen, ReviewScreen, type MoreTarget } from "./src/screens/HealthReviewScreens";
 import { ShieldPanel } from "./src/ShieldPanel";
+import { MonthAgenda } from "./src/screens/PlanExtras";
+import { cancelFocusEnd, scheduleFocusEnd, syncReminders } from "./src/notify";
 
 type Tab = "Home" | "Plan" | "Capture" | "Focus" | "More";
 const SUB_TITLES: Record<MoreTarget, string> = { Assistant: "Assistant", Life: "My life", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
@@ -66,6 +68,17 @@ export default function App() {
   }, [focusActive]);
 
   useEffect(() => { if (focusSeconds === 0) setFocusActive(false); }, [focusSeconds]);
+
+  // Focus alarm: scheduled on the device so it rings even if the app is in the background (the JS timer pauses there).
+  const focusLeft = useRef(focusSeconds);
+  focusLeft.current = focusSeconds;
+  useEffect(() => {
+    if (focusActive) void scheduleFocusEnd(focusLeft.current);
+    else if (focusLeft.current > 0) void cancelFocusEnd(); // paused or reset; a finished block keeps its alarm
+  }, [focusActive]);
+
+  // Phone reminders for tasks due in the next 7 days (local notifications, quiet hours applied by the API).
+  useEffect(() => { if (token) void syncReminders(api); }, [token, api]);
 
   useEffect(() => { void loadServerUrl().then(setServer); }, []);
 
@@ -130,7 +143,7 @@ export default function App() {
     {!!error && <Text style={styles.errorBox}>{error}</Text>}{!!notice && <TouchableOpacity onPress={() => setNotice("")}><Text style={styles.notice}>{notice}  ×</Text></TouchableOpacity>}
     <View style={styles.screen}>
       {tab === "Home" && <HomeScreen dashboard={dashboard} finance={finance} health={health} onComplete={completeTask} onOpenPlan={() => setTab("Plan")} top={<BrainCard api={api}/>}/>}
-      {tab === "Plan" && <PlanScreen plan={plan} busy={busy} generate={generatePlan}/>}
+      {tab === "Plan" && <PlanScreen plan={plan} busy={busy} generate={generatePlan} extra={<MonthAgenda api={api}/>}/>}
       {tab === "Capture" && <CaptureScreen captures={captures} text={captureText} setText={setCaptureText} save={saveCapture} confirm={confirmCapture} busy={busy}/>}
       {tab === "Focus" && <FocusScreen seconds={focusSeconds} active={focusActive} setActive={setFocusActive} setSeconds={setFocusSeconds}/>}
       {tab === "More" && !sub && <MoreScreen open={target => { setError(""); setNotice(""); setSub(target); }}/>}
@@ -161,9 +174,9 @@ function HomeScreen({ dashboard, finance, health, onComplete, onOpenPlan, top }:
   </ScrollView>;
 }
 
-function PlanScreen({ plan, busy, generate }: { plan: Row; busy: boolean; generate: () => void }) {
+function PlanScreen({ plan, busy, generate, extra }: { plan: Row; busy: boolean; generate: () => void; extra?: React.ReactNode }) {
   const items: Row[] = Array.isArray(plan.items) ? plan.items : [];
-  return <ScrollView contentContainerStyle={styles.scroll}><View style={styles.card}><Text style={styles.kicker}>DAILY PLANNER</Text><Text style={styles.sectionTitle}>{plan.plan_date || "Your day"}</Text><Text style={styles.muted}>{plan.summary || "Build a plan around your routine and open tasks."}</Text><TouchableOpacity style={styles.primary} onPress={generate} disabled={busy}><Text style={styles.primaryText}>{busy ? "Planning…" : "Build today’s plan"}</Text></TouchableOpacity></View>{items.length ? items.map(item => <View key={item.id} style={styles.planItem}><Text style={styles.time}>{new Date(item.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text><View style={styles.planBlock}><Text style={styles.taskTitle}>{item.title}</Text><Text style={styles.muted}>{item.kind} · {new Date(item.ends_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text></View></View>) : <Text style={styles.empty}>Generate a plan to see today’s time blocks.</Text>}{Array.isArray(plan.unscheduled) && plan.unscheduled.length > 0 && <Text style={styles.warning}>Could not schedule: {plan.unscheduled.join(", ")}</Text>}</ScrollView>;
+  return <ScrollView contentContainerStyle={styles.scroll}><View style={styles.card}><Text style={styles.kicker}>DAILY PLANNER</Text><Text style={styles.sectionTitle}>{plan.plan_date || "Your day"}</Text><Text style={styles.muted}>{plan.summary || "Build a plan around your routine and open tasks."}</Text><TouchableOpacity style={styles.primary} onPress={generate} disabled={busy}><Text style={styles.primaryText}>{busy ? "Planning…" : "Build today’s plan"}</Text></TouchableOpacity></View>{items.length ? items.map(item => <View key={item.id} style={styles.planItem}><Text style={styles.time}>{new Date(item.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text><View style={styles.planBlock}><Text style={styles.taskTitle}>{item.title}</Text><Text style={styles.muted}>{item.kind} · {new Date(item.ends_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text></View></View>) : <Text style={styles.empty}>Generate a plan to see today’s time blocks.</Text>}{Array.isArray(plan.unscheduled) && plan.unscheduled.length > 0 && <Text style={styles.warning}>Could not schedule: {plan.unscheduled.join(", ")}</Text>}{extra}</ScrollView>;
 }
 
 function CaptureScreen({ captures, text, setText, save, confirm, busy }: { captures: Row[]; text: string; setText: (value: string) => void; save: () => void; confirm: (id: string) => void; busy: boolean }) {
@@ -184,7 +197,7 @@ function FocusScreen({ seconds, active, setActive, setSeconds }: { seconds: numb
     setActive(!active);
   }
   return <ScrollView contentContainerStyle={styles.scroll}>
-    <View style={styles.card}><Text style={styles.kicker}>FOCUS SESSION</Text><Text style={styles.sectionTitle}>Make room for deep work</Text><Text style={styles.muted}>A simple on-device timer that keeps running while Sakuna stays open.</Text><Text style={styles.timer}>{time}</Text><View style={styles.durationRow}>{[25, 45, 60].map(value => <TouchableOpacity key={value} style={[styles.duration, minutes === value && styles.durationSelected]} onPress={() => chooseMinutes(value)}><Text style={[styles.durationText, minutes === value && styles.durationTextSelected]}>{value} min</Text></TouchableOpacity>)}</View><TouchableOpacity style={styles.primary} onPress={toggleFocus}><Text style={styles.primaryText}>{active ? "Pause focus" : seconds === 0 ? "Start another session" : "Start focus session"}</Text></TouchableOpacity><TouchableOpacity style={styles.outlineButton} onPress={() => { setActive(false); setSeconds(minutes * 60); }}><Text style={styles.outlineText}>Reset timer</Text></TouchableOpacity></View>
+    <View style={styles.card}><Text style={styles.kicker}>FOCUS SESSION</Text><Text style={styles.sectionTitle}>Make room for deep work</Text><Text style={styles.muted}>An on-device timer. A phone alarm rings when the block ends, even if Sakuna is in the background.</Text><Text style={styles.timer}>{time}</Text><View style={styles.durationRow}>{[25, 45, 60].map(value => <TouchableOpacity key={value} style={[styles.duration, minutes === value && styles.durationSelected]} onPress={() => chooseMinutes(value)}><Text style={[styles.durationText, minutes === value && styles.durationTextSelected]}>{value} min</Text></TouchableOpacity>)}</View><TouchableOpacity style={styles.primary} onPress={toggleFocus}><Text style={styles.primaryText}>{active ? "Pause focus" : seconds === 0 ? "Start another session" : "Start focus session"}</Text></TouchableOpacity><TouchableOpacity style={styles.outlineButton} onPress={() => { setActive(false); setSeconds(minutes * 60); }}><Text style={styles.outlineText}>Reset timer</Text></TouchableOpacity></View>
     <ShieldPanel/>
     <Text style={styles.disclaimer}>Keep Sakuna open during a focus session. The timer pauses when the app process stops, and it is not an emergency or safety control.</Text>
   </ScrollView>;

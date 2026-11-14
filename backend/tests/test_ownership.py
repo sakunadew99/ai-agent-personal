@@ -29,6 +29,7 @@ def world():
         ids = {
             "task": make("/tasks", {"title": "Alice task"})["id"],
             "goal": make("/goals", {"title": "Alice goal"})["id"],
+            "repeat": make("/tasks", {"title": "Alice repeat", "recurrence": "FREQ=DAILY"})["id"],
             "memory": make("/memories", {"content": "Alice likes green tea", "category": "preference"})["id"],
             "capture": make("/capture", {"text": "Alice note for later"})["id"],
             "habit": make("/habits", {"name": "Alice habit", "schedule": "daily"})["id"],
@@ -36,6 +37,7 @@ def world():
             "conversation": make("/chat", {"message": "hello"})["conversation_id"],
             "approval": make("/mcp/proposals", {"tool_name": "create_task", "payload": {"title": "Proposed for Alice"}})["id"],
         }
+        ids["milestone"] = make(f"/goals/{ids['goal']}/milestones", {"title": "Alice milestone"})["id"]
         yield client, a, b, ids
 
 
@@ -45,6 +47,11 @@ ID_ROUTES = [
     ("DELETE", "/tasks/{task}", None),
     ("PATCH", "/goals/{goal}", {"title": "hijacked"}),
     ("DELETE", "/goals/{goal}", None),
+    ("PATCH", "/tasks/{repeat}/complete", None),
+    ("GET", "/goals/{goal}/milestones", None),
+    ("POST", "/goals/{goal}/milestones", {"title": "hijacked"}),
+    ("PATCH", "/milestones/{milestone}", {"done": True}),
+    ("DELETE", "/milestones/{milestone}", None),
     ("PATCH", "/memories/{memory}", {"content": "hijacked"}),
     ("DELETE", "/memories/{memory}", None),
     ("POST", "/memories/{memory}/resurface", {"action": "dismiss"}),
@@ -64,7 +71,7 @@ def test_other_user_gets_404_on_my_records(world, method, path, body):
     assert response.status_code == 404, f"{method} {path} as another user -> {response.status_code}: {response.text}"
 
 
-@pytest.mark.parametrize("path", ["/tasks", "/goals", "/memories", "/capture", "/habits", "/focus/sessions", "/conversations", "/approvals"])
+@pytest.mark.parametrize("path", ["/tasks", "/goals", "/milestones", "/memories", "/capture", "/habits", "/focus/sessions", "/conversations", "/approvals"])
 def test_other_users_lists_never_include_my_records(world, path):
     client, _alice, bob, ids = world
     response = client.get("/api/v1" + path, headers=bob)
@@ -76,3 +83,12 @@ def test_owner_still_has_access(world):
     client, alice, _bob, ids = world
     assert client.patch(f"/api/v1/tasks/{ids['task']}", json={"title": "Alice task, renamed"}, headers=alice).status_code == 200
     assert client.get(f"/api/v1/conversations/{ids['conversation']}", headers=alice).status_code == 200
+    assert client.get(f"/api/v1/goals/{ids['goal']}/milestones", headers=alice).json()[0]["id"] == ids["milestone"]
+
+
+def test_other_users_calendar_and_reminders_are_empty_of_my_records(world):
+    client, _alice, bob, ids = world
+    reminders = client.get("/api/v1/reminders/upcoming?days=31", headers=bob).json()["items"]
+    assert not {str(r["task_id"]) for r in reminders} & set(ids.values())
+    month = client.get("/api/v1/planner/monthly", headers=bob).json()["days"]
+    assert not {e["id"] for entries in month.values() for e in entries} & set(ids.values())

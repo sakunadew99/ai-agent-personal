@@ -3,7 +3,11 @@ from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from typing import Annotated
+
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator
+
+from app.services.recurrence import normalize_rule
 
 Priority = Literal["low", "medium", "high"]
 TaskStatus = Literal["inbox", "todo", "in_progress", "done", "cancelled"]
@@ -14,6 +18,8 @@ ExpenseCategory = Literal[
 ]
 IncomeSource = Literal["salary", "freelance", "business", "other"]
 ToolMode = Literal["allow", "approval", "deny"]
+# Repeat rule such as "FREQ=WEEKLY;BYDAY=MO,TH"; empty string clears it. Validated and normalized (services/recurrence.py).
+Recurrence = Annotated[str | None, Field(default=None, max_length=200), AfterValidator(normalize_rule)]
 
 
 def _currency(value: str) -> str:
@@ -174,6 +180,7 @@ class TaskIn(BaseModel):
     due_at: datetime | None = None
     duration_minutes: int | None = Field(default=30, ge=5, le=1440)
     goal_id: uuid.UUID | None = None
+    recurrence: Recurrence = None
 
 
 class TaskUpdate(BaseModel):
@@ -185,6 +192,7 @@ class TaskUpdate(BaseModel):
     due_at: datetime | None = None
     duration_minutes: int | None = Field(default=None, ge=5, le=1440)
     goal_id: uuid.UUID | None = None
+    recurrence: Recurrence = None
 
 
 class TaskOut(ORMModel):
@@ -197,8 +205,40 @@ class TaskOut(ORMModel):
     priority: str
     due_at: datetime | None
     duration_minutes: int | None
+    recurrence: str | None = None
     completed_at: datetime | None
     created_at: datetime
+
+
+class MilestoneIn(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    due_date: date | None = None
+    position: int = Field(default=0, ge=0, le=1000)
+
+
+class MilestoneUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    due_date: date | None = None
+    position: int | None = Field(default=None, ge=0, le=1000)
+    done: bool | None = None
+
+
+class MilestoneOut(ORMModel):
+    id: uuid.UUID
+    goal_id: uuid.UUID
+    title: str
+    due_date: date | None
+    position: int
+    done_at: datetime | None
+    created_at: datetime
+
+
+class ReminderOut(BaseModel):
+    task_id: uuid.UUID
+    title: str
+    due_at: datetime
+    notify_at: datetime
+    moved_for_quiet_hours: bool
 
 
 class PlanItemOut(ORMModel):
