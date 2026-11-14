@@ -38,6 +38,16 @@ class Settings(BaseSettings):
     registration_open: bool = True
     # Second brain: an interest/intention is only resurfaced after it is this many days old.
     resurface_min_age_days: int = 7
+    # Phase 5 (Fiverr F1): Gmail read-only connection. All empty = the feature shows "not configured".
+    # TOKEN_ENCRYPTION_KEY is a Fernet key (encrypts OAuth tokens before they reach the database). Generate with:
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    token_encryption_key: str = ""
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    # Must exactly match an "Authorized redirect URI" on the Google OAuth client.
+    google_redirect_uri: str = ""
+    # Where the browser goes after Google sends it back (the web app). Relative works behind the Vercel proxy.
+    web_app_url: str = "/"
 
 
 @lru_cache

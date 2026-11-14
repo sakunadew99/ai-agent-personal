@@ -669,3 +669,41 @@ class AiUsage(Base):
     output_tokens: Mapped[int] = mapped_column(Integer, default=0)
     estimated_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class IntegrationConnection(Base):
+    """A connected outside account (Phase 5: Gmail read-only). Tokens are Fernet-encrypted; the key lives outside the DB."""
+    __tablename__ = "integration_connections"
+    __table_args__ = (
+        UniqueConstraint("user_id", "provider", name="uq_integration_connections_user_provider"),
+        CheckConstraint("status IN ('connected','expired','error')", name="ck_integration_connections_status"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    provider: Mapped[str] = mapped_column(String(32))
+    account_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    scopes: Mapped[str] = mapped_column(String(1000), default="")
+    refresh_token_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    access_token_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    access_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="connected")
+    last_error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class OAuthState(Base):
+    """One-time OAuth `state` (stored as a hash) with its PKCE verifier (encrypted). Valid 10 minutes, single use."""
+    __tablename__ = "oauth_states"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    provider: Mapped[str] = mapped_column(String(32))
+    state_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    verifier_enc: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

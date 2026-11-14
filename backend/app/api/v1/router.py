@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import hmac
 
+from fastapi.responses import RedirectResponse
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, UploadFile, File
 from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
@@ -20,7 +21,7 @@ from app.models.entities import (
     Expense, FocusSession, FreelanceProject, Goal, Habit, HabitLog, HealthRecord,
     Income, JobApplication, Liability, LifeEntry, Memory, Message, Notification,
     PlanItem, RefreshToken, SleepRecord, Task, User, UserProfile, Workout, CareerProfile, GoalMilestone,
-    Flashcard, Mistake, FinancialAccount, AccountAdjustment, Envelope, WishlistItem, PriceNote, BuyListItem,
+    Flashcard, Mistake, IntegrationConnection, FinancialAccount, AccountAdjustment, Envelope, WishlistItem, PriceNote, BuyListItem,
 )
 from app.schemas import dto
 from app.services.actions import (
@@ -36,6 +37,7 @@ from app.services.permissions import seed_user_defaults
 from app.services.learning import (
     clean_deck, create_card, due_cards, import_cards, job_summary, learning_stats, mistake_again, mistake_to_card, review_card,
 )
+from app.services import gmail_oauth
 from app.services import money as money_svc
 from app.services.time_engine import insights as time_insights
 from app.services.schedule import create_milestone, list_milestones, month_view, update_milestone, upcoming_reminders
@@ -516,6 +518,48 @@ def job_update(job_id: uuid.UUID, data: dto.JobUpdate, db: Session = Depends(get
 @router.delete("/career/jobs/{job_id}", status_code=204)
 def job_delete(job_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     db.delete(owned(db, JobApplication, user.id, job_id)); db.commit()
+
+
+# ---------- Phase 5 (Fiverr F1): Gmail read-only connection. No sync yet; nothing is ever sent. ----------
+
+def _gmail_conn(db: Session, user: User) -> IntegrationConnection | None:
+    return db.scalar(select(IntegrationConnection).where(IntegrationConnection.user_id == user.id,
+                                                         IntegrationConnection.provider == gmail_oauth.PROVIDER))
+
+
+@router.get("/integrations")
+def integrations_list(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return {"gmail": {"configured": gmail_oauth.configured(), "connection": gmail_oauth.describe(_gmail_conn(db, user)),
+                      "scope": gmail_oauth.GMAIL_SCOPE}}
+
+
+@router.post("/integrations/gmail/connect")
+def gmail_connect(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    url = gmail_oauth.start_connect(db, user.id); db.commit(); return {"auth_url": url}
+
+
+@router.get("/integrations/google/callback", include_in_schema=False)
+def gmail_callback(code: str | None = Query(None, max_length=2048), state: str | None = Query(None, max_length=512),
+                   error: str | None = Query(None, max_length=100), db: Session = Depends(get_db)):
+    """Google redirects the browser here. Identified only by the one-time state; always lands back on the web app."""
+    ok, reason = gmail_oauth.finish_connect(db, code, state, error)
+    db.commit()
+    base = settings.web_app_url.rstrip("/") or ""
+    return RedirectResponse(f"{base}/?gmail={'connected' if ok else 'error'}&reason={reason}#settings", status_code=303)
+
+
+@router.post("/integrations/gmail/check")
+def gmail_check(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    conn = _gmail_conn(db, user)
+    if conn is None: raise HTTPException(404, "Gmail is not connected")
+    result = gmail_oauth.check(db, conn); db.commit(); return result
+
+
+@router.delete("/integrations/gmail")
+def gmail_disconnect(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    conn = _gmail_conn(db, user)
+    if conn is None: raise HTTPException(404, "Gmail is not connected")
+    result = gmail_oauth.disconnect(db, conn); db.commit(); return result
 
 
 # ---------- Phase 5: money lists, balances, envelopes (guide 36) and the time engine (guide 37) ----------

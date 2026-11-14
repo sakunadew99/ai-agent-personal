@@ -32,3 +32,12 @@ services:
         sync: false
       - key: OPENAI_API_KEY        # optional; leave empty to run free with rule-based fallbacks
         sync: false
+      # Gmail read-only connection (Phase 5 / Fiverr F1). Leave empty until you set up the Google OAuth client.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI   # https://<your-vercel-app>/api/v1/integrations/google/callback
+        sync: false
+      - key: TOKEN_ENCRYPTION_KEY  # Fernet key; encrypts OAuth tokens. Never commit it; keep a copy in your password manager.
+        sync: false
