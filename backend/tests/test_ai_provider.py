@@ -86,3 +86,22 @@ def test_provider_error_is_remembered_without_the_key(monkeypatch):
     assert ai_client.last_error["status"] == 429
     assert "exceeded your current quota" in ai_client.last_error["message"]
     assert key not in ai_client.last_error["message"]
+
+
+def test_retries_without_temperature_for_models_that_reject_it(monkeypatch):
+    import httpx
+    sent = []
+
+    def fake_post(url, headers=None, json=None, timeout=None, **_):
+        sent.append(dict(json))
+        request = httpx.Request("POST", url)
+        if "temperature" in json:
+            return httpx.Response(400, request=request, json={"error": {"message": "Unsupported value: 'temperature' does not support 0.4 with this model."}})
+        return httpx.Response(200, request=request, json={"choices": [{"message": {"content": "ok without temperature"}}], "usage": {}})
+
+    monkeypatch.setattr(ai_client.settings, "ai_api_key", "k")
+    monkeypatch.setattr(ai_client.settings, "ai_base_url", "https://api.openai.com/v1")
+    monkeypatch.setattr(ai_client.httpx, "post", fake_post)
+    reply = ai_client.chat_complete(_Db(), None, "conversation", "gpt-5-nano", [{"role": "user", "content": "hi"}], temperature=0.4)
+    assert reply == "ok without temperature"
+    assert "temperature" in sent[0] and "temperature" not in sent[1]

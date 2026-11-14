@@ -80,12 +80,12 @@ def chat_complete(db: Session, user_id, feature: str, model: str, messages: list
     if not ai_enabled():
         return None
     try:
-        response = httpx.post(
-            _url("chat/completions"),
-            headers={"Authorization": f"Bearer {_api_key()}"},
-            json={"model": model, "temperature": temperature, "messages": messages},
-            timeout=60,
-        )
+        payload = {"model": model, "temperature": temperature, "messages": messages}
+        response = httpx.post(_url("chat/completions"), headers={"Authorization": f"Bearer {_api_key()}"}, json=payload, timeout=60)
+        if response.status_code == 400 and "temperature" in response.text.lower():
+            # Newer reasoning models (e.g. the GPT-5 family) only accept the default temperature.
+            payload.pop("temperature")
+            response = httpx.post(_url("chat/completions"), headers={"Authorization": f"Bearer {_api_key()}"}, json=payload, timeout=60)
         response.raise_for_status()
         data = response.json()
         _record(db, user_id, feature, model, data.get("usage") or {})
