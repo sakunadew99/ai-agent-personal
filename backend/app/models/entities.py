@@ -465,7 +465,7 @@ class CaptureItem(Base):
     raw_text: Mapped[str] = mapped_column(Text)
     classified_type: Mapped[str] = mapped_column(String(32))
     extracted: Mapped[dict] = mapped_column(JsonDict, default=dict)
-    status: Mapped[str] = mapped_column(String(16), default="pending")
+    status: Mapped[str] = mapped_column(String(32), default="pending")  # "needs_confirmation" is 18 chars
     task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
