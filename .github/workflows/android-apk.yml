@@ -33,7 +33,7 @@ jobs:
         with: { node-version: lts/* }
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: "21" }
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
       - name: Install
         run: if [ -f package-lock.json ]; then npm ci; else npm install; fi
       - name: Expo prebuild
