@@ -1,0 +1,6 @@
+# Copy to C:\Users\<you>\.wslconfig, then run `wsl --shutdown` in PowerShell and reopen Ubuntu.
+# Limits WSL's memory use; mirrored networking lets your phone reach Metro/API at the Windows LAN IP.
+[wsl2]
+memory=8GB
+processors=4
+networkingMode=mirrored

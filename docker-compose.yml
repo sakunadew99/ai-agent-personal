@@ -1,0 +1,106 @@
+# Local development stack.
+#   Daily work (fast):   docker compose up -d db          -> then run api/web natively (make api / make web)
+#   Full stack:          docker compose --profile full up -d --build      (make up)
+#   Prod-like edge:      docker compose --profile full --profile edge up -d --build
+#                        -> http://localhost:${EDGE_PORT:-8080} serves web, /api and /mcp through Caddy like production
+# Production uses infra/docker-compose.prod.yml instead.
+
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-sakuna}:${POSTGRES_PASSWORD:-sakuna}@db:5432/${POSTGRES_DB:-sakuna}
+  ENVIRONMENT: ${ENVIRONMENT:-development}
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sakuna}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sakuna}
+      POSTGRES_DB: ${POSTGRES_DB:-sakuna}
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"   # local only; set DB_PORT=5433 if a native Postgres uses 5432
+    volumes:
+      - sakuna_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    profiles: ["full"]
+    build: ./backend
+    restart: unless-stopped
+    image: sakuna-api:dev
+    env_file:
+      - path: .env
+        required: false
+    environment: *backend-env
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  worker:
+    profiles: ["full"]
+    image: sakuna-api:dev          # same image as the API, different command
+    env_file:
+      - path: .env
+        required: false
+    environment: *backend-env
+    command: ["python", "-m", "app.workers.checkins"]
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  mcp:
+    profiles: ["full"]
+    build: ./mcp-service
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: http://backend:8000
+    ports:
+      - "8100:8100"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  web:
+    profiles: ["full"]
+    restart: unless-stopped
+    build:
+      context: ./apps/web
+      args:
+        API_INTERNAL_URL: http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  caddy:
+    profiles: ["edge"]
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "${EDGE_PORT:-8080}:80"
+    environment:
+      SITE_ADDRESS: ":80"
+      API_UPSTREAM: backend:8000
+      MCP_UPSTREAM: mcp:8100
+      WEB_UPSTREAM: web:3000
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - web
+      - mcp
+
+volumes:
+  sakuna_pg:

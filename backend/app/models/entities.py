@@ -1,0 +1,495 @@
+import uuid
+from datetime import date, datetime, time
+from decimal import Decimal
+
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    Time,
+    UniqueConstraint,
+)
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.core.database import Base
+from app.models.types import EmbeddingType, JsonDict, utcnow
+
+
+def pk() -> Mapped[uuid.UUID]:
+    return mapped_column(primary_key=True, default=uuid.uuid4)
+
+
+def user_fk(nullable: bool = False) -> Mapped[uuid.UUID]:
+    return mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=nullable)
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = pk()
+    email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    full_name: Mapped[str] = mapped_column(String(200))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    replaced_by: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class UserProfile(Base):
+    __tablename__ = "user_profiles"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    timezone: Mapped[str] = mapped_column(String(64), default="Asia/Colombo")
+    currency: Mapped[str] = mapped_column(String(3), default="USD")
+    wake_time: Mapped[time] = mapped_column(Time, default=time(7, 0))
+    sleep_time: Mapped[time] = mapped_column(Time, default=time(23, 30))
+    work_start: Mapped[time | None] = mapped_column(Time, nullable=True, default=time(9, 0))
+    work_end: Mapped[time | None] = mapped_column(Time, nullable=True, default=time(17, 0))
+    gym_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    financial_target_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    financial_target_currency: Mapped[str] = mapped_column(String(3), default="USD")
+    financial_target_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    automation_policy: Mapped[str] = mapped_column(String(16), default="confirm")
+    bio: Mapped[str | None] = mapped_column(Text, nullable=True)
+    location: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class UserPermission(Base):
+    __tablename__ = "user_permissions"
+    __table_args__ = (UniqueConstraint("user_id", "tool_name", name="uq_permission_user_tool"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    tool_name: Mapped[str] = mapped_column(String(64))
+    mode: Mapped[str] = mapped_column(String(16), default="approval")
+
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    title: Mapped[str] = mapped_column(String(200), default="New conversation")
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Message(Base):
+    __tablename__ = "messages"
+
+    id: Mapped[uuid.UUID] = pk()
+    conversation_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("conversations.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = user_fk()
+    role: Mapped[str] = mapped_column(String(16))
+    content: Mapped[str] = mapped_column(Text)
+    actions: Mapped[dict] = mapped_column(JsonDict, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Memory(Base):
+    __tablename__ = "memories"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    category: Mapped[str] = mapped_column(String(32), default="note")
+    content: Mapped[str] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String(32), default="user")
+    sensitivity: Mapped[str] = mapped_column(String(16), default="normal")
+    pinned: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class MemoryEmbedding(Base):
+    __tablename__ = "memory_embeddings"
+
+    id: Mapped[uuid.UUID] = pk()
+    memory_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("memories.id", ondelete="CASCADE"), unique=True)
+    user_id: Mapped[uuid.UUID] = user_fk()
+    embedding: Mapped[list] = mapped_column(EmbeddingType(1536))
+    model: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Goal(Base):
+    __tablename__ = "goals"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    category: Mapped[str] = mapped_column(String(32), default="personal")
+    status: Mapped[str] = mapped_column(String(16), default="active")
+    target_value: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    current_value: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    unit: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Task(Base):
+    __tablename__ = "tasks"
+    __table_args__ = (Index("ix_tasks_user_status", "user_id", "status"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    goal_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("goals.id", ondelete="SET NULL"), nullable=True)
+    title: Mapped[str] = mapped_column(String(200))
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    category: Mapped[str] = mapped_column(String(32), default="personal")
+    status: Mapped[str] = mapped_column(String(16), default="todo")
+    priority: Mapped[str] = mapped_column(String(16), default="medium")
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    duration_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class DailyPlan(Base):
+    __tablename__ = "daily_plans"
+    __table_args__ = (UniqueConstraint("user_id", "plan_date", name="uq_daily_plan_user_date"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    plan_date: Mapped[date] = mapped_column(Date, index=True)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    meta: Mapped[dict] = mapped_column(JsonDict, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PlanItem(Base):
+    __tablename__ = "plan_items"
+
+    id: Mapped[uuid.UUID] = pk()
+    plan_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("daily_plans.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = user_fk()
+    task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
+    title: Mapped[str] = mapped_column(String(200))
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    kind: Mapped[str] = mapped_column(String(16), default="fixed")
+    status: Mapped[str] = mapped_column(String(16), default="planned")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CheckinSetting(Base):
+    __tablename__ = "checkin_settings"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    interval_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    quiet_start: Mapped[time | None] = mapped_column(Time, nullable=True)
+    quiet_end: Mapped[time | None] = mapped_column(Time, nullable=True)
+
+
+class CheckinLog(Base):
+    __tablename__ = "checkin_logs"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    mood: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    title: Mapped[str] = mapped_column(String(200))
+    body: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str] = mapped_column(String(32), default="info")
+    dedupe_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Income(Base):
+    __tablename__ = "income"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    currency: Mapped[str] = mapped_column(String(3), default="USD")
+    source: Mapped[str] = mapped_column(String(32))
+    record_kind: Mapped[str] = mapped_column(String(16), default="actual")
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Expense(Base):
+    __tablename__ = "expenses"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    currency: Mapped[str] = mapped_column(String(3), default="USD")
+    category: Mapped[str] = mapped_column(String(32))
+    scope: Mapped[str] = mapped_column(String(16), default="personal")
+    record_kind: Mapped[str] = mapped_column(String(16), default="actual")
+    merchant: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    spent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class FinancialAccount(Base):
+    __tablename__ = "financial_accounts"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    name: Mapped[str] = mapped_column(String(200))
+    account_type: Mapped[str] = mapped_column(String(32))
+    balance: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    currency: Mapped[str] = mapped_column(String(3), default="USD")
+    record_kind: Mapped[str] = mapped_column(String(16), default="actual")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Asset(Base):
+    __tablename__ = "assets"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    name: Mapped[str] = mapped_column(String(200))
+    category: Mapped[str] = mapped_column(String(32), default="other")
+    value: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    currency: Mapped[str] = mapped_column(String(3), default="USD")
+    record_kind: Mapped[str] = mapped_column(String(16), default="actual")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Liability(Base):
+    __tablename__ = "liabilities"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    name: Mapped[str] = mapped_column(String(200))
+    category: Mapped[str] = mapped_column(String(32), default="other")
+    balance: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    currency: Mapped[str] = mapped_column(String(3), default="USD")
+    record_kind: Mapped[str] = mapped_column(String(16), default="actual")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CareerProfile(Base):
+    __tablename__ = "career_profiles"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    headline: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    skills: Mapped[list] = mapped_column(JsonDict, default=list)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class JobApplication(Base):
+    __tablename__ = "job_applications"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    company: Mapped[str] = mapped_column(String(200))
+    role: Mapped[str] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(32), default="draft")
+    url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    applied_at: Mapped[date | None] = mapped_column(Date, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class FreelanceProject(Base):
+    __tablename__ = "freelance_projects"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    client_name: Mapped[str] = mapped_column(String(200))
+    title: Mapped[str] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(32), default="lead")
+    deadline: Mapped[date | None] = mapped_column(Date, nullable=True)
+    value: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    paid_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    currency: Mapped[str] = mapped_column(String(3), default="USD")
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Habit(Base):
+    __tablename__ = "habits"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    name: Mapped[str] = mapped_column(String(200))
+    schedule: Mapped[str] = mapped_column(String(32), default="daily")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class HabitLog(Base):
+    __tablename__ = "habit_logs"
+    __table_args__ = (UniqueConstraint("habit_id", "logged_on", name="uq_habit_log_day"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    habit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("habits.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = user_fk()
+    logged_on: Mapped[date] = mapped_column(Date)
+    completed: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class HealthRecord(Base):
+    __tablename__ = "health_records"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    metric: Mapped[str] = mapped_column(String(32))
+    value: Mapped[Decimal] = mapped_column(Numeric(14, 3))
+    unit: Mapped[str] = mapped_column(String(32))
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    source: Mapped[str] = mapped_column(String(32), default="manual")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Workout(Base):
+    __tablename__ = "workouts"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    activity: Mapped[str] = mapped_column(String(100))
+    duration_minutes: Mapped[int] = mapped_column(Integer)
+    calories: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source: Mapped[str] = mapped_column(String(32), default="manual")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class SleepRecord(Base):
+    __tablename__ = "sleep_records"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    duration_minutes: Mapped[int] = mapped_column(Integer)
+    stages: Mapped[dict | None] = mapped_column(JsonDict, nullable=True)
+    source: Mapped[str] = mapped_column(String(32), default="manual")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class FocusSession(Base):
+    __tablename__ = "focus_sessions"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
+    mode: Mapped[str] = mapped_column(String(16), default="pomodoro")
+    minutes_planned: Mapped[int] = mapped_column(Integer, default=25)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    distractions: Mapped[int] = mapped_column(Integer, default=0)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class Approval(Base):
+    __tablename__ = "approvals"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    tool_name: Mapped[str] = mapped_column(String(64))
+    payload: Mapped[dict] = mapped_column(JsonDict, default=dict)
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    result: Mapped[dict | None] = mapped_column(JsonDict, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    actor: Mapped[str] = mapped_column(String(32), default="user")
+    action: Mapped[str] = mapped_column(String(64))
+    resource: Mapped[str] = mapped_column(String(64))
+    resource_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    details: Mapped[dict] = mapped_column(JsonDict, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class IdempotencyKey(Base):
+    __tablename__ = "idempotency_keys"
+    __table_args__ = (UniqueConstraint("user_id", "key", name="uq_idempotency_user_key"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    key: Mapped[str] = mapped_column(String(200))
+    request_hash: Mapped[str] = mapped_column(String(64))
+    response_json: Mapped[dict] = mapped_column(JsonDict, default=dict)
+    status_code: Mapped[int] = mapped_column(Integer, default=200)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CaptureItem(Base):
+    __tablename__ = "capture_items"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    raw_text: Mapped[str] = mapped_column(Text)
+    classified_type: Mapped[str] = mapped_column(String(32))
+    extracted: Mapped[dict] = mapped_column(JsonDict, default=dict)
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class LifeEntry(Base):
+    __tablename__ = "life_entries"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    entry_type: Mapped[str] = mapped_column(String(32))
+    title: Mapped[str] = mapped_column(String(200))
+    details: Mapped[str | None] = mapped_column(Text, nullable=True)
+    occurred_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AiUsage(Base):
+    __tablename__ = "ai_usage"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    feature: Mapped[str] = mapped_column(String(64))
+    model: Mapped[str] = mapped_column(String(64))
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    estimated_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

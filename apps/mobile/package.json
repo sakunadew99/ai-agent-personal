@@ -1,0 +1,26 @@
+{
+  "name": "sakuna-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "main": "node_modules/expo/AppEntry.js",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "start:expo-go": "expo start",
+    "prebuild:android": "expo prebuild --platform android",
+    "build:apk": "powershell -ExecutionPolicy Bypass -File .\\build-apk.ps1",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
+  },
+  "dependencies": {
+    "expo": "~58.0.0",
+    "expo-status-bar": "~58.0.4",
+    "react": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-health-connect": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.0",
+    "expo-build-properties": "~58.0.0",
+    "typescript": "~5.7.0"
+  }
+}

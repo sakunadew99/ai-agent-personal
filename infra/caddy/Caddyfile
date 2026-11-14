@@ -1,0 +1,40 @@
+# One hostname, path routing, automatic HTTPS, no CORS.
+# Values come from environment variables so the same file works locally and in production:
+#   SITE_ADDRESS   production: your domain (e.g. sakuna.duckdns.org) -> Caddy fetches TLS certs
+#                  local edge profile: ":80"
+#   API_UPSTREAM / MCP_UPSTREAM / WEB_UPSTREAM  service:port inside the compose network
+
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+		-Server
+	}
+
+	request_body {
+		max_size 12MB
+	}
+
+	handle /api/* {
+		reverse_proxy {$API_UPSTREAM}
+	}
+
+	handle /mcp* {
+		reverse_proxy {$MCP_UPSTREAM} {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		reverse_proxy {$WEB_UPSTREAM}
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

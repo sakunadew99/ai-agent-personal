@@ -1,0 +1,99 @@
+# Production stack for the Oracle Always Free Arm VM (2 OCPU / 12 GB).
+# Lives on the server as /opt/sakuna/docker-compose.prod.yml next to .env, Caddyfile and scripts/.
+# Images are pulled from GHCR by tag (git SHA); nothing is built on the server.
+# Only Caddy publishes ports. The database is never exposed.
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+x-app: &app
+  restart: unless-stopped
+  env_file: .env
+  logging: *logging
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    logging: *logging
+    env_file: .env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources: { limits: { memory: 2g } }
+
+  api:
+    <<: *app
+    image: ghcr.io/${GHCR_OWNER}/sakuna-api:${TAG}
+    environment:
+      ENVIRONMENT: production
+    depends_on:
+      db: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources: { limits: { memory: 1g } }
+
+  worker:
+    <<: *app
+    image: ghcr.io/${GHCR_OWNER}/sakuna-api:${TAG}   # same image, different command
+    command: ["python", "-m", "app.workers.checkins"]
+    environment:
+      ENVIRONMENT: production
+    depends_on:
+      api: { condition: service_healthy }
+    deploy:
+      resources: { limits: { memory: 512m } }
+
+  mcp:
+    <<: *app
+    image: ghcr.io/${GHCR_OWNER}/sakuna-mcp:${TAG}
+    environment:
+      BACKEND_URL: http://api:8000
+    depends_on:
+      api: { condition: service_healthy }
+    deploy:
+      resources: { limits: { memory: 384m } }
+
+  web:
+    image: ghcr.io/${GHCR_OWNER}/sakuna-web:${TAG}
+    restart: unless-stopped
+    logging: *logging
+    deploy:
+      resources: { limits: { memory: 768m } }
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    logging: *logging
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS}
+      API_UPSTREAM: api:8000
+      MCP_UPSTREAM: mcp:8100
+      WEB_UPSTREAM: web:3000
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - web
+      - mcp
+
+volumes:
+  pgdata: {}
+  caddy_data: {}
+  caddy_config: {}

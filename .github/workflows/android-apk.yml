@@ -1,0 +1,79 @@
+name: Android APK
+
+# Free fallback for when the EAS Build quota is used up (guide section 7.2).
+# Run it manually: Actions -> Android APK -> Run workflow.
+#
+# Signing: an update installs over the old app ONLY if signed with the same key. Add these secrets
+# once and keep a backup of the keystore outside the repo:
+#   ANDROID_KEYSTORE_BASE64   base64 of your .keystore/.jks file
+#   ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+# Without them the APK is signed with a throwaway debug key (fine for a first test only).
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: "EXPO_PUBLIC_API_URL baked into the APK (must be HTTPS for release)"
+        required: true
+        default: "https://sakuna.example.com"
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: apps/mobile } }
+    env:
+      EXPO_PUBLIC_API_URL: ${{ inputs.api_url }}
+      EXPO_NO_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: lts/* }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
+      - uses: android-actions/setup-android@v3
+      - name: Install
+        run: if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - name: Expo prebuild
+        run: npx expo prebuild --platform android --clean --no-install
+      - name: Use the permanent release keystore
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KS_B64" ]; then echo "::warning::No keystore secrets; APK uses a throwaway debug key"; exit 0; fi
+          echo "$KS_B64" | base64 -d > android/app/release.keystore
+          cat >> android/gradle.properties <<EOF
+          SAKUNA_STORE_FILE=release.keystore
+          SAKUNA_STORE_PASSWORD=$KS_PASS
+          SAKUNA_KEY_ALIAS=$KEY_ALIAS
+          SAKUNA_KEY_PASSWORD=$KEY_PASS
+          EOF
+          # Point the generated release build at the permanent key instead of the debug key.
+          python3 - <<'PY'
+          import re, pathlib
+          p = pathlib.Path("android/app/build.gradle")
+          s = p.read_text()
+          release_cfg = """
+                  release {
+                      storeFile file(SAKUNA_STORE_FILE)
+                      storePassword SAKUNA_STORE_PASSWORD
+                      keyAlias SAKUNA_KEY_ALIAS
+                      keyPassword SAKUNA_KEY_PASSWORD
+                  }"""
+          s = s.replace("signingConfigs {", "signingConfigs {" + release_cfg, 1)
+          s = re.sub(r"(release\s*\{[^{}]*?)signingConfig signingConfigs\.debug", r"\1signingConfig signingConfigs.release", s, count=1, flags=re.S)
+          p.write_text(s)
+          PY
+      - name: Gradle assembleRelease
+        working-directory: apps/mobile/android
+        run: ./gradlew assembleRelease --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sakuna-${{ github.sha }}.apk
+          path: apps/mobile/android/app/build/outputs/apk/release/*.apk
+          retention-days: 14

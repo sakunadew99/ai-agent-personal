@@ -1,0 +1,275 @@
+import uuid
+from datetime import date, datetime, time, timedelta
+
+from fastapi import HTTPException, status
+from sqlalchemy import delete, select
+from sqlalchemy.orm import Session
+
+from app.core.clock import as_utc, now_utc, zone
+from app.models.entities import (
+    Approval,
+    DailyPlan,
+    Expense,
+    Goal,
+    Income,
+    PlanItem,
+    Task,
+    User,
+    UserProfile,
+)
+from app.schemas.dto import ExpenseIn, GoalIn, GoalUpdate, IncomeIn, TaskIn, TaskUpdate
+from app.services.audit import audit
+from app.services.memory import save_memory
+from app.services.planner import SchedTask, build_day
+from app.services.permissions import mode_for
+
+
+def _profile(db: Session, user_id) -> UserProfile:
+    profile = db.scalar(select(UserProfile).where(UserProfile.user_id == user_id))
+    if profile is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Profile not found")
+    return profile
+
+
+def _goal_owned(db: Session, user_id, goal_id: uuid.UUID | None) -> None:
+    if goal_id is None:
+        return
+    goal = db.get(Goal, goal_id)
+    if goal is None or goal.user_id != user_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Goal not found")
+
+
+def create_task(db: Session, user_id, data: TaskIn) -> Task:
+    _goal_owned(db, user_id, data.goal_id)
+    row = Task(user_id=user_id, **data.model_dump())
+    db.add(row)
+    db.flush()
+    audit(db, user_id, "task.create", "task", row.id, {"title": row.title})
+    return row
+
+
+def update_task(db: Session, row: Task, data: TaskUpdate) -> Task:
+    changes = data.model_dump(exclude_unset=True)
+    if "goal_id" in changes:
+        _goal_owned(db, row.user_id, changes["goal_id"])
+    for key, value in changes.items():
+        setattr(row, key, value)
+    if changes.get("status") == "done" and row.completed_at is None:
+        row.completed_at = now_utc()
+    if changes.get("status") not in (None, "done"):
+        row.completed_at = None
+    row.updated_at = now_utc()
+    audit(db, row.user_id, "task.update", "task", row.id)
+    return row
+
+
+def complete_task(db: Session, row: Task) -> Task:
+    row.status = "done"
+    row.completed_at = now_utc()
+    row.updated_at = now_utc()
+    audit(db, row.user_id, "task.complete", "task", row.id)
+    return row
+
+
+def create_goal(db: Session, user_id, data: GoalIn) -> Goal:
+    row = Goal(user_id=user_id, **data.model_dump())
+    db.add(row)
+    db.flush()
+    audit(db, user_id, "goal.create", "goal", row.id, {"title": row.title})
+    return row
+
+
+def update_goal(db: Session, row: Goal, data: GoalUpdate) -> Goal:
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(row, key, value)
+    row.updated_at = now_utc()
+    audit(db, row.user_id, "goal.update", "goal", row.id)
+    return row
+
+
+def create_income(db: Session, user_id, data: IncomeIn) -> Income:
+    row = Income(
+        user_id=user_id,
+        amount=data.amount,
+        currency=data.currency,
+        source=data.source,
+        record_kind=data.record_kind,
+        received_at=as_utc(data.received_at or now_utc()),
+        notes=data.notes,
+    )
+    db.add(row)
+    db.flush()
+    audit(db, user_id, "income.create", "income", row.id, {"amount": str(row.amount), "kind": row.record_kind})
+    return row
+
+
+def create_expense(db: Session, user_id, data: ExpenseIn) -> Expense:
+    row = Expense(
+        user_id=user_id,
+        amount=data.amount,
+        currency=data.currency,
+        category=data.category,
+        scope=data.scope,
+        record_kind=data.record_kind,
+        merchant=data.merchant,
+        spent_at=as_utc(data.spent_at or now_utc()),
+        notes=data.notes,
+    )
+    db.add(row)
+    db.flush()
+    audit(db, user_id, "expense.create", "expense", row.id, {"amount": str(row.amount), "kind": row.record_kind})
+    return row
+
+
+def _tasks_for_day(db: Session, user_id, plan_date: date, tz) -> list[SchedTask]:
+    rows = db.scalars(
+        select(Task).where(Task.user_id == user_id, Task.status.notin_(["done", "cancelled"]))
+    ).all()
+    selected = []
+    for row in rows:
+        if row.due_at is not None and as_utc(row.due_at).astimezone(tz).date() > plan_date:
+            continue
+        selected.append(
+            SchedTask(str(row.id), row.title, row.duration_minutes or 30, row.priority)
+        )
+    return selected
+
+
+def create_daily_plan(db: Session, user: User, plan_date: date) -> DailyPlan:
+    profile = _profile(db, user.id)
+    tz = zone(profile.timezone)
+    draft = build_day(
+        plan_date,
+        tz,
+        profile.wake_time,
+        profile.sleep_time,
+        profile.work_start,
+        profile.work_end,
+        profile.gym_time,
+        _tasks_for_day(db, user.id, plan_date, tz),
+    )
+    plan = db.scalar(select(DailyPlan).where(DailyPlan.user_id == user.id, DailyPlan.plan_date == plan_date))
+    if plan is None:
+        plan = DailyPlan(user_id=user.id, plan_date=plan_date)
+        db.add(plan)
+        db.flush()
+    else:
+        db.execute(delete(PlanItem).where(PlanItem.plan_id == plan.id))
+    plan.summary = _summary(draft)
+    plan.meta = {"conflicts": draft.conflicts, "unscheduled": draft.unscheduled}
+    for block in draft.blocks:
+        db.add(
+            PlanItem(
+                plan_id=plan.id,
+                user_id=user.id,
+                task_id=uuid.UUID(block.task_id) if block.task_id else None,
+                title=block.title,
+                starts_at=block.starts_at,
+                ends_at=block.ends_at,
+                kind=block.kind,
+            )
+        )
+    audit(db, user.id, "plan.create", "daily_plan", plan.id, {"date": plan_date.isoformat()})
+    db.flush()
+    return plan
+
+
+def create_daily_plans(db: Session, user: User, start: date, days: int) -> list[DailyPlan]:
+    return [create_daily_plan(db, user, start + timedelta(days=offset)) for offset in range(days)]
+
+
+def _summary(draft) -> str:
+    parts = [f"{len(draft.blocks)} blocks"]
+    if draft.conflicts:
+        parts.append(f"{len(draft.conflicts)} conflicts")
+    if draft.unscheduled:
+        parts.append(f"{len(draft.unscheduled)} unscheduled")
+    return ", ".join(parts)
+
+
+def execute_action(db: Session, user: User, action: str, body: dict) -> dict:
+    if action == "create_task":
+        row = create_task(db, user.id, TaskIn.model_validate(body))
+        return {"id": str(row.id), "title": row.title}
+    if action == "update_task":
+        task_id = uuid.UUID(body["id"])
+        task = db.get(Task, task_id)
+        if task is None or task.user_id != user.id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Task not found")
+        changes = {key: value for key, value in body.items() if key != "id"}
+        row = update_task(db, task, TaskUpdate.model_validate(changes))
+        return {"id": str(row.id), "title": row.title, "status": row.status}
+    if action == "create_goal":
+        row = create_goal(db, user.id, GoalIn.model_validate(body))
+        return {"id": str(row.id), "title": row.title}
+    if action == "save_memory":
+        row = save_memory(
+            db,
+            user.id,
+            body["content"],
+            body.get("category", "note"),
+            "assistant",
+            bool(body.get("allow_sensitive", False)),
+        )
+        return {"id": str(row.id), "category": row.category}
+    if action == "create_daily_plan":
+        plan_date = date.fromisoformat(body["plan_date"]) if body.get("plan_date") else _today(db, user.id)
+        row = create_daily_plan(db, user, plan_date)
+        return {"id": str(row.id), "plan_date": row.plan_date.isoformat()}
+    if action == "create_expense":
+        row = create_expense(db, user.id, ExpenseIn.model_validate(body))
+        return {"id": str(row.id), "amount": str(row.amount), "category": row.category}
+    raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown action")
+
+
+def queue_or_run(db: Session, user: User, tool: str, body: dict, summary: str) -> dict:
+    mode = mode_for(db, user.id, tool)
+    profile = _profile(db, user.id)
+    auto = profile.automation_policy == "auto" and tool != "create_expense"
+    if mode == "deny":
+        return {"status": "refused", "summary": f"Permission denies {tool}", "tool": tool}
+    if mode == "approval" and not auto:
+        approval = Approval(user_id=user.id, tool_name=tool, payload={"action": tool, "body": body}, status="pending")
+        db.add(approval)
+        db.flush()
+        audit(db, user.id, "approval.create", "approval", approval.id, {"tool": tool}, actor="assistant")
+        return {
+            "status": "proposed",
+            "summary": summary,
+            "tool": tool,
+            "approval_id": str(approval.id),
+        }
+    result = execute_action(db, user, tool, body)
+    return {
+        "status": "completed",
+        "summary": summary,
+        "tool": tool,
+        "resource_id": result.get("id"),
+    }
+
+
+def resolve_approval(db: Session, user: User, approval: Approval, accept: bool) -> Approval:
+    if approval.status != "pending":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Approval is already resolved")
+    approval.resolved_at = now_utc()
+    if not accept:
+        approval.status = "rejected"
+        audit(db, user.id, "approval.reject", "approval", approval.id)
+        return approval
+    result = execute_action(db, user, approval.payload["action"], approval.payload.get("body") or {})
+    approval.status = "approved"
+    approval.result = result
+    audit(db, user.id, "approval.approve", "approval", approval.id, {"tool": approval.tool_name})
+    return approval
+
+
+def _today(db: Session, user_id) -> date:
+    profile = _profile(db, user_id)
+    return datetime.now(zone(profile.timezone)).date()
+
+
+def combine_local(db: Session, user_id, day: date, clock: str) -> datetime:
+    profile = _profile(db, user_id)
+    hour, minute = (int(part) for part in clock.split(":"))
+    local = datetime.combine(day, time(hour, minute), tzinfo=zone(profile.timezone))
+    return as_utc(local)

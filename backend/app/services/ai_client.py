@@ -1,0 +1,110 @@
+import logging
+from decimal import Decimal
+
+import httpx
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.models.entities import AiUsage
+
+logger = logging.getLogger(__name__)
+
+
+def _cost(input_tokens: int, output_tokens: int) -> Decimal | None:
+    if settings.openai_input_price_per_million == 0 and settings.openai_output_price_per_million == 0:
+        return None
+    million = Decimal(1_000_000)
+    return (
+        Decimal(input_tokens) * settings.openai_input_price_per_million
+        + Decimal(output_tokens) * settings.openai_output_price_per_million
+    ) / million
+
+
+def _record(db: Session, user_id, feature: str, model: str, usage: dict) -> None:
+    prompt = int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0)
+    completion = int(usage.get("completion_tokens") or usage.get("output_tokens") or 0)
+    db.add(
+        AiUsage(
+            user_id=user_id,
+            feature=feature,
+            model=model,
+            input_tokens=prompt,
+            output_tokens=completion,
+            estimated_cost_usd=_cost(prompt, completion),
+        )
+    )
+
+
+def chat_complete(db: Session, user_id, feature: str, model: str, messages: list[dict]) -> str | None:
+    if not settings.openai_api_key:
+        return None
+    try:
+        response = httpx.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+            json={"model": model, "temperature": 0.2, "messages": messages},
+            timeout=60,
+        )
+        response.raise_for_status()
+        data = response.json()
+        _record(db, user_id, feature, model, data.get("usage") or {})
+        return data["choices"][0]["message"]["content"]
+    except (httpx.HTTPError, KeyError, IndexError):
+        logger.exception("chat completion failed")
+        return None
+
+
+def embed_text(db: Session, user_id, text: str) -> list[float] | None:
+    if not settings.openai_api_key:
+        return None
+    try:
+        response = httpx.post(
+            "https://api.openai.com/v1/embeddings",
+            headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+            json={"model": settings.openai_embedding_model, "input": text},
+            timeout=30,
+        )
+        response.raise_for_status()
+        data = response.json()
+        _record(db, user_id, "embedding", settings.openai_embedding_model, data.get("usage") or {})
+        return data["data"][0]["embedding"]
+    except (httpx.HTTPError, KeyError, IndexError):
+        logger.exception("embedding failed")
+        return None
+
+
+def transcribe_audio(db: Session, user_id, filename: str, content: bytes, content_type: str) -> str | None:
+    if not settings.openai_api_key:
+        return None
+    try:
+        response = httpx.post(
+            "https://api.openai.com/v1/audio/transcriptions",
+            headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+            data={"model": settings.openai_transcription_model},
+            files={"file": (filename or "audio.webm", content, content_type or "application/octet-stream")},
+            timeout=60,
+        )
+        response.raise_for_status()
+        data = response.json()
+        db.add(
+            AiUsage(
+                user_id=user_id,
+                feature="transcription",
+                model=settings.openai_transcription_model,
+                input_tokens=0,
+                output_tokens=0,
+                estimated_cost_usd=None,
+            )
+        )
+        return data.get("text", "")
+    except (httpx.HTTPError, KeyError):
+        logger.exception("transcription failed")
+        return None
+
+
+def model_for(purpose: str) -> str:
+    if purpose in {"analysis", "finance", "planning"}:
+        return settings.openai_model_reasoning
+    if purpose == "classification":
+        return settings.openai_model_small
+    return settings.openai_model_balanced

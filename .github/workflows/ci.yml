@@ -1,0 +1,176 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.f.outputs.backend }}
+      mcp: ${{ steps.f.outputs.mcp }}
+      web: ${{ steps.f.outputs.web }}
+      mobile: ${{ steps.f.outputs.mobile }}
+      infra: ${{ steps.f.outputs.infra }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: f
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend: ['backend/**', 'ruff.toml']
+            mcp:     ['mcp-service/**', 'ruff.toml']
+            web:     ['apps/web/**']
+            mobile:  ['apps/mobile/**']
+            infra:   ['infra/**', 'scripts/**', 'docker-compose.yml', '.github/workflows/**']
+
+  backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: pgvector/pgvector:pg16
+        env: { POSTGRES_USER: postgres, POSTGRES_PASSWORD: test, POSTGRES_DB: sakuna_test }
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:test@localhost:5432/sakuna_test
+      ENVIRONMENT: test
+      JWT_SECRET: ci-only-secret-not-used-anywhere-else
+    defaults: { run: { working-directory: backend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      - name: Lint
+        run: ruff check .
+      - name: Migrations up / down / up
+        run: |
+          alembic upgrade head
+          alembic downgrade -1
+          alembic upgrade head
+      - name: Model drift check
+        run: alembic check
+      - name: Tests
+        run: python -m pytest -q
+
+  mcp:
+    needs: changes
+    if: needs.changes.outputs.mcp == 'true'
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: mcp-service } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: mcp-service/requirements*.txt
+      - run: pip install -r requirements-dev.txt ruff
+      - run: ruff check .
+      - run: python -m pytest -q
+
+  web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: apps/web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: lts/* }
+      - name: Install
+        run: if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - run: npx tsc --noEmit
+      - run: npm run build
+        env: { NEXT_TELEMETRY_DISABLED: "1" }
+
+  mobile:
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: apps/mobile } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: lts/* }
+      - name: Install
+        run: if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - run: npx tsc --noEmit
+      - name: expo-doctor (advisory)
+        run: npx expo-doctor
+        continue-on-error: true
+
+  images:
+    # Proves every Dockerfile still builds (amd64 only, fast). Release builds arm64 too.
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.mcp == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { name: api, context: backend }
+          - { name: mcp, context: mcp-service }
+          - { name: web, context: apps/web }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: false
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,scope=${{ matrix.name }},mode=max
+
+  infra:
+    needs: changes
+    if: needs.changes.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: shellcheck -S warning infra/scripts/*.sh scripts/**/*.sh
+      - name: compose files are valid
+        run: |
+          docker compose -f docker-compose.yml --profile full --profile edge config -q
+          cp infra/.env.prod.example infra/.env
+          docker compose -f infra/docker-compose.prod.yml config -q
+      - name: Caddyfile is valid
+        run: |
+          docker run --rm -e SITE_ADDRESS=:80 -e API_UPSTREAM=api:8000 -e MCP_UPSTREAM=mcp:8100 -e WEB_UPSTREAM=web:3000 \
+            -v "$PWD/infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2 caddy validate --config /etc/caddy/Caddyfile
+
+  secrets-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  ci-ok:
+    # The ONE check to mark as required in branch protection. Skipped jobs count as OK.
+    if: always()
+    needs: [backend, mcp, web, mobile, images, infra, secrets-scan]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any job failed or was cancelled
+        run: |
+          echo '${{ toJSON(needs) }}' | grep -qE '"result": "(failure|cancelled)"' && exit 1 || exit 0

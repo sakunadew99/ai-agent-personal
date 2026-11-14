@@ -1,0 +1,8 @@
+# Keep LF everywhere so scripts work inside WSL2 and Linux containers.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.png binary
+*.jpg binary
+*.ico binary
+*.jar binary
+*.keystore binary

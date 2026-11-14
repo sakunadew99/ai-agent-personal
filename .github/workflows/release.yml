@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { name: api, context: backend }
+          - { name: mcp, context: mcp-service }
+          - { name: web, context: apps/web }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lowercase owner (GHCR requires it)
+        run: echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          platforms: linux/amd64,linux/arm64   # Oracle Always Free VM is arm64
+          push: true
+          tags: |
+            ghcr.io/${{ env.OWNER }}/sakuna-${{ matrix.name }}:${{ github.sha }}
+            ghcr.io/${{ env.OWNER }}/sakuna-${{ matrix.name }}:main
+          cache-from: type=gha,scope=release-${{ matrix.name }}
+          cache-to: type=gha,scope=release-${{ matrix.name }},mode=max
+
+  deploy:
+    needs: images
+    # Turn on by setting the repository variable DEPLOY_ENABLED=true once the VM exists.
+    if: vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: production   # add yourself as a required reviewer for manual approval
+    steps:
+      - name: Deploy over SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          KNOWN: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id && chmod 600 ~/.ssh/id
+          echo "$KNOWN" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/id deploy@"$SSH_HOST" "/opt/sakuna/deploy.sh ${{ github.sha }}"

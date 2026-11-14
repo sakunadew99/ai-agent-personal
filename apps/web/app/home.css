@@ -1,0 +1,123 @@
+.home-dashboard {
+  display: grid;
+  gap: 18px;
+}
+
+.home-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  padding: 8px 10px 12px;
+}
+
+.home-hero h2 { font-size: 30px; margin: 7px 0; }
+.home-hero h2 span { color: var(--green); }
+.home-motto { margin: 0; color: #aab8af; font-size: 13px; }
+
+.daily-score {
+  width: 142px;
+  height: 142px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: conic-gradient(var(--green) var(--score), #26342c 0);
+  position: relative;
+  filter: drop-shadow(0 0 15px #39d98a28);
+}
+
+.daily-score:before { content: ""; position: absolute; inset: 9px; border-radius: 50%; background: var(--panel); border: 1px solid #33433a; }
+.daily-score div { position: relative; display: grid; text-align: center; gap: 4px; }
+.daily-score strong { font-size: 32px; color: var(--green); }
+.daily-score small { font-size: 11px; color: var(--muted); }
+
+.home-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(270px, .92fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 14px;
+}
+
+.home-column { display: grid; align-content: start; gap: 14px; min-width: 0; }
+.home-card { min-height: 220px; }
+.home-priorities { display: grid; }
+.home-priority { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.home-priority:last-child { border-bottom: 0; }
+.home-priority .task-copy b { font-size: 12px; }
+.home-priority .task-copy small { font-size: 10px; }
+.home-check { width: 22px; height: 22px; flex: none; border: 1px solid #405449; border-radius: 6px; background: #101713; color: transparent; }
+.home-check:hover { border-color: var(--green); color: var(--green); }
+.priority-pill { padding: 4px 8px; border-radius: 99px; background: #26342c; color: #b4c4b8; font-size: 9px; text-transform: capitalize; }
+.priority-pill.high { background: #542f2d; color: #ffb1a0; }
+.priority-pill.medium { background: #473c29; color: #ffd47b; }
+.priority-pill.low { background: #203c30; color: #75dfa7; }
+
+.vision-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.vision-goal { min-width: 0; padding: 11px; border: 1px solid var(--line); border-radius: 10px; background: #111714; }
+.vision-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; }
+.vision-title b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vision-title span { color: var(--green); font-size: 11px; }
+.vision-goal .progress { margin: 9px 0 7px; }
+.vision-goal > small { font-size: 9px; color: var(--muted); text-transform: capitalize; }
+
+.home-assistant { display: flex; flex-direction: column; min-height: 100%; padding: 22px; background: radial-gradient(ellipse at 50% 5%, #21382c 0, transparent 45%), var(--panel); }
+.home-ai-mark { width: 52px; height: 52px; display: grid; place-items: center; margin: 0 auto 13px; border-radius: 17px; background: #1b3023; color: var(--green); font-size: 26px; box-shadow: 0 0 32px #39d98a18; }
+.home-assistant > .eyebrow, .home-assistant > h2, .home-assistant > .muted { text-align: center; }
+.home-assistant > h2 { font-size: 19px; margin: 4px 0; }
+.home-assistant > .muted { margin: 4px 0 15px; }
+.home-chat-area { flex: 1; min-height: 128px; display: flex; align-items: center; }
+.home-chat-prompt { width: 100%; padding: 13px; border-radius: 12px; background: #202a25; color: #e5eee8; text-align: center; font-size: 13px; }
+.home-chat-answer { width: 100%; padding: 13px; border: 1px solid #3a5b48; border-radius: 12px; background: #111914; }
+.home-chat-answer small { color: var(--green); font-size: 9px; letter-spacing: 1px; }
+.home-chat-answer p { font-size: 12px; line-height: 1.55; margin: 8px 0 0; }
+.home-chat-answer .proposal-note { display: block; margin-top: 8px; font-size: 10px; }
+.home-chat-suggestions { display: flex; justify-content: center; gap: 7px; flex-wrap: wrap; margin: 10px 0; }
+.home-chat-suggestions button { border: 1px solid var(--line); border-radius: 99px; background: #101713; color: #b9c8bf; padding: 6px 9px; font-size: 9px; }
+.home-chat-suggestions button:hover { border-color: var(--green); color: var(--text); }
+.home-chat-form { display: flex; gap: 8px; }
+.home-chat-form input { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 99px; background: #0e1411; color: var(--text); padding: 10px 13px; font-size: 11px; }
+.home-full-assistant { align-self: center; margin-top: 8px; }
+
+.wellness-list { display: grid; }
+.wellness-row { display: grid; grid-template-columns: 35px minmax(70px, 1fr) auto; gap: 9px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.wellness-row:last-child { border: 0; }
+.wellness-icon { width: 33px; height: 33px; border-radius: 50%; display: grid; place-items: center; background: #203127; color: var(--green); font-size: 18px; }
+.wellness-icon.blue { color: #81c7ff; background: #1b2c39; }
+.wellness-icon.violet { color: #c1a2ff; background: #292338; }
+.wellness-row b { display: block; font-size: 11px; }
+.wellness-row small { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; }
+.wellness-row strong { font-size: 11px; text-align: right; }
+.health-connect-hint { width: 100%; margin-top: 8px; padding: 10px; border: 1px dashed #34483a; border-radius: 8px; background: #111914; color: #9cc6a9; font-size: 10px; text-align: left; }
+
+.habit-week { display: grid; gap: 8px; }
+.habit-days, .habit-week-row { display: grid; grid-template-columns: minmax(82px, 1.4fr) repeat(7, minmax(14px, .35fr)); gap: 5px; align-items: center; }
+.habit-days span { text-align: center; color: var(--muted); font-size: 9px; }
+.habit-week-row b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; font-weight: 500; }
+.habit-dot { width: 13px; height: 13px; justify-self: center; border: 1px solid #42534a; border-radius: 50%; background: transparent; }
+.habit-dot.done { border-color: var(--green); background: var(--green); box-shadow: 0 0 8px #39d98a52; }
+.home-habit-empty { text-align: center; padding: 14px 0; }
+.home-habit-empty p { color: var(--muted); font-size: 11px; }
+
+@media (max-width: 1250px) {
+  .home-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .home-grid > .home-column:last-child { grid-column: span 2; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .home-dashboard { gap: 12px; }
+  .home-hero { padding: 2px 0; align-items: flex-start; }
+  .home-hero h2 { font-size: 22px; }
+  .home-motto { font-size: 11px; max-width: 320px; }
+  .daily-score { width: 82px; height: 82px; }
+  .daily-score:before { inset: 6px; }
+  .daily-score strong { font-size: 19px; }
+  .daily-score small { font-size: 8px; }
+  .home-grid { grid-template-columns: 1fr; gap: 10px; }
+  .home-grid > .home-column:last-child { grid-column: auto; grid-template-columns: 1fr; }
+  .home-assistant { min-height: 360px; }
+  .home-card { min-height: 0; }
+  .vision-grid { gap: 7px; }
+  .wellness-row { grid-template-columns: 34px minmax(70px, 1fr) auto; }
+  .habit-days, .habit-week-row { grid-template-columns: minmax(75px, 1.4fr) repeat(7, minmax(12px, .3fr)); gap: 4px; }
+}
