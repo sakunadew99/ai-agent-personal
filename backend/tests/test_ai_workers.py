@@ -48,8 +48,8 @@ def test_team_setup_and_settings(api):
     assert list(workers) == ["morning_coach", "focus_guard", "study_coach", "night_reviewer", "weekly_report", "news_scout", "market_analyst"]
     assert workers["morning_coach"]["run_time"].startswith("07:15")                           # 15 min after the default wake-up
     assert workers["night_reviewer"]["enabled"] and workers["news_scout"]["enabled"] and workers["news_scout"]["available"]
-    assert not workers["market_analyst"]["available"]
-    api("PATCH", "/workers/market_analyst", {"enabled": True}, 422)                            # arrives in a later phase
+    assert all(w["available"] for w in workers.values())                                      # Phase 7: the whole team is here
+    assert workers["market_analyst"]["enabled"] and workers["market_analyst"]["days"] == [1, 2, 3, 4, 5]
     out = api("PATCH", "/workers/focus_guard", {"run_time": "15:00", "days": [1, 2, 3, 4, 5], "use_ai": False, "daily_token_budget": 500}, 200).json()
     assert out["run_time"].startswith("15:00") and out["days"] == [1, 2, 3, 4, 5] and out["use_ai"] is False
     api("PATCH", "/workers/focus_guard", {"days": [8]}, 422)
@@ -70,7 +70,7 @@ def test_rule_notes_without_ai(api):
     again = api("POST", "/workers/morning_coach/run", expect=200).json()
     assert again["id"] == note["id"]                                                          # one note per worker per day
     today = api("GET", "/workers/today", expect=200).json()
-    assert {"morning_coach", "focus_guard", "study_coach", "night_reviewer", "weekly_report", "news_scout"} == {i["worker"] for i in today["items"]} and today["unread"] >= 3
+    assert {"morning_coach", "focus_guard", "study_coach", "night_reviewer", "weekly_report", "news_scout", "market_analyst"} == {i["worker"] for i in today["items"]} and today["unread"] >= 3
 
 
 def test_ai_note_within_budget(api, monkeypatch):

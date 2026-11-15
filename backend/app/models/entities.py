@@ -3,6 +3,7 @@ from datetime import date, datetime, time
 from decimal import Decimal
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Date,
@@ -1380,3 +1381,93 @@ class NewsDigest(Base):
     used_ai: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# ---------- Life OS Phase 7: CSE investing assistant (signals from YOUR rules; never trades) ----------
+
+class StockPrice(Base):
+    """One symbol's prices for one trading day: from the CSE website, your CSV/Excel upload, or typed in."""
+    __tablename__ = "stock_prices"
+    __table_args__ = (
+        UniqueConstraint("user_id", "symbol", "trade_date", name="uq_stock_prices_user_symbol_date"),
+        CheckConstraint("source IN ('cse','upload','manual')", name="ck_stock_prices_source"),
+        Index("ix_stock_prices_user_date", "user_id", "trade_date"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    symbol: Mapped[str] = mapped_column(String(20))
+    name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    trade_date: Mapped[date] = mapped_column(Date)
+    close: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    prev_close: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    open: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    high: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    low: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    change_pct: Mapped[Decimal | None] = mapped_column(Numeric(9, 3), nullable=True)
+    volume: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    turnover: Mapped[Decimal | None] = mapped_column(Numeric(20, 2), nullable=True)
+    market_cap: Mapped[Decimal | None] = mapped_column(Numeric(22, 2), nullable=True)
+    source: Mapped[str] = mapped_column(String(8), default="cse")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class StockTrade(Base):
+    """Your own record of a buy, sell or dividend (Sakuna never places trades)."""
+    __tablename__ = "stock_trades"
+    __table_args__ = (
+        CheckConstraint("side IN ('buy','sell','dividend')", name="ck_stock_trades_side"),
+        CheckConstraint("quantity > 0", name="ck_stock_trades_quantity"),
+        Index("ix_stock_trades_user_symbol", "user_id", "symbol"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    symbol: Mapped[str] = mapped_column(String(20))
+    trade_date: Mapped[date] = mapped_column(Date)
+    side: Mapped[str] = mapped_column(String(8))
+    quantity: Mapped[Decimal] = mapped_column(Numeric(14, 2))          # shares (for a dividend: shares that received it)
+    price: Mapped[Decimal] = mapped_column(Numeric(14, 4))             # per share (for a dividend: dividend per share)
+    fees: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"), server_default="0")
+    currency: Mapped[str] = mapped_column(String(3), default="LKR", server_default="LKR")
+    note: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    source: Mapped[str] = mapped_column(String(8), default="manual", server_default="manual")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WatchItem(Base):
+    """A share you follow and the rules you set for it. P/E and yield use the EPS / DPS you enter."""
+    __tablename__ = "watch_items"
+    __table_args__ = (UniqueConstraint("user_id", "symbol", name="uq_watch_items_user_symbol"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    symbol: Mapped[str] = mapped_column(String(20))
+    sector: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    target_buy: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    stop_loss: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    take_profit: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    max_pe: Mapped[Decimal | None] = mapped_column(Numeric(8, 2), nullable=True)
+    min_yield: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)   # percent
+    eps: Mapped[Decimal | None] = mapped_column(Numeric(14, 4), nullable=True)
+    dps: Mapped[Decimal | None] = mapped_column(Numeric(14, 4), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class StockAlert(Base):
+    __tablename__ = "stock_alerts"
+    __table_args__ = (
+        UniqueConstraint("user_id", "symbol", "rule", "trade_date", name="uq_stock_alerts_user_symbol_rule_date"),
+        CheckConstraint("status IN ('new','seen')", name="ck_stock_alerts_status"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    symbol: Mapped[str] = mapped_column(String(20))
+    rule: Mapped[str] = mapped_column(String(16))
+    trade_date: Mapped[date] = mapped_column(Date)
+    message: Mapped[str] = mapped_column(String(300))
+    status: Mapped[str] = mapped_column(String(6), default="new", server_default="new")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -1272,3 +1272,39 @@ class NewsSourceIn(BaseModel):
 
 class NewsSourceUpdate(BaseModel):
     active: bool
+
+
+# ---------- Life OS Phase 7: CSE investing ----------
+
+class StockTradeIn(BaseModel):
+    symbol: str = Field(min_length=1, max_length=20)
+    trade_date: date
+    side: Literal["buy", "sell", "dividend"]
+    quantity: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
+    price: Decimal = Field(ge=0, max_digits=14, decimal_places=4)
+    fees: Decimal = Field(default=Decimal("0"), ge=0, max_digits=14, decimal_places=2)
+    note: str | None = Field(default=None, max_length=200)
+
+
+class WatchIn(BaseModel):
+    sector: str | None = Field(default=None, max_length=60)
+    target_buy: Decimal | None = Field(default=None, ge=0)
+    stop_loss: Decimal | None = Field(default=None, ge=0)
+    take_profit: Decimal | None = Field(default=None, ge=0)
+    max_pe: Decimal | None = Field(default=None, ge=0, le=1000)
+    min_yield: Decimal | None = Field(default=None, ge=0, le=100)
+    eps: Decimal | None = None
+    dps: Decimal | None = Field(default=None, ge=0)
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class ManualPriceIn(BaseModel):
+    symbol: str = Field(min_length=1, max_length=20)
+    close: Decimal = Field(gt=0)
+    trade_date: date | None = None
+
+
+class ImportTextIn(BaseModel):
+    text: str = Field(min_length=5, max_length=500000)
+    kind: Literal["auto", "prices", "trades"] = "auto"
+    trade_date: date | None = None

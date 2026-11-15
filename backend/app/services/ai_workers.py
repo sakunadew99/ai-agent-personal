@@ -35,8 +35,8 @@ WORKERS: dict[str, dict] = {
                       "persona": "an honest, warm weekly reviewer", "available": True, "days": [7]},
     "news_scout": {"name": "News scout", "icon": "📰", "time": time(8, 0), "job": "Morning digest: AI and tech, Sri Lanka and CSE market news, things worth learning.",
                    "persona": "a concise news scout", "available": True},
-    "market_analyst": {"name": "Market analyst", "icon": "📈", "time": time(16, 0), "job": "Your CSE watchlist and portfolio checks (arrives in Phase 7).",
-                       "persona": "a careful market analyst", "available": False},
+    "market_analyst": {"name": "Market analyst", "icon": "📈", "time": time(16, 0), "job": "After the CSE close: prices, your portfolio, and the rules you set.",
+                       "persona": "a careful market analyst", "available": True, "days": [1, 2, 3, 4, 5]},
 }
 ORDER = list(WORKERS)
 
@@ -278,7 +278,23 @@ def run_worker(db: Session, w: AiWorker, today: date | None = None, notify: bool
     tz = _tz(db, w.user_id)
     today = today or datetime.now(tz).date()
     facts = facts_for(db, w.user_id, w.key, today) if w.key != "weekly_report" else {}
-    if w.key == "news_scout":
+    if w.key == "market_analyst":
+        from app.services import invest
+        fetched = None
+        if fetch_news:            # network only on the tick and "Run now"; opening the app uses stored prices
+            try:
+                fetched = invest.fetch_cse(db, w.user_id)
+            except HTTPException as exc:
+                fetched = {"error": exc.detail}
+        new_alerts = invest.evaluate(db, w.user_id)
+        title = f"Market: {len(new_alerts)} rule alert{'s' if len(new_alerts) != 1 else ''} today" if new_alerts else "Market close"
+        draft = invest.summary_text(db, w.user_id)
+        if fetched and fetched.get("error"):
+            draft = f"Couldn't read the CSE website this time ({fetched['error']}). Using the last prices you have.\n" + draft
+        ai_text = None
+        actions = [{"id": "invest", "label": "Open Invest", "action": "open:Invest"}, {"id": "done", "label": "Got it", "action": "done"}]
+        facts = {"alerts": len(new_alerts), "fetched": str(fetched.get("trade_date")) if fetched and fetched.get("trade_date") else None}
+    elif w.key == "news_scout":
         from app.services import news
         if fetch_news:            # the tick and "Run now" fetch feeds; opening the app uses stories already fetched (stays fast)
             news.refresh(db, w.user_id)

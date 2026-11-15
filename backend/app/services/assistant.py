@@ -32,6 +32,8 @@ def classify_intent(text: str) -> str:
         return "exam_update"
     if not task_like and (exam_cmd or _exam_of(lowered)):
         return "exam_status"
+    if re.search(r"\b(portfolio|cse|aspi|shares?|stocks?|holdings?|watchlist|dividends?|invest\w*)\b", lowered):
+        return "invest"
     if any(word in lowered for word in ("spent", "paid ", "expense", "bought")):
         return "expense"
     if any(phrase in lowered for phrase in ("plan tomorrow", "organize tomorrow", "plan my day", "help me organize")):
@@ -279,6 +281,14 @@ def _facts(db: Session, user: User, intent: str, memories=None) -> str:
                 lines.append(f"Advice preferences from 👍/👎: {prefs}.")
         except Exception:  # noqa: BLE001 - extra context only
             pass
+    if intent == "invest":
+        try:
+            from app.services.invest import summary_text
+            lines.append("Investing (calculated by Sakuna from the user's own records and CSE prices):\n" + summary_text(db, user.id))
+        except Exception:  # noqa: BLE001 - extra context only
+            pass
+        lines.append("Investing style: explain the numbers, the user's own rules and the risks (e.g. concentration). Never tell the user "
+                     "to buy or sell, never predict prices, and say this is information, not financial advice. Trades are recorded in Invest.")
     if intent in {"exam_status", "exam_update", "learning"}:
         from app.services.exams import status_text
         lines.append("Exam coach (calculated by Sakuna, current):\n" + status_text(db, user.id))

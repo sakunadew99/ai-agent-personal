@@ -95,7 +95,7 @@ a personal profile that updates every day:
 - Built from public news feeds (RSS) and summarised by the AI. Each item links to its source.
 - "Save to second brain" and "make it a learning task" buttons.
 
-## Phase 7: CSE investing assistant
+## Phase 7: CSE investing assistant ✅ done
 
 - **Portfolio:** holdings, average cost in LKR, dividends, profit and loss, and how much of your money is in each
   company and sector.
@@ -104,8 +104,8 @@ a personal profile that updates every day:
 - **Research notes:** the AI summarises company announcements and results, with pros, cons and risks.
 - **Buy and sell signals come only from rules you set.** They're always labelled "ideas to check, not financial
   advice". Sakuna never places trades; you buy and sell through your broker.
-- **Price data needs a legal source.** Before we build this phase, we check what the CSE allows us to use. Until then,
-  you can type in prices by hand.
+- **Prices:** read once per trading day from the CSE's public website (robots.txt allows it; ~3 small requests, personal
+  use), or from a CSV / Excel file you upload or paste from Excel. You can always type a price by hand.
 
 ---
 

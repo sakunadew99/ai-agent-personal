@@ -57,3 +57,19 @@ export async function apiRequest<T = ApiRecord>(path: string, token = "", method
   if (!response.ok) throw new ApiError(String(payload.detail || `Request failed (${response.status})`), response.status);
   return payload as T;
 }
+
+/** Upload one file (multipart/form-data) to the API, e.g. a CSV or Excel file picked on the phone. */
+export async function apiUpload<T = ApiRecord>(path: string, token: string, file: { uri: string; name: string; type?: string | null }): Promise<T> {
+  const form = new FormData();
+  // React Native's FormData accepts { uri, name, type } for files on the device.
+  form.append("file", { uri: file.uri, name: file.name, type: file.type || "application/octet-stream" } as unknown as Blob);
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}/api/v1${path}`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, body: form });
+  } catch {
+    throw new ApiError(`Can't reach the server at ${baseUrl}. Check your internet connection and the server address.`, 0);
+  }
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new ApiError(String(payload.detail || `Upload failed (${response.status})`), response.status);
+  return payload as T;
+}

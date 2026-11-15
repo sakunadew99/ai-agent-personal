@@ -1785,3 +1785,103 @@ def news_source_delete(source_id: uuid.UUID, db: Session = Depends(get_db), user
 def news_item_action(item_id: uuid.UUID, action: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     if action not in ("save", "task", "dismiss"): raise HTTPException(404, "Unknown action")
     out = news_svc.item_action(db, news_svc.owned_item(db, user.id, item_id), action); db.commit(); return out
+
+
+# ---------- Life OS Phase 7: CSE investing assistant ----------
+
+from app.services import invest as invest_svc  # noqa: E402
+
+
+def _invest_view(db: Session, user: User) -> dict:
+    from app.models.entities import StockAlert, StockPrice
+    last = db.scalar(select(func.max(StockPrice.trade_date)).where(StockPrice.user_id == user.id))
+    alerts = db.scalars(select(StockAlert).where(StockAlert.user_id == user.id).order_by(StockAlert.created_at.desc()).limit(20)).all()
+    return {"portfolio": invest_svc.holdings(db, user.id), "watchlist": invest_svc.watch_out(db, user.id),
+            "alerts": [{"id": a.id, "symbol": a.symbol, "rule": a.rule, "date": a.trade_date, "message": a.message, "status": a.status} for a in alerts],
+            "last_price_date": last, "disclaimer": invest_svc.DISCLAIMER}
+
+
+@router.get("/invest")
+def invest_view(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return _invest_view(db, user)
+
+
+@router.post("/invest/fetch")
+def invest_fetch(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    out = invest_svc.fetch_cse(db, user.id); alerts = invest_svc.evaluate(db, user.id); db.commit()
+    return {**out, "new_alerts": len(alerts), **_invest_view(db, user)}
+
+
+@router.post("/invest/upload")
+async def invest_upload(file: UploadFile = File(...), kind: str = Query("auto", pattern="^(auto|prices|trades)$"), trade_date: date | None = None,
+                        db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    content = await file.read(invest_svc.MAX_UPLOAD + 1)
+    out = invest_svc.import_table(db, user.id, content, file.filename or "upload.csv", kind, trade_date)
+    alerts = invest_svc.evaluate(db, user.id); db.commit()
+    return {**out, "new_alerts": len(alerts)}
+
+
+@router.post("/invest/import-text")
+def invest_import_text(data: dto.ImportTextIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    out = invest_svc.import_table(db, user.id, data.text.encode("utf-8"), "pasted.csv", data.kind, data.trade_date)
+    alerts = invest_svc.evaluate(db, user.id); db.commit()
+    return {**out, "new_alerts": len(alerts)}
+
+
+@router.post("/invest/prices", status_code=201)
+def invest_manual_price(data: dto.ManualPriceIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    day = data.trade_date or routine_svc.today_for(db, user.id)
+    invest_svc.store_prices(db, user.id, day, [{"symbol": data.symbol, "close": data.close}], "manual")
+    invest_svc.evaluate(db, user.id); db.commit(); return _invest_view(db, user)
+
+
+@router.get("/invest/trades")
+def invest_trades(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import StockTrade
+    rows = db.scalars(select(StockTrade).where(StockTrade.user_id == user.id).order_by(StockTrade.trade_date.desc(), StockTrade.created_at.desc()).limit(300)).all()
+    return [{"id": t.id, "symbol": t.symbol, "date": t.trade_date, "side": t.side, "quantity": t.quantity, "price": t.price, "fees": t.fees,
+             "note": t.note, "source": t.source} for t in rows]
+
+
+@router.post("/invest/trades", status_code=201)
+def invest_trade_add(data: dto.StockTradeIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import StockTrade
+    row = StockTrade(user_id=user.id, symbol=invest_svc.norm_symbol(data.symbol), trade_date=data.trade_date, side=data.side, quantity=data.quantity,
+                     price=data.price, fees=data.fees, note=data.note, source="manual")
+    db.add(row); db.flush(); audit(db, user.id, "invest.trade", "stock_trade", row.id, {"side": data.side})
+    invest_svc.evaluate(db, user.id); db.commit(); return _invest_view(db, user)
+
+
+@router.delete("/invest/trades/{trade_id}")
+def invest_trade_delete(trade_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import StockTrade
+    row = owned(db, StockTrade, user.id, trade_id)
+    audit(db, user.id, "invest.trade_delete", "stock_trade", row.id); db.delete(row); db.commit(); return _invest_view(db, user)
+
+
+@router.put("/invest/watch/{symbol}")
+def invest_watch_set(symbol: str, data: dto.WatchIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    invest_svc.upsert_watch(db, user.id, symbol, data.model_dump(exclude_unset=True)); invest_svc.evaluate(db, user.id); db.commit()
+    return _invest_view(db, user)
+
+
+@router.delete("/invest/watch/{symbol}")
+def invest_watch_delete(symbol: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import WatchItem
+    row = db.scalar(select(WatchItem).where(WatchItem.user_id == user.id, WatchItem.symbol == invest_svc.norm_symbol(symbol)))
+    if row is None: raise HTTPException(404, "Not on your watchlist")
+    db.delete(row); db.commit(); return _invest_view(db, user)
+
+
+@router.post("/invest/alerts/seen")
+def invest_alerts_seen(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import StockAlert
+    for a in db.scalars(select(StockAlert).where(StockAlert.user_id == user.id, StockAlert.status == "new")).all():
+        a.status = "seen"
+    db.commit(); return {"ok": True}
+
+
+@router.get("/invest/symbols/{symbol}")
+def invest_symbol(symbol: str, ai: bool = False, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    out = {"history": invest_svc.history(db, user.id, symbol), "research": invest_svc.research(db, user.id, symbol, use_ai=ai)}
+    db.commit(); return out
