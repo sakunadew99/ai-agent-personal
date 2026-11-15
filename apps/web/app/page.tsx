@@ -33,6 +33,7 @@ import "./upgrade.css";
 import "./polish.css";
 import "./dash.css";
 import { FinanceDashboard, HealthDashboard, LifeDashboard } from "@/components/Dashboards";
+import { AboutYouPage, AiTeamPage, ExamsPage, InvestPage, JournalPage, MyDayPage, NewsPage } from "@/components/LifeOsPages";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "";
 type Row = JsonRecord;
@@ -42,18 +43,25 @@ const navigation = [
   { label: "Home", icon: "home", group: "TODAY", hint: "Your day at a glance" },
   { label: "Focus", icon: "timer", hint: "30 / 60-minute blocks with a break" },
   { label: "Planner", icon: "calendar", hint: "Time blocks for today and the week" },
+  { label: "My day", icon: "sun", hint: "Routines, food diary, week and month view" },
   { label: "Capture inbox", icon: "inbox", hint: "Thoughts waiting to be sorted" },
   { label: "Assistant", icon: "sparkle", hint: "Ask about your plans, goals and records" },
+  { label: "AI team", icon: "bolt", hint: "Daily notes from your helpers and their schedule" },
   { label: "My life", icon: "life", group: "LIFE AREAS", hint: "Tasks, goals and habits" },
   { label: "Finance", icon: "wallet", hint: "Income, spending and net worth" },
+  { label: "Invest", icon: "chart", hint: "CSE portfolio, watchlist and your rules" },
   { label: "Health", icon: "heart", hint: "Sleep, steps, workouts" },
   { label: "Career", icon: "briefcase", hint: "Skills, job tracker, freelance work" },
   { label: "Learning", icon: "book", hint: "Flashcards, German & English, mistake notebook" },
+  { label: "Exam coach", icon: "check", hint: "IELTS and Goethe German plans and feedback" },
+  { label: "News", icon: "bell", hint: "Daily digest ranked by your interests" },
   { label: "Rewards", icon: "flame", hint: "Points, streak, quests and treats" },
   { label: "Study abroad", icon: "arrow", hint: "Programs, checklist, costs, scholarships" },
   { label: "Documents", icon: "copy", hint: "Passport, visas, IDs and expiry reminders" },
   { label: "Experiences", icon: "compass", hint: "Places, events and moments" },
   { label: "Life balance", icon: "sun", group: "REFLECT", hint: "Target vs actual per life area" },
+  { label: "Journal", icon: "review", hint: "Mood, wins, gratitude and lessons" },
+  { label: "About you", icon: "brain", hint: "Patterns from your own data and the weekly report" },
   { label: "Weekly review", icon: "review", hint: "Plan vs actual, three changes" },
   { label: "Insights", icon: "chart", hint: "Snapshot of priorities and goals" },
   { label: "Memory", icon: "brain", hint: "What Sakuna remembers about you" },
@@ -402,6 +410,13 @@ export default function Home() {
       case "Finance": return <Finance summary={data.summary || {}} month={month} setMonth={setMonth} submit={submit} token={token} />;
       case "Career": return <Career profile={data.profile || {}} projects={toList(data.projects)} submit={submit} token={token} />;
       case "Learning": return <LearningPage token={token} />;
+      case "My day": return <MyDayPage token={token} />;
+      case "AI team": return <AiTeamPage token={token} />;
+      case "Invest": return <InvestPage token={token} />;
+      case "Exam coach": return <ExamsPage token={token} />;
+      case "News": return <NewsPage token={token} />;
+      case "Journal": return <JournalPage token={token} />;
+      case "About you": return <AboutYouPage token={token} />;
       case "Rewards": return <RewardsPage token={token} />;
       case "Study abroad": return <StudyPage token={token} />;
       case "Documents": return <VaultPage token={token} />;
