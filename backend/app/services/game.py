@@ -29,7 +29,8 @@ DEFAULT_RULES: dict[str, tuple[int, int, str]] = {
     "focus": (10, 80, "work"),            # per 25 focused minutes
     "task": (10, 60, "work"),             # 5-20 by size (this is the "medium" value); area = task category
     "habit": (5, 30, "habits"),
-    "routine": (15, 60, "habits"),        # a routine finished (full 15, short version 8)
+    "routine": (15, 60, "habits"),
+    "study": (10, 40, "learning"),        # exam study: 10 per 20 minutes        # a routine finished (full 15, short version 8)
     "sleep": (15, 15, "rest"),            # slept within your target window
     "steps": (10, 10, "health"),          # daily steps target reached
     "workout": (20, 20, "health"),

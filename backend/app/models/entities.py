@@ -1172,3 +1172,73 @@ class MealLog(Base):
     walked_after: Mapped[bool] = mapped_column(Boolean, default=False)
     note: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# ---------- Life OS Phase 3: exam coach (IELTS, Goethe German) ----------
+
+class ExamPlan(Base):
+    """One exam you're preparing for. IELTS scores are bands (0-9); Goethe scores are points per module (0-100)."""
+    __tablename__ = "exam_plans"
+    __table_args__ = (
+        UniqueConstraint("user_id", "exam", name="uq_exam_plans_user_exam"),
+        CheckConstraint("exam IN ('ielts','goethe')", name="ck_exam_plans_exam"),
+        CheckConstraint("daily_minutes BETWEEN 10 AND 240", name="ck_exam_plans_minutes"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    exam: Mapped[str] = mapped_column(String(8))
+    variant: Mapped[str] = mapped_column(String(16))                 # IELTS: academic | general; Goethe: A1 ... C1
+    target_score: Mapped[Decimal] = mapped_column(Numeric(5, 1))
+    exam_date: Mapped[date] = mapped_column(Date)
+    date_is_estimate: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    daily_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    study_days: Mapped[list] = mapped_column(JsonDict, default=list)  # 1 = Monday ... 7 = Sunday
+    study_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ExamScore(Base):
+    """A score for one skill: a mock test, a practice test, the real exam, or an AI estimate."""
+    __tablename__ = "exam_scores"
+    __table_args__ = (
+        CheckConstraint("source IN ('mock','practice','real','estimate')", name="ck_exam_scores_source"),
+        Index("ix_exam_scores_plan_date", "plan_id", "taken_on"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    plan_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("exam_plans.id", ondelete="CASCADE"))
+    skill: Mapped[str] = mapped_column(String(16))
+    score: Mapped[Decimal] = mapped_column(Numeric(5, 1))
+    taken_on: Mapped[date] = mapped_column(Date)
+    source: Mapped[str] = mapped_column(String(8), default="mock")
+    note: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ExamLog(Base):
+    """Study time, and writing / speaking practice with its feedback."""
+    __tablename__ = "exam_logs"
+    __table_args__ = (
+        CheckConstraint("kind IN ('practice','vocab','mock','writing','speaking')", name="ck_exam_logs_kind"),
+        CheckConstraint("minutes BETWEEN 0 AND 600", name="ck_exam_logs_minutes"),
+        Index("ix_exam_logs_plan_date", "plan_id", "local_date"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    plan_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("exam_plans.id", ondelete="CASCADE"))
+    skill: Mapped[str] = mapped_column(String(16))
+    kind: Mapped[str] = mapped_column(String(12), default="practice")
+    minutes: Mapped[int] = mapped_column(Integer, default=0)
+    local_date: Mapped[date] = mapped_column(Date)
+    note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    answer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    feedback: Mapped[dict | None] = mapped_column(JsonDict, nullable=True)
+    estimated_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 1), nullable=True)
+    used_ai: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

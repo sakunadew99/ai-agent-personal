@@ -180,6 +180,7 @@ def _tasks_for_day(db: Session, user_id, plan_date: date, tz) -> list[SchedTask]
 
 
 def create_daily_plan(db: Session, user: User, plan_date: date) -> DailyPlan:
+    from app.services.exams import study_blocks
     from app.services.routines import gym_days, routine_blocks, work_days
     profile = _profile(db, user.id)
     tz = zone(profile.timezone)
@@ -195,7 +196,7 @@ def create_daily_plan(db: Session, user: User, plan_date: date) -> DailyPlan:
         profile.work_end if is_work else None,
         profile.gym_time if is_gym else None,
         _tasks_for_day(db, user.id, plan_date, tz),
-        routine_blocks(db, user.id, plan_date, tz),
+        routine_blocks(db, user.id, plan_date, tz) + study_blocks(db, user.id, plan_date, tz),
     )
     plan = db.scalar(select(DailyPlan).where(DailyPlan.user_id == user.id, DailyPlan.plan_date == plan_date))
     if plan is None:
@@ -268,6 +269,10 @@ def execute_action(db: Session, user: User, action: str, body: dict) -> dict:
     if action == "create_expense":
         row = create_expense(db, user.id, ExpenseIn.model_validate(body))
         return {"id": str(row.id), "amount": str(row.amount), "category": row.category}
+    if action == "exam_update":
+        from app.services.exams import apply_command
+        out = apply_command(db, user.id, {k: body[k] for k in ("action", "exam", "skill", "minutes", "score", "source", "field", "value") if k in body})
+        return {"id": out.get("plan_id"), "summary": out["summary"]}
     if action in ("add_to_buy_list", "add_to_wishlist"):
         from app.services.commands import add_list_items
         items = [str(i)[:200] for i in (body.get("items") or [])][:20]

@@ -24,7 +24,8 @@ from app.models.entities import (
 )
 from app.services.audit import audit
 
-KINDS = ("low_sleep", "document_expiring", "overdue_pileup", "overloaded", "focus_drop", "no_exercise", "habit_slipping", "goal_behind", "envelope_over")
+KINDS = ("low_sleep", "document_expiring", "overdue_pileup", "overloaded", "focus_drop", "no_exercise", "habit_slipping", "exam_behind", "goal_behind",
+         "envelope_over")
 OPEN = ("inbox", "todo", "in_progress")
 DISTRESS = re.compile(r"\b(suicid\w*|kill myself|end (?:my|it all)|self[- ]?harm|hurt myself|want to die|don'?t want to (?:live|be here)|"
                       r"no reason to live|can'?t go on|hopeless|better off dead)\b", re.I)
@@ -201,7 +202,12 @@ def rule_document_expiring(db: Session, user_id, tz, today: date, gentle: bool) 
     return None
 
 
-RULES = {"low_sleep": rule_low_sleep, "document_expiring": rule_document_expiring, "overdue_pileup": rule_overdue, "overloaded": rule_overloaded, "focus_drop": rule_focus_drop,
+def rule_exam_behind(db: Session, user_id, tz, today: date, gentle: bool) -> Finding | None:
+    from app.services.exams import coach_finding
+    return coach_finding(db, user_id, today)
+
+
+RULES = {"exam_behind": rule_exam_behind, "low_sleep": rule_low_sleep, "document_expiring": rule_document_expiring, "overdue_pileup": rule_overdue, "overloaded": rule_overloaded, "focus_drop": rule_focus_drop,
          "no_exercise": rule_no_exercise, "habit_slipping": rule_habit_slipping, "goal_behind": rule_goal_behind, "envelope_over": rule_envelope_over}
 
 

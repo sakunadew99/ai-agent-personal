@@ -937,7 +937,7 @@ class CommandAnswerIn(BaseModel):
     answer: str = Field(min_length=1, max_length=200)
 
 
-AiGroup = Literal["chat", "summary", "memory", "transcription", "voice_parse"]
+AiGroup = Literal["chat", "summary", "memory", "transcription", "voice_parse", "exam"]
 
 
 class AiSettingsIn(BaseModel):
@@ -945,7 +945,7 @@ class AiSettingsIn(BaseModel):
     daily_token_cap: int | None = Field(default=None, ge=0, le=10_000_000)      # 0 = no cap
     monthly_token_cap: int | None = Field(default=None, ge=0, le=500_000_000)   # 0 = no cap
     monthly_cost_cap_usd: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=4)  # 0 = no cap
-    disabled_features: list[AiGroup] | None = Field(default=None, max_length=5)
+    disabled_features: list[AiGroup] | None = Field(default=None, max_length=6)
     share_money: bool | None = None
     share_health: bool | None = None
 
@@ -1201,3 +1201,40 @@ class MealIn(BaseModel):
     stopped_80: bool = False
     walked_after: bool = False
     note: str | None = Field(default=None, max_length=200)
+
+
+# ---------- Life OS Phase 3: exam coach ----------
+
+class ExamPlanUpdate(BaseModel):
+    variant: str | None = Field(default=None, max_length=16)
+    target_score: Decimal | None = Field(default=None, ge=0, le=100)
+    exam_date: date | None = None
+    date_is_estimate: bool | None = None
+    daily_minutes: int | None = Field(default=None, ge=10, le=240)
+    study_days: Annotated[list[int] | None, AfterValidator(_week_days)] = None
+    study_time: time | None = None
+    active: bool | None = None
+
+
+class ExamLogIn(BaseModel):
+    skill: str = Field(min_length=2, max_length=16)
+    minutes: int = Field(ge=1, le=600)
+    kind: Literal["practice", "vocab", "mock"] = "practice"
+    note: str | None = Field(default=None, max_length=500)
+    local_date: date | None = None
+
+
+class ExamScoreIn(BaseModel):
+    skill: str = Field(min_length=2, max_length=16)
+    score: Decimal = Field(ge=0, le=100)
+    taken_on: date | None = None
+    source: Literal["mock", "practice", "real"] = "mock"
+    note: str | None = Field(default=None, max_length=200)
+
+
+class ExamFeedbackIn(BaseModel):
+    mode: Literal["writing", "speaking"]
+    prompt: str = Field(min_length=3, max_length=4000)
+    answer: str = Field(min_length=10, max_length=12000)
+    task: Literal["task1", "task2"] = "task2"
+    seconds: int = Field(default=0, ge=0, le=900)

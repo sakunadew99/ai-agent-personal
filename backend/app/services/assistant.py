@@ -2,6 +2,7 @@ import json
 import re
 from datetime import timedelta
 
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -23,6 +24,14 @@ def classify_intent(text: str) -> str:
     from app.services.commands import parse_list_command
     if parse_list_command(text):
         return "list_add"
+    from app.services.exams import _exam_of, parse_exam_command
+    from datetime import date as _date
+    task_like = re.search(r"\b(i need to|add a task|create a task|remind me to)\b", lowered)
+    exam_cmd = None if task_like else parse_exam_command(text, _date.today())
+    if exam_cmd and exam_cmd["action"] != "status":
+        return "exam_update"
+    if not task_like and (exam_cmd or _exam_of(lowered)):
+        return "exam_status"
     if any(word in lowered for word in ("spent", "paid ", "expense", "bought")):
         return "expense"
     if any(phrase in lowered for phrase in ("plan tomorrow", "organize tomorrow", "plan my day", "help me organize")):
@@ -84,7 +93,6 @@ def _conversation(db: Session, user: User, conversation_id, message: str) -> Con
     if conversation_id is not None:
         row = db.get(Conversation, conversation_id)
         if row is None or row.user_id != user.id:
-            from fastapi import HTTPException
 
             raise HTTPException(404, "Conversation not found")
         return row
@@ -142,12 +150,25 @@ def _act(db: Session, user: User, intent: str, message: str):
 
         listed = parse_list_command(message) or {}
         if listed.get("target") == "todo":
-            return _act(db, user, "capture", listed["rest"] if re.match(r"(?i)(i need to|remind me to)", listed["rest"]) else f"I need to {listed['rest']}")
+            return _act(db, user, "capture", listed["rest"] if re.match(r"(?i)(i need to|remind me to)\b", listed["rest"]) else f"I need to {listed['rest']}")
         if listed.get("items"):
             tool = "add_to_buy_list" if listed["target"] == "buy" else "add_to_wishlist"
             where = "wish list" if listed["target"] == "wish" else f"{listed['list_name']} list" if listed["list_name"] != "groceries" else "buy list"
             body = {"items": listed["items"], "list_name": listed.get("list_name")}
             outcome = queue_or_run(db, user, tool, body, f"Add {', '.join(listed['items'][:5])} to your {where}")
+            _collect(outcome, proposed, completed, refused)
+    elif intent == "exam_update":
+        from app.services.actions import _today
+        from app.services.exams import parse_exam_command
+        cmd = parse_exam_command(message, _today(db, user.id))
+        if cmd:
+            what = {"log": f"Log {cmd.get('minutes')} min {cmd['exam'].upper()} {cmd.get('skill') or 'study'}",
+                    "score": f"Save {cmd['exam'].upper()} {cmd.get('skill')} score {cmd.get('score')}",
+                    "set": f"Set {cmd['exam'].upper()} {str(cmd.get('field', '')).replace('_', ' ')} to {cmd.get('value')}"}.get(cmd["action"], "Update exam plan")
+            try:
+                outcome = queue_or_run(db, user, "exam_update", cmd, what)
+            except HTTPException as exc:
+                outcome = {"status": "refused", "summary": f"{what}: {exc.detail}", "tool": "exam_update"}
             _collect(outcome, proposed, completed, refused)
     elif intent == "expense":
         from app.services.actions import _today
@@ -239,6 +260,12 @@ def _facts(db: Session, user: User, intent: str, memories=None) -> str:
             )
     if intent in {"productivity", "learning", "focus", "general"}:
         lines.append(_activity_fact_line(db, user))
+    if intent in {"exam_status", "exam_update", "learning"}:
+        from app.services.exams import status_text
+        lines.append("Exam coach (calculated by Sakuna, current):\n" + status_text(db, user.id))
+        lines.append("Coaching style for exams: encouraging but firm. Push toward the target with 1-3 concrete next steps for today "
+                     "(weakest skill first), mention missed minutes honestly, never promise a score, and remind that the user can "
+                     "change the plan in Exams or by telling you (e.g. 'set my IELTS date to 20 March').")
     if intent == "task_design":
         lines.append("Task design request: provide an actionable breakdown; do not create tasks unless the user explicitly asks to add or create them.")
     if memories:
@@ -349,7 +376,11 @@ def _local_reply(message: str, draft: str, intent: str) -> str:
         if "Completed now:" in draft:
             return "Your plan has been created. Open Planner to review the scheduled blocks."
         return "I couldn’t create the plan from this request. Check Planner and try again."
-    if intent in {"capture", "remember", "expense", "list_add"}:
+    if intent == "exam_status":
+        status = draft.split("Exam coach (calculated by Sakuna, current):", 1)[-1].split("Coaching style for exams:", 1)[0].strip()
+        return (f"Here's where your exam prep stands:\n{status}\n\n"
+                "Tip: tell me “log 30 minutes IELTS listening” or “IELTS reading mock 6.5” and I'll track it.")
+    if intent in {"capture", "remember", "expense", "list_add", "exam_update"}:
         if "Proposed only." in draft:
             return "I’ve prepared that request, but it’s waiting for your approval. Open Approvals to review it."
         if "Completed now:" in draft:

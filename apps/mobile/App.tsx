@@ -16,11 +16,12 @@ import { CoachCardMobile, StudyScreen } from "./src/screens/StudyCoachScreens";
 import { BalanceScreen, VaultScreen } from "./src/screens/BalanceVaultScreens";
 import { syncReminders } from "./src/notify";
 import { FocusEngine } from "./src/screens/FocusEngine";
+import { ExamScreen } from "./src/screens/ExamScreens";
 import { MonthRoutines, NowRoutineCard, PlanSwitch, TodayRoutines, WeekPlan } from "./src/screens/MyDayScreens";
 import { appendSpeech, MicButton } from "./src/voice";
 
 type Tab = "Home" | "Plan" | "Capture" | "Focus" | "More";
-const SUB_TITLES: Record<MoreTarget, string> = { Assistant: "Assistant", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
+const SUB_TITLES: Record<MoreTarget, string> = { Assistant: "Assistant", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
 
 export default function App() {
   const [email, setEmail] = useState("");
@@ -153,6 +154,7 @@ export default function App() {
       {tab === "More" && sub === "Jobs" && <JobsScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Balance" && <BalanceScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Vault" && <VaultScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "Exams" && <ExamScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Study" && <StudyScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "AI" && <AiScreen api={api} onError={showError}/>}
       {tab === "More" && sub === "Rewards" && <RewardsScreen api={api} onError={showError} onNotice={showNotice}/>}

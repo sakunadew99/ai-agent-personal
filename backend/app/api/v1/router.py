@@ -1567,3 +1567,72 @@ def meals_list(day: date | None = None, db: Session = Depends(get_db), user: Use
     selected = _day_or_today(db, user, day)
     rows = db.scalars(select(MealLog).where(MealLog.user_id == user.id, MealLog.local_date == selected).order_by(MealLog.created_at)).all()
     return [routine_svc.meal_out(r) for r in rows]
+
+
+# ---------- Life OS Phase 3: exam coach (IELTS, Goethe German) ----------
+
+from app.services import exams as exam_svc  # noqa: E402
+
+
+@router.get("/exams")
+def exams_list(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    plans = exam_svc.ensure_defaults(db, user.id); db.commit()
+    return [exam_svc.plan_out(db, p) for p in plans]
+
+
+@router.get("/exams/status")
+def exams_status(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    text = exam_svc.status_text(db, user.id); db.commit(); return {"text": text}
+
+
+@router.patch("/exams/{plan_id}")
+def exams_update(plan_id: uuid.UUID, data: dto.ExamPlanUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    plan = exam_svc.update_plan(db, exam_svc.owned_plan(db, user.id, plan_id), data.model_dump(exclude_unset=True)); db.commit()
+    return exam_svc.plan_out(db, plan)
+
+
+@router.post("/exams/{plan_id}/log", status_code=201)
+def exams_log(plan_id: uuid.UUID, data: dto.ExamLogIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    plan = exam_svc.owned_plan(db, user.id, plan_id)
+    exam_svc.log_study(db, plan, data.skill, data.minutes, data.kind, data.note, data.local_date); db.commit()
+    return exam_svc.plan_out(db, plan)
+
+
+@router.post("/exams/{plan_id}/scores", status_code=201)
+def exams_score(plan_id: uuid.UUID, data: dto.ExamScoreIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    plan = exam_svc.owned_plan(db, user.id, plan_id)
+    exam_svc.add_score(db, plan, data.skill, data.score, data.taken_on, data.source, data.note); db.commit()
+    return exam_svc.plan_out(db, plan)
+
+
+@router.delete("/exams/{plan_id}/scores/{score_id}")
+def exams_score_delete(plan_id: uuid.UUID, score_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import ExamScore
+    plan = exam_svc.owned_plan(db, user.id, plan_id)
+    row = db.get(ExamScore, score_id)
+    if row is None or row.plan_id != plan.id: raise HTTPException(404, "Score not found")
+    db.delete(row); db.commit(); return exam_svc.plan_out(db, plan)
+
+
+@router.post("/exams/{plan_id}/feedback", status_code=201)
+def exams_feedback(plan_id: uuid.UUID, data: dto.ExamFeedbackIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    plan = exam_svc.owned_plan(db, user.id, plan_id)
+    out = exam_svc.feedback(db, plan, data.mode, data.prompt, data.answer, data.task, data.seconds); db.commit(); return out
+
+
+@router.get("/exams/{plan_id}/practice")
+def exams_practice(plan_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import ExamLog
+    plan = exam_svc.owned_plan(db, user.id, plan_id)
+    rows = db.scalars(select(ExamLog).where(ExamLog.plan_id == plan.id, ExamLog.kind.in_(("writing", "speaking")))
+                      .order_by(ExamLog.created_at.desc()).limit(15)).all()
+    return [{"id": r.id, "kind": r.kind, "skill": r.skill, "local_date": r.local_date, "prompt": r.prompt, "answer": r.answer,
+             "feedback": r.feedback, "estimated_score": r.estimated_score, "used_ai": r.used_ai} for r in rows]
+
+
+@router.delete("/exams/practice/{log_id}")
+def exams_practice_delete(log_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import ExamLog
+    row = db.get(ExamLog, log_id)
+    if row is None or row.user_id != user.id: raise HTTPException(404, "Practice not found")
+    db.delete(row); db.commit(); return {"deleted": True}

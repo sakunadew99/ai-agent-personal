@@ -51,7 +51,7 @@ Your notebook method, built into a focus session.
   You log these honestly; the app never punishes.
 - **Daily focus score** from Shield Insights: longest focus, pickups, and time in distracting apps.
 
-## Phase 3: Exam coach (IELTS and Goethe German)
+## Phase 3: Exam coach (IELTS and Goethe German) ✅ done
 
 - Exam date, target band or level, and a study plan worked backwards from the date, placed into free time in the
   daily plan.

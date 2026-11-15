@@ -49,12 +49,13 @@ def _remember_error(exc: Exception) -> None:
 
 # Feature name (as logged in ai_usage) -> group the user can switch off.
 GROUP_LABELS = {"chat": "assistant chat", "summary": "conversation summaries", "memory": "memory search (embeddings)",
-                "transcription": "audio transcription", "voice_parse": "understanding unusual voice commands"}
+                "transcription": "audio transcription", "voice_parse": "understanding unusual voice commands",
+                "exam": "exam writing and speaking feedback"}
 _last_block: dict[str, dict] = {}
 
 
 def feature_group(feature: str) -> str:
-    return {"summary": "summary", "embedding": "memory", "transcription": "transcription", "command_parse": "voice_parse"}.get(feature, "chat")
+    return {"summary": "summary", "embedding": "memory", "transcription": "transcription", "command_parse": "voice_parse", "exam_feedback": "exam"}.get(feature, "chat")
 
 
 def settings_for(db: Session, user_id) -> AiSettings | None:
