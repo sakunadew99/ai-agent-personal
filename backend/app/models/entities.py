@@ -1242,3 +1242,51 @@ class ExamLog(Base):
     estimated_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 1), nullable=True)
     used_ai: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# ---------- Life OS Phase 4: AI workers (a small team that leaves notes on the Today card) ----------
+
+class AiWorker(Base):
+    """One helper with one job. Facts come from plain code; AI (if allowed and within budget) only writes the note."""
+    __tablename__ = "ai_workers"
+    __table_args__ = (
+        UniqueConstraint("user_id", "key", name="uq_ai_workers_user_key"),
+        CheckConstraint("daily_token_budget BETWEEN 0 AND 100000", name="ck_ai_workers_budget"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    key: Mapped[str] = mapped_column(String(32))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    run_time: Mapped[time] = mapped_column(Time)
+    days: Mapped[list] = mapped_column(JsonDict, default=list)          # 1 = Monday ... 7 = Sunday
+    use_ai: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    daily_token_budget: Mapped[int] = mapped_column(Integer, default=3000, server_default="3000")
+    last_run_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WorkerNote(Base):
+    """A worker's note for one day (re-running replaces it). Actions are code-defined, never free text."""
+    __tablename__ = "worker_notes"
+    __table_args__ = (
+        UniqueConstraint("user_id", "worker_key", "local_date", name="uq_worker_notes_user_worker_date"),
+        CheckConstraint("status IN ('new','read','done','dismissed')", name="ck_worker_notes_status"),
+        CheckConstraint("feedback IS NULL OR feedback IN ('up','down')", name="ck_worker_notes_feedback"),
+        Index("ix_worker_notes_user_date", "user_id", "local_date"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    worker_key: Mapped[str] = mapped_column(String(32))
+    local_date: Mapped[date] = mapped_column(Date)
+    title: Mapped[str] = mapped_column(String(120))
+    body: Mapped[str] = mapped_column(Text)
+    facts: Mapped[dict] = mapped_column(JsonDict, default=dict)
+    actions: Mapped[list] = mapped_column(JsonDict, default=list)
+    used_ai: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    status: Mapped[str] = mapped_column(String(10), default="new", server_default="new")
+    feedback: Mapped[str | None] = mapped_column(String(4), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

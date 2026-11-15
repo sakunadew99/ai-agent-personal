@@ -48,7 +48,7 @@ export function CommandCard({ api, onError, onCreated }: { api: Api; onError: (m
   </Card>;
 }
 
-const GROUPS: Record<string, string> = { chat: "Assistant chat", summary: "Conversation summaries", memory: "Memory search", transcription: "Audio transcription", voice_parse: "Unusual voice commands", exam: "Exam writing & speaking feedback" };
+const GROUPS: Record<string, string> = { chat: "Assistant chat", summary: "Conversation summaries", memory: "Memory search", transcription: "Audio transcription", voice_parse: "Unusual voice commands", exam: "Exam writing & speaking feedback", workers: "AI team notes" };
 
 /** AI usage meter and privacy switches. */
 export function AiScreen({ api, onError }: { api: Api; onError: (m: string) => void }) {

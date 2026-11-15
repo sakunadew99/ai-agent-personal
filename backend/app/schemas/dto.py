@@ -937,7 +937,7 @@ class CommandAnswerIn(BaseModel):
     answer: str = Field(min_length=1, max_length=200)
 
 
-AiGroup = Literal["chat", "summary", "memory", "transcription", "voice_parse", "exam"]
+AiGroup = Literal["chat", "summary", "memory", "transcription", "voice_parse", "exam", "workers"]
 
 
 class AiSettingsIn(BaseModel):
@@ -945,7 +945,7 @@ class AiSettingsIn(BaseModel):
     daily_token_cap: int | None = Field(default=None, ge=0, le=10_000_000)      # 0 = no cap
     monthly_token_cap: int | None = Field(default=None, ge=0, le=500_000_000)   # 0 = no cap
     monthly_cost_cap_usd: Decimal | None = Field(default=None, ge=0, max_digits=10, decimal_places=4)  # 0 = no cap
-    disabled_features: list[AiGroup] | None = Field(default=None, max_length=6)
+    disabled_features: list[AiGroup] | None = Field(default=None, max_length=7)
     share_money: bool | None = None
     share_health: bool | None = None
 
@@ -1238,3 +1238,21 @@ class ExamFeedbackIn(BaseModel):
     answer: str = Field(min_length=10, max_length=12000)
     task: Literal["task1", "task2"] = "task2"
     seconds: int = Field(default=0, ge=0, le=900)
+
+
+# ---------- Life OS Phase 4: AI workers ----------
+
+class WorkerUpdate(BaseModel):
+    enabled: bool | None = None
+    run_time: time | None = None
+    days: Annotated[list[int] | None, AfterValidator(_week_days)] = None
+    use_ai: bool | None = None
+    daily_token_budget: int | None = Field(default=None, ge=0, le=100000)
+
+
+class WorkerActIn(BaseModel):
+    action_id: str = Field(min_length=1, max_length=40)
+
+
+class WorkerFeedbackIn(BaseModel):
+    feedback: Literal["up", "down"] | None = None

@@ -260,6 +260,14 @@ def _facts(db: Session, user: User, intent: str, memories=None) -> str:
             )
     if intent in {"productivity", "learning", "focus", "general"}:
         lines.append(_activity_fact_line(db, user))
+    if intent in {"productivity", "focus", "general", "plan", "goals"}:
+        from app.services.ai_workers import notes_text
+        try:
+            notes = notes_text(db, user.id)
+        except Exception:  # noqa: BLE001 - extra context only; a failure here must never break the chat
+            notes = ""
+        if notes:
+            lines.append("Today's notes from the AI team (morning coach, focus guard, study coach, night reviewer):\n" + notes)
     if intent in {"exam_status", "exam_update", "learning"}:
         from app.services.exams import status_text
         lines.append("Exam coach (calculated by Sakuna, current):\n" + status_text(db, user.id))

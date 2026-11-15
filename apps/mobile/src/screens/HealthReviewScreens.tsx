@@ -145,9 +145,10 @@ export function ReviewScreen({ api, onError, onNotice }: { api: Api; onError: (m
   </Screen>;
 }
 
-export type MoreTarget = "Assistant" | "Exams" | "Life" | "Learning" | "Jobs" | "Money" | "Rewards" | "AI" | "Study" | "Balance" | "Vault" | "Finance" | "Health" | "Memory" | "Review" | "Approvals" | "Profile";
+export type MoreTarget = "Assistant" | "Team" | "Exams" | "Life" | "Learning" | "Jobs" | "Money" | "Rewards" | "AI" | "Study" | "Balance" | "Vault" | "Finance" | "Health" | "Memory" | "Review" | "Approvals" | "Profile";
 const MENU: { key: MoreTarget; icon: string; title: string; hint: string }[] = [
   { key: "Assistant", icon: "✳", title: "Assistant", hint: "Chat with Sakuna" },
+  { key: "Team", icon: "✨", title: "AI team", hint: "Coach, focus guard, reviewer" },
   { key: "Exams", icon: "🎓", title: "Exam coach", hint: "IELTS & Goethe plan" },
   { key: "Life", icon: "◫", title: "My life", hint: "Tasks, goals, habits" },
   { key: "Learning", icon: "✎", title: "Learning", hint: "Flashcards & mistakes" },

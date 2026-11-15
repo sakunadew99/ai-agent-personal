@@ -62,7 +62,7 @@ Your notebook method, built into a focus session.
 - **Speaking practice by voice:** you answer a question out loud, get the transcript and tips.
 - A log of mock-test scores with a trend chart, and a "ready by exam day?" forecast.
 
-## Phase 4: AI workers (a small team)
+## Phase 4: AI workers (a small team) ✅ done
 
 Named helpers, each with one job. They run on a schedule and put their notes into one inbox, the **Today card**.
 

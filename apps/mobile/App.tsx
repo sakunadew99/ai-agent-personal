@@ -17,11 +17,12 @@ import { BalanceScreen, VaultScreen } from "./src/screens/BalanceVaultScreens";
 import { syncReminders } from "./src/notify";
 import { FocusEngine } from "./src/screens/FocusEngine";
 import { ExamScreen } from "./src/screens/ExamScreens";
+import { AiTeamScreen, TeamTodayCard } from "./src/screens/AiTeamScreens";
 import { MonthRoutines, NowRoutineCard, PlanSwitch, TodayRoutines, WeekPlan } from "./src/screens/MyDayScreens";
 import { appendSpeech, MicButton } from "./src/voice";
 
 type Tab = "Home" | "Plan" | "Capture" | "Focus" | "More";
-const SUB_TITLES: Record<MoreTarget, string> = { Assistant: "Assistant", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
+const SUB_TITLES: Record<MoreTarget, string> = { Assistant: "Assistant", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
 
 export default function App() {
   const [email, setEmail] = useState("");
@@ -135,7 +136,10 @@ export default function App() {
       {!(tab === "More" && sub) && <TouchableOpacity onPress={() => void loadTab(tab)}><Text style={styles.refresh}>Refresh ↻</Text></TouchableOpacity>}</View>
     {!!error && <Text style={styles.errorBox}>{error}</Text>}{!!notice && <TouchableOpacity onPress={() => setNotice("")}><Text style={styles.notice}>{notice}  ×</Text></TouchableOpacity>}
     <View style={styles.screen}>
-      {tab === "Home" && <HomeScreen dashboard={dashboard} finance={finance} health={health} onComplete={completeTask} onOpenPlan={() => setTab("Plan")} top={<><NowRoutineCard api={api} onOpen={() => { setPlanView("day"); setTab("Plan"); }}/><CoachCardMobile api={api} onError={showError}/><BrainCard api={api}/></>}/>}
+      {tab === "Home" && <HomeScreen dashboard={dashboard} finance={finance} health={health} onComplete={completeTask} onOpenPlan={() => setTab("Plan")} top={<><NowRoutineCard api={api} onOpen={() => { setPlanView("day"); setTab("Plan"); }}/>
+        <TeamTodayCard api={api} onError={showError} onNotice={showNotice} onOpen={target => {
+          if (target === "Plan") { setPlanView("day"); setTab("Plan"); } else if (target === "Focus") setTab("Focus");
+          else if (target === "Exams") { setTab("More"); setSub("Exams"); } else setTab("Home"); }}/><CoachCardMobile api={api} onError={showError}/><BrainCard api={api}/></>}/>}
       {tab === "Plan" && planView === "day" && <PlanScreen plan={plan} busy={busy} generate={generatePlan}
         top={<><PlanSwitch value={planView} onChange={setPlanView}/><TodayRoutines api={api} onError={showError} onNotice={showNotice}/><Text style={styles.sectionTitle}>Time plan</Text></>}
         extra={<TimeCard api={api}/>}/>}
@@ -154,6 +158,7 @@ export default function App() {
       {tab === "More" && sub === "Jobs" && <JobsScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Balance" && <BalanceScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Vault" && <VaultScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "Team" && <AiTeamScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Exams" && <ExamScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Study" && <StudyScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "AI" && <AiScreen api={api} onError={showError}/>}

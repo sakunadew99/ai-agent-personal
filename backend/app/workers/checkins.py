@@ -44,6 +44,13 @@ def process_once() -> None:
             exists = db.scalar(select(Notification.id).where(Notification.user_id == task.user_id, Notification.dedupe_key == key))
             if exists is None:
                 db.add(Notification(user_id=task.user_id, title="Task coming up", body=task.title, kind="reminder", dedupe_key=key))
+        # Phase 4: AI workers whose time has come today (each runs once a day; failures are isolated).
+        try:
+            from app.services.ai_workers import run_due
+            run_due(db, now)
+        except Exception:  # noqa: BLE001 - reminders above must still be saved
+            import logging
+            logging.exception("AI workers round failed")
         db.commit()
 
 

@@ -1636,3 +1636,44 @@ def exams_practice_delete(log_id: uuid.UUID, db: Session = Depends(get_db), user
     row = db.get(ExamLog, log_id)
     if row is None or row.user_id != user.id: raise HTTPException(404, "Practice not found")
     db.delete(row); db.commit(); return {"deleted": True}
+
+
+# ---------- Life OS Phase 4: AI workers ----------
+
+from app.services import ai_workers as worker_svc  # noqa: E402
+
+
+@router.get("/workers")
+def workers_list(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    rows = worker_svc.ensure_workers(db, user.id); tz = worker_svc._tz(db, user.id); db.commit()
+    return [worker_svc.worker_out(db, w, tz) for w in rows]
+
+
+@router.get("/workers/today")
+def workers_today(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    out = worker_svc.today_view(db, user.id); db.commit(); return out
+
+
+@router.patch("/workers/{key}")
+def workers_update(key: str, data: dto.WorkerUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    w = worker_svc.update_worker(db, worker_svc.owned_worker(db, user.id, key), data.model_dump(exclude_unset=True)); db.commit()
+    return worker_svc.worker_out(db, w, worker_svc._tz(db, user.id))
+
+
+@router.post("/workers/{key}/run")
+def workers_run(key: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    note = worker_svc.run_worker(db, worker_svc.owned_worker(db, user.id, key), notify=False); db.commit()
+    return worker_svc.note_out(note)
+
+
+@router.post("/workers/notes/{note_id}/act")
+def workers_note_act(note_id: uuid.UUID, data: dto.WorkerActIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    out = worker_svc.act(db, worker_svc.owned_note(db, user.id, note_id), data.action_id); db.commit(); return out
+
+
+@router.post("/workers/notes/{note_id}/feedback")
+def workers_note_feedback(note_id: uuid.UUID, data: dto.WorkerFeedbackIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    note = worker_svc.owned_note(db, user.id, note_id)
+    note.feedback = data.feedback; note.updated_at = now_utc()
+    audit(db, user.id, "worker.feedback", "worker_note", note.id, {"feedback": data.feedback}); db.commit()
+    return worker_svc.note_out(note)
