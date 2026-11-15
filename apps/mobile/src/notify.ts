@@ -62,6 +62,38 @@ export async function syncReminders(api: Api): Promise<number> {
   }
 }
 
+const ROUTINE_PREFIX = "routine-";
+
+/** Phone reminders when each routine starts, for the next 7 days (replaced on every sync). */
+export async function syncRoutineReminders(api: Api): Promise<number> {
+  try {
+    if (!(await ready())) return -1;
+    await cancelWhere(id => id.startsWith(ROUTINE_PREFIX));
+    let count = 0;
+    const today = new Date();
+    for (let n = 0; n < 7 && count < MAX_SCHEDULED; n++) {
+      const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + n, 12);
+      const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const view = await api<Row>(`/routines/today?day=${day}`);
+      for (const r of ((view.items || []) as Row[]).filter(i => i.kind === "routine" && i.starts && i.status === "open")) {
+        const [h, m] = String(r.starts).split(":").map(Number);
+        const at = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m);
+        if (at.getTime() <= Date.now() + 5000) continue;
+        const short = (r.steps as Row[]).filter(s => s.essential).length;
+        await Notifications.scheduleNotificationAsync({
+          identifier: `${ROUTINE_PREFIX}${r.id}-${day}`,
+          content: { title: `${r.icon} ${r.name}`, body: `${(r.steps as Row[]).length} steps · busy? the short version is ${short} steps`, data: { routineId: r.id, day } },
+          trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at, channelId: CHANNEL },
+        });
+        count++;
+      }
+    }
+    return count;
+  } catch {
+    return 0; // best-effort
+  }
+}
+
 /** Alarm for the end of a focus block, so it rings even if the app is in the background. */
 export async function scheduleFocusEnd(seconds: number) {
   try {

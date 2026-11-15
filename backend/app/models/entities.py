@@ -67,6 +67,9 @@ class UserProfile(Base):
     work_start: Mapped[time | None] = mapped_column(Time, nullable=True, default=time(9, 0))
     work_end: Mapped[time | None] = mapped_column(Time, nullable=True, default=time(17, 0))
     gym_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    # 1 = Monday ... 7 = Sunday. null = every day (the old behaviour).
+    work_days: Mapped[list | None] = mapped_column(JsonDict, nullable=True)
+    gym_days: Mapped[list | None] = mapped_column(JsonDict, nullable=True)
     financial_target_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     financial_target_currency: Mapped[str] = mapped_column(String(3), default="USD")
     financial_target_date: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -1079,3 +1082,84 @@ class VaultDocument(Base):
     reminder_task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# ---------- Phase 1 Life OS: routines, checklists and meals ----------
+
+class Routine(Base):
+    """A routine (timed steps, e.g. Morning) or a checklist (e.g. Gym bag). days: 1 = Monday ... 7 = Sunday."""
+    __tablename__ = "routines"
+    __table_args__ = (
+        CheckConstraint("kind IN ('routine','checklist')", name="ck_routines_kind"),
+        CheckConstraint("duration_minutes BETWEEN 5 AND 720", name="ck_routines_duration"),
+        CheckConstraint("day_rule IN ('fixed','gym','work','off')", name="ck_routines_day_rule"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    name: Mapped[str] = mapped_column(String(60))
+    kind: Mapped[str] = mapped_column(String(16), default="routine")
+    icon: Mapped[str] = mapped_column(String(8), default="✨")
+    start_time: Mapped[time | None] = mapped_column(Time, nullable=True)   # null = at wake-up (routines) / any time (checklists)
+    duration_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    # Which days it runs: "fixed" = the listed days; "gym" / "work" / "off" = follow the profile's gym days, work days,
+    # or the days that aren't work days (so the weekend routine moves with your work week).
+    day_rule: Mapped[str] = mapped_column(String(8), default="fixed", server_default="fixed")
+    days: Mapped[list] = mapped_column(JsonDict, default=list)            # [1..7] used when day_rule = "fixed"
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class RoutineStep(Base):
+    __tablename__ = "routine_steps"
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    routine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("routines.id", ondelete="CASCADE"), index=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    title: Mapped[str] = mapped_column(String(120))
+    detail: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    essential: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")  # part of the short version
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class RoutineRun(Base):
+    """One routine on one day: which steps are ticked, full or short version, done or skipped."""
+    __tablename__ = "routine_runs"
+    __table_args__ = (
+        UniqueConstraint("routine_id", "run_date", name="uq_routine_runs_routine_date"),
+        CheckConstraint("status IN ('open','done','skipped')", name="ck_routine_runs_status"),
+        CheckConstraint("mode IN ('full','short')", name="ck_routine_runs_mode"),
+        Index("ix_routine_runs_user_date", "user_id", "run_date"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    routine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("routines.id", ondelete="CASCADE"), index=True)
+    run_date: Mapped[date] = mapped_column(Date)
+    mode: Mapped[str] = mapped_column(String(8), default="full")
+    status: Mapped[str] = mapped_column(String(8), default="open")
+    done_step_ids: Mapped[list] = mapped_column(JsonDict, default=list)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class MealLog(Base):
+    """Mindful-eating check after a meal (your eating rules). Five yes/no answers; no calories, no judging."""
+    __tablename__ = "meal_logs"
+    __table_args__ = (CheckConstraint("meal IN ('breakfast','lunch','dinner','snack')", name="ck_meal_logs_meal"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    meal: Mapped[str] = mapped_column(String(10))
+    local_date: Mapped[date] = mapped_column(Date, index=True)
+    slow: Mapped[bool] = mapped_column(Boolean, default=False)
+    no_screen: Mapped[bool] = mapped_column(Boolean, default=False)
+    upright: Mapped[bool] = mapped_column(Boolean, default=False)
+    stopped_80: Mapped[bool] = mapped_column(Boolean, default=False)
+    walked_after: Mapped[bool] = mapped_column(Boolean, default=False)
+    note: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

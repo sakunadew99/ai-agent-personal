@@ -2,6 +2,9 @@
 
 This roadmap extends the existing repository; it does not replace its stack or database. Complete and verify one phase before moving to the next.
 
+**Next:** the Life OS phases (routines, focus engine, exam coach, AI workers, personalisation, news digest, CSE
+investing) are planned in [docs/life-os-roadmap.md](docs/life-os-roadmap.md).
+
 ## Sprint 0 — safe, reproducible baseline
 
 1. [x] Remove the populated provider key from `.env.example`; revoke any key that may have been real (manual provider action still required).

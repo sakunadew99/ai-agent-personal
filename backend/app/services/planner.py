@@ -69,7 +69,10 @@ def build_day(
     work_end: time | None,
     gym_time: time | None,
     tasks: list[SchedTask],
+    routines: list[tuple[str, datetime, datetime]] | None = None,
 ) -> DayDraft:
+    """routines: your timed routines for this day. They take free time when it's free; when they overlap work or the
+    gym (e.g. the office-evening routine happens at work) they are still shown, without blocking anything twice."""
     window_start, window_end = _span(plan_date, wake, sleep, tz)
     free = [(window_start, window_end)]
     blocks: list[SchedBlock] = []
@@ -99,8 +102,16 @@ def build_day(
         gym_end = gym_start + timedelta(minutes=60)
         occupy("Gym", gym_start, gym_end, "fixed")
 
+    has_morning = False
+    for title, start, end in sorted(routines or [], key=lambda r: r[1]):
+        if abs((start - window_start).total_seconds()) <= 30 * 60:
+            has_morning = True
+        if _fits(free, start, end):
+            free = _subtract(free, (start, end))
+        blocks.append(SchedBlock(title, start, end, "routine"))
+
     anchors = [
-        ("Morning routine", window_start, window_start + timedelta(minutes=30)),
+        *([] if has_morning else [("Morning routine", window_start, window_start + timedelta(minutes=30))]),
         ("Breakfast", window_start + timedelta(minutes=90), window_start + timedelta(minutes=120)),
         (
             "Lunch",

@@ -180,17 +180,22 @@ def _tasks_for_day(db: Session, user_id, plan_date: date, tz) -> list[SchedTask]
 
 
 def create_daily_plan(db: Session, user: User, plan_date: date) -> DailyPlan:
+    from app.services.routines import gym_days, routine_blocks, work_days
     profile = _profile(db, user.id)
     tz = zone(profile.timezone)
+    weekday = plan_date.isoweekday()
+    is_work = profile.work_days is None or weekday in work_days(profile)   # no work days set = old behaviour (every day)
+    is_gym = profile.gym_days is None or weekday in gym_days(profile)
     draft = build_day(
         plan_date,
         tz,
         profile.wake_time,
         profile.sleep_time,
-        profile.work_start,
-        profile.work_end,
-        profile.gym_time,
+        profile.work_start if is_work else None,
+        profile.work_end if is_work else None,
+        profile.gym_time if is_gym else None,
         _tasks_for_day(db, user.id, plan_date, tz),
+        routine_blocks(db, user.id, plan_date, tz),
     )
     plan = db.scalar(select(DailyPlan).where(DailyPlan.user_id == user.id, DailyPlan.plan_date == plan_date))
     if plan is None:

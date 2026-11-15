@@ -81,6 +81,8 @@ class ProfileOut(ORMModel):
     work_start: time | None
     work_end: time | None
     gym_time: time | None
+    work_days: list[int] | None = None
+    gym_days: list[int] | None = None
     financial_target_amount: Decimal | None
     financial_target_currency: str
     financial_target_date: date | None
@@ -98,6 +100,8 @@ class ProfileUpdate(BaseModel):
     work_start: time | None = None
     work_end: time | None = None
     gym_time: time | None = None
+    work_days: list[int] | None = None
+    gym_days: list[int] | None = None
     financial_target_amount: Decimal | None = None
     financial_target_currency: str | None = None
     financial_target_date: date | None = None
@@ -109,6 +113,15 @@ class ProfileUpdate(BaseModel):
     @classmethod
     def _cur(cls, value: str | None) -> str | None:
         return None if value is None else _currency(value)
+
+    @field_validator("work_days", "gym_days")
+    @classmethod
+    def _days(cls, value: list[int] | None) -> list[int] | None:
+        if value is None:
+            return None
+        if any(d not in range(1, 8) for d in value):
+            raise ValueError("days are 1 (Monday) to 7 (Sunday)")
+        return sorted(set(value))
 
     @field_validator("timezone")
     @classmethod
@@ -1121,3 +1134,63 @@ class DocumentUpdate(BaseModel):
     renew_lead_days: int | None = Field(default=None, ge=0, le=730)
     location_note: str | None = Field(default=None, max_length=300)
     notes: str | None = Field(default=None, max_length=2000)
+
+
+# ---------- Life OS Phase 1: routines, checklists, meals ----------
+
+class RoutineStepIn(BaseModel):
+    id: uuid.UUID | None = None
+    title: str = Field(min_length=1, max_length=120)
+    detail: str | None = Field(default=None, max_length=200)
+    essential: bool = False
+
+
+def _week_days(value: list[int] | None) -> list[int] | None:
+    if value is None:
+        return None
+    if any(d not in range(1, 8) for d in value):
+        raise ValueError("days are 1 (Monday) to 7 (Sunday)")
+    return sorted(set(value))
+
+
+class RoutineIn(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    kind: Literal["routine", "checklist"] = "routine"
+    icon: str = Field(default="✨", min_length=1, max_length=8)
+    start_time: time | None = None
+    duration_minutes: int = Field(default=30, ge=5, le=720)
+    day_rule: Literal["fixed", "gym", "work", "off"] = "fixed"
+    days: Annotated[list[int], AfterValidator(_week_days)] = Field(default_factory=lambda: [1, 2, 3, 4, 5, 6, 7])
+    active: bool = True
+    steps: list[RoutineStepIn] | None = Field(default=None, max_length=60)
+
+
+class RoutineUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=60)
+    kind: Literal["routine", "checklist"] | None = None
+    icon: str | None = Field(default=None, min_length=1, max_length=8)
+    start_time: time | None = None
+    duration_minutes: int | None = Field(default=None, ge=5, le=720)
+    day_rule: Literal["fixed", "gym", "work", "off"] | None = None
+    days: Annotated[list[int] | None, AfterValidator(_week_days)] = None
+    active: bool | None = None
+    steps: list[RoutineStepIn] | None = Field(default=None, max_length=60)
+
+
+class StepTickIn(BaseModel):
+    done: bool = True
+
+
+class RunModeIn(BaseModel):
+    mode: Literal["full", "short"]
+
+
+class MealIn(BaseModel):
+    meal: Literal["breakfast", "lunch", "dinner", "snack"]
+    local_date: date | None = None
+    slow: bool = False
+    no_screen: bool = False
+    upright: bool = False
+    stopped_80: bool = False
+    walked_after: bool = False
+    note: str | None = Field(default=None, max_length=200)

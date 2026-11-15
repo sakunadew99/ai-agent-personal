@@ -1471,3 +1471,84 @@ def life_create(data: dto.LifeIn, db: Session = Depends(get_db), user: User = De
 def life_list(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     return list(db.scalars(query_user(db, LifeEntry, user.id).order_by(LifeEntry.occurred_on.desc().nullslast())).all())
 
+
+
+# ---------- Life OS Phase 1: routines, checklists, meals, day / week / month ----------
+# Static paths come before /routines/{routine_id} so "today", "week" etc. are never read as an id.
+
+from app.services import routines as routine_svc  # noqa: E402
+
+
+def _day_or_today(db: Session, user: User, day: date | None) -> date:
+    return day or routine_svc.today_for(db, user.id)
+
+
+@router.get("/routines/today")
+def routines_today(day: date | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return routine_svc.day_view(db, user.id, _day_or_today(db, user, day))
+
+
+@router.get("/routines/week")
+def routines_week(start: date | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return routine_svc.week_view(db, user.id, start)
+
+
+@router.get("/routines/month")
+def routines_month(month: str | None = Query(None, pattern=r"^\d{4}-\d{2}$"), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return routine_svc.month_view(db, user.id, month)
+
+
+@router.post("/routines/starter", status_code=201)
+def routines_starter(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    added = routine_svc.load_starter(db, user.id); db.commit()
+    return {"added": len(added), "routines": [routine_svc.routine_out(db, r) for r in routine_svc._routines(db, user.id, active_only=False)]}
+
+
+@router.get("/routines")
+def routines_list(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return [routine_svc.routine_out(db, r) for r in routine_svc._routines(db, user.id, active_only=False)]
+
+
+@router.post("/routines", status_code=201)
+def routines_create(data: dto.RoutineIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = routine_svc.save_routine(db, user.id, data); db.commit(); return routine_svc.routine_out(db, row)
+
+
+@router.patch("/routines/{routine_id}")
+def routines_update(routine_id: uuid.UUID, data: dto.RoutineUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = routine_svc.save_routine(db, user.id, data, routine_svc.owned_routine(db, user.id, routine_id)); db.commit()
+    return routine_svc.routine_out(db, row)
+
+
+@router.delete("/routines/{routine_id}")
+def routines_delete(routine_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = routine_svc.owned_routine(db, user.id, routine_id)
+    audit(db, user.id, "routine.delete", "routine", row.id); db.delete(row); db.commit(); return {"deleted": True}
+
+
+@router.post("/routines/{routine_id}/days/{day}/steps/{step_id}")
+def routines_tick(routine_id: uuid.UUID, day: date, step_id: uuid.UUID, data: dto.StepTickIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    out = routine_svc.tick(db, routine_svc.owned_routine(db, user.id, routine_id), day, step_id, data.done); db.commit(); return out
+
+
+@router.post("/routines/{routine_id}/days/{day}/mode")
+def routines_mode(routine_id: uuid.UUID, day: date, data: dto.RunModeIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    out = routine_svc.set_mode(db, routine_svc.owned_routine(db, user.id, routine_id), day, data.mode); db.commit(); return out
+
+
+@router.post("/routines/{routine_id}/days/{day}/skip")
+def routines_skip(routine_id: uuid.UUID, day: date, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    out = routine_svc.skip(db, routine_svc.owned_routine(db, user.id, routine_id), day); db.commit(); return out
+
+
+@router.post("/meals", status_code=201)
+def meals_create(data: dto.MealIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = routine_svc.log_meal(db, user.id, data); db.commit(); return routine_svc.meal_out(row)
+
+
+@router.get("/meals")
+def meals_list(day: date | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import MealLog
+    selected = _day_or_today(db, user, day)
+    rows = db.scalars(select(MealLog).where(MealLog.user_id == user.id, MealLog.local_date == selected).order_by(MealLog.created_at)).all()
+    return [routine_svc.meal_out(r) for r in rows]

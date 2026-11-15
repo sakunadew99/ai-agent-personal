@@ -15,6 +15,7 @@ import { AiScreen, CommandCard } from "./src/screens/CommandAiScreens";
 import { CoachCardMobile, StudyScreen } from "./src/screens/StudyCoachScreens";
 import { BalanceScreen, VaultScreen } from "./src/screens/BalanceVaultScreens";
 import { cancelFocusEnd, scheduleFocusEnd, syncReminders } from "./src/notify";
+import { MonthRoutines, NowRoutineCard, PlanSwitch, TodayRoutines, WeekPlan } from "./src/screens/MyDayScreens";
 import { appendSpeech, MicButton } from "./src/voice";
 
 type Tab = "Home" | "Plan" | "Capture" | "Focus" | "More";
@@ -30,6 +31,7 @@ export default function App() {
   const [token, setToken] = useState("");
   const [user, setUser] = useState<Row>({});
   const [tab, setTab] = useState<Tab>("Home");
+  const [planView, setPlanView] = useState<"day" | "week" | "month">("day");
   const [dashboard, setDashboard] = useState<Row>({});
   const [plan, setPlan] = useState<Row>({});
   const [captures, setCaptures] = useState<Row[]>([]);
@@ -149,8 +151,12 @@ export default function App() {
       {!(tab === "More" && sub) && <TouchableOpacity onPress={() => void loadTab(tab)}><Text style={styles.refresh}>Refresh ↻</Text></TouchableOpacity>}</View>
     {!!error && <Text style={styles.errorBox}>{error}</Text>}{!!notice && <TouchableOpacity onPress={() => setNotice("")}><Text style={styles.notice}>{notice}  ×</Text></TouchableOpacity>}
     <View style={styles.screen}>
-      {tab === "Home" && <HomeScreen dashboard={dashboard} finance={finance} health={health} onComplete={completeTask} onOpenPlan={() => setTab("Plan")} top={<><CoachCardMobile api={api} onError={showError}/><BrainCard api={api}/></>}/>}
-      {tab === "Plan" && <PlanScreen plan={plan} busy={busy} generate={generatePlan} extra={<><TimeCard api={api}/><MonthAgenda api={api}/></>}/>}
+      {tab === "Home" && <HomeScreen dashboard={dashboard} finance={finance} health={health} onComplete={completeTask} onOpenPlan={() => setTab("Plan")} top={<><NowRoutineCard api={api} onOpen={() => { setPlanView("day"); setTab("Plan"); }}/><CoachCardMobile api={api} onError={showError}/><BrainCard api={api}/></>}/>}
+      {tab === "Plan" && planView === "day" && <PlanScreen plan={plan} busy={busy} generate={generatePlan}
+        top={<><PlanSwitch value={planView} onChange={setPlanView}/><TodayRoutines api={api} onError={showError} onNotice={showNotice}/><Text style={styles.sectionTitle}>Time plan</Text></>}
+        extra={<TimeCard api={api}/>}/>}
+      {tab === "Plan" && planView === "week" && <ScrollView contentContainerStyle={styles.scroll}><PlanSwitch value={planView} onChange={setPlanView}/><WeekPlan api={api} onError={showError} onNotice={showNotice}/></ScrollView>}
+      {tab === "Plan" && planView === "month" && <ScrollView contentContainerStyle={styles.scroll}><PlanSwitch value={planView} onChange={setPlanView}/><MonthRoutines api={api} onError={showError}/><Text style={styles.sectionTitle}>Tasks and deadlines</Text><MonthAgenda api={api}/></ScrollView>}
       {tab === "Capture" && <CaptureScreen captures={captures} text={captureText} setText={setCaptureText} save={saveCapture} confirm={confirmCapture} busy={busy} top={<CommandCard api={api} onError={showError}/>}/>}
       {tab === "Focus" && <FocusScreen seconds={focusSeconds} active={focusActive} setActive={setFocusActive} setSeconds={setFocusSeconds}/>}
       {tab === "More" && !sub && <MoreScreen open={target => { setError(""); setNotice(""); setSub(target); }}/>}
@@ -189,9 +195,9 @@ function HomeScreen({ dashboard, finance, health, onComplete, onOpenPlan, top }:
   </ScrollView>;
 }
 
-function PlanScreen({ plan, busy, generate, extra }: { plan: Row; busy: boolean; generate: () => void; extra?: React.ReactNode }) {
+function PlanScreen({ plan, busy, generate, extra, top }: { plan: Row; busy: boolean; generate: () => void; extra?: React.ReactNode; top?: React.ReactNode }) {
   const items: Row[] = Array.isArray(plan.items) ? plan.items : [];
-  return <ScrollView contentContainerStyle={styles.scroll}><View style={styles.card}><Text style={styles.kicker}>DAILY PLANNER</Text><Text style={styles.sectionTitle}>{plan.plan_date || "Your day"}</Text><Text style={styles.muted}>{plan.summary || "Build a plan around your routine and open tasks."}</Text><TouchableOpacity style={styles.primary} onPress={generate} disabled={busy}><Text style={styles.primaryText}>{busy ? "Planning…" : "Build today’s plan"}</Text></TouchableOpacity></View>{items.length ? items.map(item => <View key={item.id} style={styles.planItem}><Text style={styles.time}>{new Date(item.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text><View style={styles.planBlock}><Text style={styles.taskTitle}>{item.title}</Text><Text style={styles.muted}>{item.kind} · {new Date(item.ends_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text></View></View>) : <Text style={styles.empty}>Generate a plan to see today’s time blocks.</Text>}{Array.isArray(plan.unscheduled) && plan.unscheduled.length > 0 && <Text style={styles.warning}>Could not schedule: {plan.unscheduled.join(", ")}</Text>}{extra}</ScrollView>;
+  return <ScrollView contentContainerStyle={styles.scroll}>{top}<View style={styles.card}><Text style={styles.kicker}>DAILY PLANNER</Text><Text style={styles.sectionTitle}>{plan.plan_date || "Your day"}</Text><Text style={styles.muted}>{plan.summary || "Build a plan around your routine and open tasks."}</Text><TouchableOpacity style={styles.primary} onPress={generate} disabled={busy}><Text style={styles.primaryText}>{busy ? "Planning…" : "Build today’s plan"}</Text></TouchableOpacity></View>{items.length ? items.map(item => <View key={item.id} style={styles.planItem}><Text style={styles.time}>{new Date(item.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text><View style={styles.planBlock}><Text style={styles.taskTitle}>{item.title}</Text><Text style={styles.muted}>{item.kind} · {new Date(item.ends_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text></View></View>) : <Text style={styles.empty}>Generate a plan to see today’s time blocks.</Text>}{Array.isArray(plan.unscheduled) && plan.unscheduled.length > 0 && <Text style={styles.warning}>Could not schedule: {plan.unscheduled.join(", ")}</Text>}{extra}</ScrollView>;
 }
 
 function CaptureScreen({ captures, text, setText, save, confirm, busy, top }: { captures: Row[]; text: string; setText: (value: string) => void; save: () => void; confirm: (id: string) => void; busy: boolean; top?: React.ReactNode }) {
