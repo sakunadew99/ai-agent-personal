@@ -31,6 +31,8 @@ WORKERS: dict[str, dict] = {
                     "persona": "a firm but kind exam study coach", "available": True},
     "night_reviewer": {"name": "Night reviewer", "icon": "🌙", "time": time(22, 30), "job": "Wins, what moves to tomorrow, one lesson, and a wind-down reminder.",
                        "persona": "a gentle evening reviewer", "available": True},
+    "life_navigator": {"name": "Life navigator", "icon": "🧭", "time": time(20, 30), "job": "Your seven life areas this week: what's neglected and one small step.",
+                       "persona": "a wise, kind life coach who cares about balance, not just work", "available": True},
     "weekly_report": {"name": "Weekly reviewer", "icon": "🪞", "time": time(18, 0), "job": "Sunday 'About you' report: your patterns and one change to try.",
                       "persona": "an honest, warm weekly reviewer", "available": True, "days": [7]},
     "news_scout": {"name": "News scout", "icon": "📰", "time": time(8, 0), "job": "Morning digest: AI and tech, Sri Lanka and CSE market news, things worth learning.",
@@ -155,6 +157,13 @@ def facts_for(db: Session, user_id, key: str, today: date) -> dict:
         mistakes = db.scalars(select(Mistake).where(Mistake.user_id == user_id, Mistake.resolved_at.is_(None)).order_by(Mistake.last_seen_at.desc()).limit(3)).all()
         return {"exams": _exam_lines(db, user_id, today), "cards_due": cards,
                 "mistakes_to_revise": [{"wrong": m.what_happened[:120], "right": m.correction[:120]} for m in mistakes]}
+    if key == "life_navigator":
+        from app.services import compass
+        v = compass.view(db, user_id, today)
+        return {"areas": [{"name": a["name"], "icon": a["icon"], "percent": a["percent"], "status": a["status"], "suggestion": a["suggestion"],
+                           "signals": [f"{s['label']}: {s['actual']} of {s['target']} {s['unit']}" for s in a["signals"] if s["actual"] is not None]} for a in v["areas"]],
+                "weakest": v["weakest"], "strongest": v["strongest"], "overall": v["overall"], "message": v["message"], "day_of_week": round(v["week_fraction"] * 7),
+                "actions": [{"title": a["title"], "detail": a["detail"], "log": a.get("log"), "log_label": a.get("log_label")} for a in v["actions"]]}
     if key == "night_reviewer":
         day = routines.day_view(db, user_id, today)
         start = datetime.combine(today, time.min, tzinfo=tz).astimezone(timezone.utc)
@@ -244,6 +253,22 @@ def rule_note(key: str, f: dict) -> tuple[str, str, list[dict]]:
             lines.append("Avoid list not logged yet: " + ", ".join(f["avoid_not_logged"][:3]) + ".")
             actions.append({"id": "avoid", "label": "Log the avoid list", "action": "open:Focus"})
         lines.append("One lesson from today? Write it in your journal. Phone down at 00:00; the bedtime list takes over 🌙")
+    elif key == "life_navigator":
+        title = "Life compass" + (f": {f['overall']}% balanced" if f["overall"] is not None else "")
+        lines.append(f"Day {f['day_of_week']} of the week. " + " · ".join(
+            f"{a['icon']} {a['percent']}%" if a["percent"] is not None else f"{a['icon']} –" for a in f["areas"]))
+        behind = [a for a in f["areas"] if a["status"] == "behind"]
+        good = [a["name"] for a in f["areas"] if a["status"] in ("done", "on_track")]
+        if good:
+            lines.append("Going well: " + ", ".join(good[:4]) + ".")
+        for a in behind[:2]:
+            lines.append(f"{a['icon']} {a['name']} is behind: {a['suggestion']}")
+        if not behind:
+            lines.append(f["message"])
+        for a in f["actions"]:
+            if a.get("log"):
+                actions.append({"id": f"log_{a['log']}", "label": f"✓ {a['log_label']}", "action": f"log_area:{a['log']}"})
+        actions.insert(0, {"id": "compass", "label": "Open Home", "action": "open:Home"})
     else:
         title, lines = WORKERS[key]["name"], ["This worker arrives in a later phase."]
     actions.append({"id": "done", "label": "Got it", "action": "done"})
@@ -422,6 +447,10 @@ def act(db: Session, note: WorkerNote, action_id: str) -> dict:
             t.updated_at = now_utc()
             moved += 1
         result["moved"] = moved
+    elif action.startswith("log_area:"):
+        from app.services import compass
+        compass.log(db, note.user_id, action.split(":", 1)[1], note=f"Logged from {WORKERS[note.worker_key]['name']}")
+        result["logged"] = action.split(":", 1)[1]
     elif action.startswith("open:"):
         result["open"] = action[5:]
     note.status = "read" if action.startswith("open:") else "done"

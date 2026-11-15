@@ -269,6 +269,10 @@ def execute_action(db: Session, user: User, action: str, body: dict) -> dict:
     if action == "create_expense":
         row = create_expense(db, user.id, ExpenseIn.model_validate(body))
         return {"id": str(row.id), "amount": str(row.amount), "category": row.category}
+    if action == "log_life_area":
+        from app.services import compass
+        row = compass.log(db, user.id, str(body.get("area")), note=str(body.get("note") or "")[:200] or None)
+        return {"id": str(row.id), "area": body.get("area")}
     if action == "exam_update":
         from app.services.exams import apply_command
         out = apply_command(db, user.id, {k: body[k] for k in ("action", "exam", "skill", "minutes", "score", "source", "field", "value") if k in body})

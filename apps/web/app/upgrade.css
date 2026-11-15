@@ -624,3 +624,34 @@ h1 { font-size: 30px; font-weight: 700; }
   .auth-mobile-brand { display: flex; justify-content: center; }
   .auth-card-v2 { max-width: 440px; padding: 24px; }
 }
+
+/* ---------- Life Compass (Home) ---------- */
+.compass { display: flex; flex-direction: column; gap: 14px; border-color: var(--green); margin-bottom: 14px; }
+.compass-head { display: flex; align-items: center; gap: 16px; }
+.compass-head h2 { font-size: 16px; line-height: 1.4; margin: 4px 0 0; letter-spacing: -.2px; }
+.compass-ring { width: 74px; height: 74px; flex: none; border-radius: 50%; display: grid; place-items: center; }
+.compass-ring span { width: 58px; height: 58px; border-radius: 50%; background: var(--panel); display: grid; place-items: center; font-weight: 800; font-size: 20px; grid-auto-flow: column; }
+.compass-ring small { font-size: 10px; color: var(--muted); margin-left: 1px; }
+.compass-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 9px; }
+.compass-tile { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; text-align: left; padding: 11px; border: 1px solid var(--line); border-radius: 13px; background: var(--panel2); color: var(--text); }
+.compass-tile.on, .compass-tile:hover { border-color: var(--green); }
+.compass-tile b { font-size: 12px; }
+.compass-icon { font-size: 20px; }
+.compass-track { align-self: stretch; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.compass-track span { display: block; height: 100%; background: var(--green); border-radius: 3px; }
+.compass-tile.behind .compass-track span { background: #f2b768; }
+.compass-pct { font-size: 11px; color: var(--muted); }
+.compass-tile.behind .compass-pct { color: #f2b768; }
+.compass-detail { border: 1px solid var(--line); border-radius: 13px; padding: 13px; display: flex; flex-direction: column; gap: 6px; background: var(--bg); }
+.compass-detail p { margin: 0; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-size: 12px; }
+.compass-detail p small { flex-basis: 100%; color: var(--muted); font-size: 11px; }
+.compass-tip { color: var(--green); }
+.compass-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.compass-numbers { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 8px; }
+.compass-numbers span { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 9px 4px; border-radius: 11px; background: var(--panel2); font-size: 10px; color: var(--muted); }
+.compass-numbers b { font-size: 15px; color: var(--text); }
+.compass-actions { display: flex; flex-direction: column; gap: 8px; }
+.compass-action { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 12px; background: var(--panel2); }
+.compass-action div { flex: 1; min-width: 0; }
+.compass-action b { display: block; font-size: 13px; }
+.compass-action small { color: var(--muted); font-size: 11px; }

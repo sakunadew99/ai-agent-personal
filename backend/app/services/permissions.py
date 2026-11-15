@@ -21,6 +21,7 @@ LIST_TOOLS = [
     "add_to_buy_list",
     "add_to_wishlist",
     "exam_update",      # log study minutes / a score, or change your own exam plan
+    "log_life_area",    # "called my mother" -> a check-in for Family (your own log, easy to delete)
 ]
 
 

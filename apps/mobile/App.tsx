@@ -23,6 +23,7 @@ import { AiTeamScreen, TeamTodayCard } from "./src/screens/AiTeamScreens";
 import { AboutYouScreen } from "./src/screens/AboutYouScreen";
 import { NewsScreen } from "./src/screens/NewsScreen";
 import { InvestScreen } from "./src/screens/InvestScreen";
+import { LifeCompass } from "./src/screens/LifeCompass";
 import { MonthRoutines, NowRoutineCard, PlanSwitch, TodayRoutines, WeekPlan } from "./src/screens/MyDayScreens";
 import { appendSpeech, MicButton } from "./src/voice";
 
@@ -132,7 +133,7 @@ export default function App() {
   function openTarget(target: string) {
     if (target === "Plan") { setPlanView("day"); setTab("Plan"); setSub(null); }
     else if (target === "Focus") { setTab("Focus"); setSub(null); }
-    else if (["Exams", "You", "Team", "News", "Invest"].includes(target)) { setTab("More"); setSub(target as MoreTarget); }
+    else if (["Exams", "You", "Team", "News", "Invest", "Money", "Life", "Balance"].includes(target)) { setTab("More"); setSub(target as MoreTarget); }
     else setTab("Home");
   }
   async function signOut() {
@@ -151,7 +152,8 @@ export default function App() {
       {!(tab === "More" && sub) && <TouchableOpacity onPress={() => void loadTab(tab)}><Text style={styles.refresh}>Refresh ↻</Text></TouchableOpacity>}</View>
     {!!error && <Text style={styles.errorBox}>{error}</Text>}{!!notice && <TouchableOpacity onPress={() => setNotice("")}><Text style={styles.notice}>{notice}  ×</Text></TouchableOpacity>}
     <View style={styles.screen}>
-      {tab === "Home" && <HomeScreen dashboard={dashboard} finance={finance} health={health} onComplete={completeTask} onOpenPlan={() => setTab("Plan")} top={<><NowRoutineCard api={api} onOpen={() => { setPlanView("day"); setTab("Plan"); }}/>
+      {tab === "Home" && <HomeScreen dashboard={dashboard} finance={finance} health={health} onComplete={completeTask} onOpenPlan={() => setTab("Plan")} top={<><LifeCompass api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/>
+        <NowRoutineCard api={api} onOpen={() => { setPlanView("day"); setTab("Plan"); }}/>
         <TeamTodayCard api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/><CoachCardMobile api={api} onError={showError}/><BrainCard api={api}/></>}/>}
       {tab === "Plan" && planView === "day" && <PlanScreen plan={plan} busy={busy} generate={generatePlan}
         top={<><PlanSwitch value={planView} onChange={setPlanView}/><TodayRoutines api={api} onError={showError} onNotice={showNotice}/><Text style={styles.sectionTitle}>Time plan</Text></>}

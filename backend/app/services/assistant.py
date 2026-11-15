@@ -32,6 +32,12 @@ def classify_intent(text: str) -> str:
         return "exam_update"
     if not task_like and (exam_cmd or _exam_of(lowered)):
         return "exam_status"
+    if not task_like:
+        from app.services.compass import parse_life_log
+        if parse_life_log(text):
+            return "life_log"
+    if re.search(r"\b(life balance|life compass|work[- ]life|how (?:is|was|'s) my (?:week|life|day)|am i on track|my seven areas|whole life)\b", lowered):
+        return "life"
     if re.search(r"\b(portfolio|cse|aspi|shares?|stocks?|holdings?|watchlist|dividends?|invest\w*)\b", lowered):
         return "invest"
     if any(word in lowered for word in ("spent", "paid ", "expense", "bought")):
@@ -159,6 +165,13 @@ def _act(db: Session, user: User, intent: str, message: str):
             body = {"items": listed["items"], "list_name": listed.get("list_name")}
             outcome = queue_or_run(db, user, tool, body, f"Add {', '.join(listed['items'][:5])} to your {where}")
             _collect(outcome, proposed, completed, refused)
+    elif intent == "life_log":
+        from app.services.compass import AREAS, parse_life_log
+        found = parse_life_log(message)
+        if found:
+            name = next(n for k, n, _ in AREAS if k == found["area"])
+            outcome = queue_or_run(db, user, "log_life_area", found, f"Logged for {name}: {found['note'][:80]}")
+            _collect(outcome, proposed, completed, refused)
     elif intent == "exam_update":
         from app.services.actions import _today
         from app.services.exams import parse_exam_command
@@ -281,6 +294,15 @@ def _facts(db: Session, user: User, intent: str, memories=None) -> str:
                 lines.append(f"Advice preferences from 👍/👎: {prefs}.")
         except Exception:  # noqa: BLE001 - extra context only
             pass
+    if intent in {"life", "life_log", "general", "goals", "productivity", "focus", "plan"}:
+        try:
+            from app.services.compass import summary_text as compass_text
+            lines.append("Whole-life picture (calculated by Sakuna from the user's own records):\n" + compass_text(db, user.id))
+        except Exception:  # noqa: BLE001 - extra context only
+            pass
+        lines.append("Life-coach style: care about all seven areas (health, work, family, social, money, leisure, growth), not only "
+                     "productivity. Name what is going well first, then the most neglected area with ONE small step for today. "
+                     "Rest, people and health count as progress. No guilt; not medical, therapy or financial advice.")
     if intent == "invest":
         try:
             from app.services.invest import summary_text
@@ -405,11 +427,14 @@ def _local_reply(message: str, draft: str, intent: str) -> str:
         if "Completed now:" in draft:
             return "Your plan has been created. Open Planner to review the scheduled blocks."
         return "I couldn’t create the plan from this request. Check Planner and try again."
+    if intent == "life":
+        picture = draft.split("Whole-life picture (calculated by Sakuna from the user's own records):", 1)[-1].split("Life-coach style:", 1)[0].strip()
+        return f"Here's your whole-life picture:\n{picture}"
     if intent == "exam_status":
         status = draft.split("Exam coach (calculated by Sakuna, current):", 1)[-1].split("Coaching style for exams:", 1)[0].strip()
         return (f"Here's where your exam prep stands:\n{status}\n\n"
                 "Tip: tell me “log 30 minutes IELTS listening” or “IELTS reading mock 6.5” and I'll track it.")
-    if intent in {"capture", "remember", "expense", "list_add", "exam_update"}:
+    if intent in {"capture", "remember", "expense", "list_add", "exam_update", "life_log"}:
         if "Proposed only." in draft:
             return "I’ve prepared that request, but it’s waiting for your approval. Open Approvals to review it."
         if "Completed now:" in draft:

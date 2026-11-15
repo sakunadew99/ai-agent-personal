@@ -1308,3 +1308,10 @@ class ImportTextIn(BaseModel):
     text: str = Field(min_length=5, max_length=500000)
     kind: Literal["auto", "prices", "trades"] = "auto"
     trade_date: date | None = None
+
+
+# ---------- Life Compass ----------
+
+class CompassLogIn(BaseModel):
+    amount: Decimal = Field(default=Decimal("1"), gt=0, le=24, max_digits=6, decimal_places=2)
+    note: str | None = Field(default=None, max_length=200)

@@ -45,7 +45,7 @@ def api(client):
 
 def test_team_setup_and_settings(api):
     workers = {w["key"]: w for w in api("GET", "/workers", expect=200).json()}
-    assert list(workers) == ["morning_coach", "focus_guard", "study_coach", "night_reviewer", "weekly_report", "news_scout", "market_analyst"]
+    assert list(workers) == ["morning_coach", "focus_guard", "study_coach", "night_reviewer", "life_navigator", "weekly_report", "news_scout", "market_analyst"]
     assert workers["morning_coach"]["run_time"].startswith("07:15")                           # 15 min after the default wake-up
     assert workers["night_reviewer"]["enabled"] and workers["news_scout"]["enabled"] and workers["news_scout"]["available"]
     assert all(w["available"] for w in workers.values())                                      # Phase 7: the whole team is here
@@ -54,7 +54,7 @@ def test_team_setup_and_settings(api):
     assert out["run_time"].startswith("15:00") and out["days"] == [1, 2, 3, 4, 5] and out["use_ai"] is False
     api("PATCH", "/workers/focus_guard", {"days": [8]}, 422)
     api("PATCH", "/workers/nobody", {"enabled": False}, 404)
-    assert len(api("GET", "/workers", expect=200).json()) == 7                                 # created once
+    assert len(api("GET", "/workers", expect=200).json()) == 8                                 # created once
 
 
 def test_rule_notes_without_ai(api):
@@ -70,7 +70,7 @@ def test_rule_notes_without_ai(api):
     again = api("POST", "/workers/morning_coach/run", expect=200).json()
     assert again["id"] == note["id"]                                                          # one note per worker per day
     today = api("GET", "/workers/today", expect=200).json()
-    assert {"morning_coach", "focus_guard", "study_coach", "night_reviewer", "weekly_report", "news_scout", "market_analyst"} == {i["worker"] for i in today["items"]} and today["unread"] >= 3
+    assert {"morning_coach", "focus_guard", "study_coach", "night_reviewer", "life_navigator", "weekly_report", "news_scout", "market_analyst"} == {i["worker"] for i in today["items"]} and today["unread"] >= 3
 
 
 def test_ai_note_within_budget(api, monkeypatch):

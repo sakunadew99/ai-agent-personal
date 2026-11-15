@@ -150,3 +150,24 @@ oily foods · WhatsApp status · scrolling before and after sleep.
 starting.
 **Break (10 or 5 min):** drink water, walk or run, sun exposure, eye rest, brain game.
 **After (2 min):** think about what you did and what's next.
+
+---
+
+## Life Compass ✅ done (ties every phase together)
+
+One picture of the seven life areas, worked out each time from all the features (plain code, no new tables):
+
+| Area | What counts |
+|---|---|
+| 💪 Health | sleep average (7–9 h), active days, mindful meals, clean avoid-list logs |
+| 💼 Work & career | focus hours on work, work tasks finished |
+| ❤️ Family & relationships | time with family (one tap, or tell the assistant "called my mother") |
+| 🤝 Social & community | friends and community (logged the same way) |
+| 💰 Finances | days you tracked money, envelopes within budget |
+| 🌿 Leisure & hobbies | hobby / rest blocks, weekend-evening routines done |
+| 🌱 Growth & spirit | learning days (flashcards, exam study), reflection (morning routine, check-in, prayer) |
+
+- Home (phone and web) shows the seven tiles, today in numbers, and up to four **next best actions**.
+- "Behind" compares each area with where the week should be by today, so Monday isn't judged like Sunday.
+- 🧭 **Life navigator** (AI team, 20:30) names what's going well and the most neglected area, with one small step.
+- The chat assistant sees the same picture and coaches across all seven areas, not only productivity.

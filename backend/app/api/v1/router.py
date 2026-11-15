@@ -1885,3 +1885,20 @@ def invest_alerts_seen(db: Session = Depends(get_db), user: User = Depends(get_c
 def invest_symbol(symbol: str, ai: bool = False, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     out = {"history": invest_svc.history(db, user.id, symbol), "research": invest_svc.research(db, user.id, symbol, use_ai=ai)}
     db.commit(); return out
+
+
+# ---------- Life Compass: the seven life areas from every feature, and the next best actions ----------
+
+from app.services import compass as compass_svc  # noqa: E402
+
+
+@router.get("/compass")
+def compass_view(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    out = compass_svc.view(db, user.id); db.commit(); return out
+
+
+@router.post("/compass/{area}/log", status_code=201)
+def compass_log(area: str, data: dto.CompassLogIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    compass_svc.log(db, user.id, area, data.amount, data.note)
+    audit(db, user.id, "compass.log", "life_area", None, {"area": area})
+    out = compass_svc.view(db, user.id); db.commit(); return out
