@@ -2,42 +2,74 @@ package expo.modules.sakunashield
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import java.util.Locale
 
 /**
- * Watches which app is in front (and, for browsers, the address bar) and blocks what the user chose.
+ * Watches which app is in front (and, for browsers, the address bar) and blocks what the active blocklists say.
  * Privacy: nothing is logged or sent anywhere; only a daily block count is stored (ShieldStore).
  */
 class ShieldAccessibilityService : AccessibilityService() {
   private var lastUrlCheckAt = 0L
   private var lastBlockAt = 0L
+  private var browsers: Set<String> = emptySet()
+  private var browsersCheckedAt = 0L
+  private val installTimes = HashMap<String, Long>()
 
   override fun onAccessibilityEvent(event: AccessibilityEvent?) {
     val e = event ?: return
     val pkg = e.packageName?.toString() ?: return
     if (pkg == packageName || pkg in IGNORED) return
     val now = System.currentTimeMillis()
+    val windowChanged = e.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
 
-    // Strict mode: protect the session from being switched off in Settings or by uninstalling.
+    // Strict Mode: protect the shield from being switched off in Settings or by uninstalling.
     if (ShieldStore.strictActive(this, now) && pkg in PROTECTION_SCREENS && mentionsSakuna()) {
-      block("Strict mode is on. Sakuna's protection can't be turned off until the session ends.", goBack = true)
+      block("Strict Mode is on. Sakuna's protection can't be turned off until it ends.", goBack = true)
       return
     }
 
-    if (!ShieldStore.blockingActive(this)) return
-    val config = ShieldStore.config(this)
+    val active = ShieldStore.activeLists(this, now)
+    if (active.isEmpty()) return
 
-    if (e.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && pkg in config.apps) {
-      block("You chose to block this app during focus.", goBack = false)
-      return
+    if (windowChanged) {
+      val list = active.firstOrNull { pkg in it.apps }
+      if (list != null) { block("“${list.name}” is blocking this app right now.", goBack = false); return }
+
+      // Newly installed apps join the list that asked for it, then get blocked.
+      active.firstOrNull { it.newApps && isNewSince(pkg, it.newAppsSince) }?.let { l ->
+        ShieldStore.addApp(this, l.id, pkg)
+        block("New app added to “${l.name}” and blocked.", goBack = false)
+        return
+      }
+
+      if (pkg == PLAY_STORE && active.any { it.purchases } && isPurchaseScreen(e.className?.toString())) {
+        block("In-app purchases are blocked right now.", goBack = true)
+        return
+      }
+
+      if (pkg !in BROWSERS && active.any { it.unsupportedBrowsers && it.hasWebRules } && pkg in browserPackages(now)) {
+        block("This browser can't be checked, so it's blocked while website rules are on.", goBack = false)
+        return
+      }
     }
 
-    if (config.domains.isNotEmpty() && pkg in BROWSERS && now - lastUrlCheckAt > 600) {
+    val webLists = active.filter { it.hasWebRules }
+    if (webLists.isNotEmpty() && pkg in BROWSERS && now - lastUrlCheckAt > 600) {
       lastUrlCheckAt = now
-      val host = currentAddress(pkg)?.let { ShieldStore.normalizeDomain(it) } ?: return
-      if (ShieldStore.domainMatches(host, config.domains)) {
-        block("You chose to block $host during focus.", goBack = true)
+      val text = currentAddress(pkg)?.lowercase(Locale.ROOT) ?: return
+      val host = ShieldStore.normalizeDomain(text)
+      for (l in webLists) {
+        val reason = when {
+          ShieldStore.domainMatches(host, l.domains) -> "“${l.name}” is blocking $host."
+          l.keywords.any { text.contains(it) } -> "“${l.name}” blocks pages with this keyword."
+          l.adult && AdultFilter.matches(host, text) -> "Adult sites are blocked."
+          else -> null
+        }
+        if (reason != null) { block(reason, goBack = true); return }
       }
     }
   }
@@ -57,6 +89,35 @@ class ShieldAccessibilityService : AccessibilityService() {
     )
   }
 
+  /** A launchable app first installed after `since`. Install times are cached; updates don't change them. */
+  private fun isNewSince(pkg: String, since: Long): Boolean {
+    if (since <= 0L || ShieldStore.wasAutoAdded(this, pkg)) return false
+    val installed = installTimes.getOrPut(pkg) {
+      try {
+        if (packageManager.getLaunchIntentForPackage(pkg) == null) 0L
+        else packageManager.getPackageInfo(pkg, 0).firstInstallTime
+      } catch (_: PackageManager.NameNotFoundException) { 0L }
+    }
+    return installed > since
+  }
+
+  /** Google Play's payment sheet. Class names vary by Play version, so this is a best-effort match. */
+  private fun isPurchaseScreen(className: String?): Boolean {
+    val c = className?.lowercase(Locale.ROOT) ?: return false
+    return PURCHASE_HINTS.any { c.contains(it) }
+  }
+
+  /** Every app that opens ordinary web links (refreshed every 5 minutes). */
+  private fun browserPackages(now: Long): Set<String> {
+    if (now - browsersCheckedAt > 5 * 60_000L) {
+      browsersCheckedAt = now
+      val view = Intent(Intent.ACTION_VIEW, Uri.parse("http://example.com")).addCategory(Intent.CATEGORY_BROWSABLE)
+      @Suppress("DEPRECATION")
+      browsers = packageManager.queryIntentActivities(view, PackageManager.MATCH_ALL).map { it.activityInfo.packageName }.toSet() - packageName
+    }
+    return browsers
+  }
+
   /** Text of the browser's address bar, if it can be found. */
   private fun currentAddress(pkg: String): String? {
     val root = rootInActiveWindow ?: return null
@@ -74,7 +135,9 @@ class ShieldAccessibilityService : AccessibilityService() {
   }
 
   companion object {
+    private const val PLAY_STORE = "com.android.vending"
     private val IGNORED = setOf("com.android.systemui")
+    private val PURCHASE_HINTS = listOf("billing", "acquire", "iabv3", "purchase")
 
     private val BROWSERS = setOf(
       "com.android.chrome", "com.chrome.beta", "com.chrome.dev", "com.chrome.canary",
@@ -89,7 +152,7 @@ class ShieldAccessibilityService : AccessibilityService() {
       "url", "address_bar_edit_text", "sbrowser_url_bar", "edit_text", "omnibarTextInput",
     )
 
-    // Settings / package-installer screens that could disable or uninstall Sakuna during strict mode.
+    // Settings / package-installer screens that could disable or uninstall Sakuna during Strict Mode.
     private val PROTECTION_SCREENS = setOf(
       "com.android.settings", "com.oplus.settings", "com.coloros.settings", "com.coloros.safecenter",
       "com.oplus.safecenter", "com.miui.securitycenter", "com.samsung.android.settings",

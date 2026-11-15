@@ -41,4 +41,12 @@ Mi Fitness does not necessarily export every metric: Xiaomi/Google documentation
 
 The access token is held in memory and clears when the app restarts. Sign in again to resume. The backend receives health records only after the explicit sync button is tapped. Use HTTPS for a deployed backend; the LAN HTTP address is for local development only.
 
-The Focus screen currently provides an in-app timer. System-wide app blocking is not active: Android needs additional native usage/accessibility enforcement and explicit system consent. This timer does not pause or block other apps, and pauses if the app process is stopped.
+## Sakuna Shield (Android APK only)
+
+The Focus screen has an in-app timer and **Sakuna Shield** (`modules/sakuna-shield`, native Kotlin), with three tabs:
+
+- **Blocking**: named blocklists of apps (grouped by category), websites (subdomains included) and URL keywords. Each list is *Quick block only*, *Always on* or *On a schedule* (days + hours, overnight allowed). Extra options per list: block newly installed apps, adult sites (built-in list + words, `AdultFilter.kt`), Google Play purchase screens (best effort), and browsers whose address bar can't be read.
+- **Strict Mode**: locks the lists (add only; nothing removed, paused or deleted), stops a quick block from ending early, and blocks Sakuna's Accessibility and uninstall screens. Unlock methods: *Timer* (15-minute early-exit wait), *Follow schedules* (only while no schedule runs; schedules must leave free time each week), *Charger* (only while charging). *Approval* is planned.
+- **Insights**: day and week screen time, hourly chart, pickups, longest phone-free stretch (06:00–23:00), longest continuous use, peak hour, and a Distracting / Neutral / Productive split from marks you set per app.
+
+Setup on the phone: Settings → Accessibility → Sakuna Shield → On (blocking), and Usage access → Sakuna AI → Allow (insights). Everything runs and stays on the phone: rules, marks and a daily block count are stored in app preferences; usage is read from Android when Insights opens and is never uploaded. Blocking works in the browsers listed in `ShieldAccessibilityService.kt`; in-app browsers can slip through unless "Block unsupported browsers" is on. Lists from the older single-list version are moved into "My blocklist" automatically.

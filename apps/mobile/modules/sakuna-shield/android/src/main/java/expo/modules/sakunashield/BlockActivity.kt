@@ -56,10 +56,13 @@ class BlockActivity : Activity() {
     }
 
     val endsAt = ShieldStore.sessionEndsAt(this)
+    val clock = DateFormat.getTimeInstance(DateFormat.SHORT)
     val until = TextView(this).apply {
-      text = if (endsAt > System.currentTimeMillis())
-        "Focus session until " + DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(endsAt))
-      else "Blocked by your Sakuna rules"
+      text = when {
+        ShieldStore.strictActive(this@BlockActivity) -> "Strict Mode is on"
+        endsAt > System.currentTimeMillis() -> "Quick block until " + clock.format(Date(endsAt))
+        else -> "Blocked by your Sakuna blocklists"
+      }
       textSize = 14f
       gravity = Gravity.CENTER
       setTextColor(Color.parseColor("#39D98A"))
