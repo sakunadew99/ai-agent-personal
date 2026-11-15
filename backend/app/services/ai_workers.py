@@ -283,11 +283,18 @@ def run_worker(db: Session, w: AiWorker, today: date | None = None, notify: bool
     return note
 
 
-def run_due(db: Session, now: datetime | None = None) -> int:
-    """Called by the worker tick: run every enabled worker whose time has come today (once per day)."""
+def run_due(db: Session, now: datetime | None = None, user_id=None, late_hours: int = LATE_LIMIT_HOURS) -> int:
+    """Run every enabled worker whose time has come today (once per day).
+
+    Called by the worker tick (all users, at most 6 hours late) and when the app opens the Today card (one user, any time
+    later the same day), because free schedulers such as GitHub Actions can delay or skip ticks.
+    """
     now = now or now_utc()
     ran = 0
-    for w in db.scalars(select(AiWorker).where(AiWorker.enabled.is_(True))).all():
+    query = select(AiWorker).where(AiWorker.enabled.is_(True))
+    if user_id is not None:
+        query = query.where(AiWorker.user_id == user_id)
+    for w in db.scalars(query).all():
         if not WORKERS.get(w.key, {}).get("available"):
             continue
         try:
@@ -298,7 +305,7 @@ def run_due(db: Session, now: datetime | None = None) -> int:
         if w.last_run_date == local.date() or local.isoweekday() not in (w.days or []):
             continue
         due = datetime.combine(local.date(), w.run_time, tzinfo=tz)
-        if not (due <= local < due + timedelta(hours=LATE_LIMIT_HOURS)):
+        if not (due <= local < due + timedelta(hours=late_hours)):
             continue
         try:
             with db.begin_nested():
@@ -319,6 +326,7 @@ def note_out(n: WorkerNote) -> dict:
 def today_view(db: Session, user_id) -> dict:
     workers = ensure_workers(db, user_id)
     tz = _tz(db, user_id)
+    run_due(db, user_id=user_id, late_hours=24)   # catch up on any note the scheduler missed
     today = datetime.now(tz).date()
     notes = {n.worker_key: n for n in db.scalars(select(WorkerNote).where(WorkerNote.user_id == user_id, WorkerNote.local_date == today)).all()}
     items = []

@@ -69,7 +69,7 @@ def test_rule_notes_without_ai(api):
     again = api("POST", "/workers/morning_coach/run", expect=200).json()
     assert again["id"] == note["id"]                                                          # one note per worker per day
     today = api("GET", "/workers/today", expect=200).json()
-    assert {i["worker"] for i in today["items"]} == {"morning_coach", "focus_guard", "study_coach", "night_reviewer"} and today["unread"] == 3
+    assert {i["worker"] for i in today["items"]} == {"morning_coach", "focus_guard", "study_coach", "night_reviewer"} and today["unread"] >= 3
 
 
 def test_ai_note_within_budget(api, monkeypatch):
@@ -144,5 +144,25 @@ def test_ownership(client):
     note = a("POST", "/workers/morning_coach/run", expect=200).json()
     b("POST", f"/workers/notes/{note['id']}/act", {"action_id": "done"}, 404)
     b("POST", f"/workers/notes/{note['id']}/feedback", {"feedback": "down"}, 404)
-    assert all(i["note"] is None for i in b("GET", "/workers/today", expect=200).json()["items"])
+    b_notes = [i["note"]["id"] for i in b("GET", "/workers/today", expect=200).json()["items"] if i["note"]]
+    assert note["id"] not in b_notes                                                          # B only ever sees B's own notes
     assert a("GET", "/workers/today", expect=200).json()["items"][0]["note"]["id"] == note["id"]
+
+
+def test_opening_today_card_catches_up_missed_runs(api):
+    api("GET", "/workers", expect=200)
+    user_id = uuid.UUID(str(api("GET", "/me", expect=200).json()["user"]["id"]))
+    now_local = datetime.now(TZ)
+    if now_local.hour < 1:
+        pytest.skip("too close to midnight for this check")
+    with SessionLocal() as db:
+        for w in db.scalars(select(AiWorker).where(AiWorker.user_id == user_id)).all():
+            w.enabled = w.key == "morning_coach"
+            w.run_time = time(0, 30)                     # long past, as if the scheduler skipped it
+            w.days = [1, 2, 3, 4, 5, 6, 7]
+        db.commit()
+    today = api("GET", "/workers/today", expect=200).json()
+    morning = next(i for i in today["items"] if i["worker"] == "morning_coach")
+    assert morning["note"] is not None and morning["note"]["title"].startswith("Good morning")
+    again = api("GET", "/workers/today", expect=200).json()
+    assert next(i for i in again["items"] if i["worker"] == "morning_coach")["note"]["id"] == morning["note"]["id"]   # once a day
