@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { apiRequest as request, getServerUrl, loadServerUrl, saveServerUrl, type ApiRecord as Row } from "./src/api";
 import { ChatScreen } from "./src/screens/ChatScreen";
@@ -14,7 +14,8 @@ import { RewardsScreen } from "./src/screens/RewardsScreen";
 import { AiScreen, CommandCard } from "./src/screens/CommandAiScreens";
 import { CoachCardMobile, StudyScreen } from "./src/screens/StudyCoachScreens";
 import { BalanceScreen, VaultScreen } from "./src/screens/BalanceVaultScreens";
-import { cancelFocusEnd, scheduleFocusEnd, syncReminders } from "./src/notify";
+import { syncReminders } from "./src/notify";
+import { FocusEngine } from "./src/screens/FocusEngine";
 import { MonthRoutines, NowRoutineCard, PlanSwitch, TodayRoutines, WeekPlan } from "./src/screens/MyDayScreens";
 import { appendSpeech, MicButton } from "./src/voice";
 
@@ -41,8 +42,6 @@ export default function App() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const [focusSeconds, setFocusSeconds] = useState(25 * 60);
-  const [focusActive, setFocusActive] = useState(false);
   const [sub, setSub] = useState<MoreTarget | null>(null);
   // One API helper for all screens (adds the signed-in token).
   const api = useCallback(<T = Row,>(path: string, method = "GET", body?: unknown) => request<T>(path, token, method, body), [token]);
@@ -69,22 +68,6 @@ export default function App() {
   }, [token]);
 
   useEffect(() => { if (token) void loadTab(tab); }, [token, tab, loadTab]);
-
-  useEffect(() => {
-    if (!focusActive) return;
-    const timer = setInterval(() => setFocusSeconds(value => Math.max(0, value - 1)), 1000);
-    return () => clearInterval(timer);
-  }, [focusActive]);
-
-  useEffect(() => { if (focusSeconds === 0) setFocusActive(false); }, [focusSeconds]);
-
-  // Focus alarm: scheduled on the device so it rings even if the app is in the background (the JS timer pauses there).
-  const focusLeft = useRef(focusSeconds);
-  focusLeft.current = focusSeconds;
-  useEffect(() => {
-    if (focusActive) void scheduleFocusEnd(focusLeft.current);
-    else if (focusLeft.current > 0) void cancelFocusEnd(); // paused or reset; a finished block keeps its alarm
-  }, [focusActive]);
 
   // Phone reminders for tasks due in the next 7 days (local notifications, quiet hours applied by the API).
   useEffect(() => { if (token) void syncReminders(api); }, [token, api]);
@@ -158,7 +141,11 @@ export default function App() {
       {tab === "Plan" && planView === "week" && <ScrollView contentContainerStyle={styles.scroll}><PlanSwitch value={planView} onChange={setPlanView}/><WeekPlan api={api} onError={showError} onNotice={showNotice}/></ScrollView>}
       {tab === "Plan" && planView === "month" && <ScrollView contentContainerStyle={styles.scroll}><PlanSwitch value={planView} onChange={setPlanView}/><MonthRoutines api={api} onError={showError}/><Text style={styles.sectionTitle}>Tasks and deadlines</Text><MonthAgenda api={api}/></ScrollView>}
       {tab === "Capture" && <CaptureScreen captures={captures} text={captureText} setText={setCaptureText} save={saveCapture} confirm={confirmCapture} busy={busy} top={<CommandCard api={api} onError={showError}/>}/>}
-      {tab === "Focus" && <FocusScreen seconds={focusSeconds} active={focusActive} setActive={setFocusActive} setSeconds={setFocusSeconds}/>}
+      {tab === "Focus" && <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <FocusEngine api={api} onError={showError} onNotice={showNotice}/>
+        <View style={{ height: 14 }}/><ShieldPanel/>
+        <Text style={styles.disclaimer}>The focus timer runs from the session's end time, so it keeps going if you switch tabs or close Sakuna; a phone alarm rings at the end. It is not an emergency or safety control.</Text>
+      </ScrollView>}
       {tab === "More" && !sub && <MoreScreen open={target => { setError(""); setNotice(""); setSub(target); }}/>}
       {tab === "More" && sub === "Assistant" && <ChatScreen api={api}/>}
       {tab === "More" && sub === "Life" && <LifeScreen api={api} onError={showError}/>}
@@ -206,23 +193,6 @@ function CaptureScreen({ captures, text, setText, save, confirm, busy, top }: { 
 
 
 
-function FocusScreen({ seconds, active, setActive, setSeconds }: { seconds: number; active: boolean; setActive: (value: boolean) => void; setSeconds: (value: number) => void }) {
-  const [minutes, setMinutes] = useState(25);
-  const time = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-  function chooseMinutes(value: number) {
-    if (active) return;
-    setMinutes(value); setSeconds(value * 60);
-  }
-  function toggleFocus() {
-    if (!active && seconds === 0) setSeconds(minutes * 60);
-    setActive(!active);
-  }
-  return <ScrollView contentContainerStyle={styles.scroll}>
-    <View style={styles.card}><Text style={styles.kicker}>FOCUS SESSION</Text><Text style={styles.sectionTitle}>Make room for deep work</Text><Text style={styles.muted}>An on-device timer. A phone alarm rings when the block ends, even if Sakuna is in the background.</Text><Text style={styles.timer}>{time}</Text><View style={styles.durationRow}>{[25, 45, 60].map(value => <TouchableOpacity key={value} style={[styles.duration, minutes === value && styles.durationSelected]} onPress={() => chooseMinutes(value)}><Text style={[styles.durationText, minutes === value && styles.durationTextSelected]}>{value} min</Text></TouchableOpacity>)}</View><TouchableOpacity style={styles.primary} onPress={toggleFocus}><Text style={styles.primaryText}>{active ? "Pause focus" : seconds === 0 ? "Start another session" : "Start focus session"}</Text></TouchableOpacity><TouchableOpacity style={styles.outlineButton} onPress={() => { setActive(false); setSeconds(minutes * 60); }}><Text style={styles.outlineText}>Reset timer</Text></TouchableOpacity></View>
-    <ShieldPanel/>
-    <Text style={styles.disclaimer}>Keep Sakuna open during a focus session. The timer pauses when the app process stops, and it is not an emergency or safety control.</Text>
-  </ScrollView>;
-}
 
 function ProfileScreen({ user, signOut, onHealth }: { user: Row; signOut: () => void; onHealth: () => void }) {
   return <ScrollView contentContainerStyle={styles.scroll}><View style={styles.profileCard}><View style={styles.avatar}><Text style={styles.avatarText}>{String(user.full_name || user.email || "S").slice(0, 1).toUpperCase()}</Text></View><Text style={styles.sectionTitle}>{user.full_name || "Your profile"}</Text><Text style={styles.muted}>{user.email || ""}</Text></View><View style={styles.card}><Text style={styles.kicker}>YOUR SPACE</Text><Text style={styles.taskTitle}>Privacy and control</Text><Text style={styles.muted}>Review saved memories, profile preferences, finance records, and approvals in the web workspace.</Text></View><TouchableOpacity style={styles.rowButton} onPress={onHealth}><Text style={styles.taskTitle}>Health Connect</Text><Text style={styles.linkSmall}>Manage →</Text></TouchableOpacity><TouchableOpacity style={styles.signout} onPress={signOut}><Text style={styles.signoutText}>Sign out</Text></TouchableOpacity></ScrollView>;

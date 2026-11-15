@@ -39,6 +39,7 @@ from app.services.learning import (
     clean_deck, create_card, due_cards, import_cards, job_summary, learning_stats, mistake_again, mistake_to_card, review_card,
 )
 from app.services import balance, coach, commands, game, gcalendar, goal_engine, google_oauth, study, vault
+from app.services import focus as focus_svc
 from app.services.audit import audit
 from app.services import money as money_svc
 from app.services.time_engine import insights as time_insights
@@ -1304,8 +1305,9 @@ def focus_start(data: dto.FocusIn, db: Session = Depends(get_db), user: User = D
     if data.task_id is not None: owned(db, Task, user.id, data.task_id)
     active = db.scalar(select(FocusSession).where(FocusSession.user_id == user.id, FocusSession.ended_at.is_(None)))
     if active: raise HTTPException(409, "Finish your active focus session first")
-    row = FocusSession(user_id=user.id, task_id=data.task_id, mode=data.mode, minutes_planned=data.minutes, started_at=now_utc())
-    db.add(row); db.commit(); db.refresh(row); return row
+    row = FocusSession(user_id=user.id, task_id=data.task_id, mode=data.mode, minutes_planned=data.minutes, started_at=now_utc(),
+                       target=data.target, break_minutes=data.break_minutes)
+    db.add(row); db.commit(); db.refresh(row); return focus_svc.session_out(row)
 
 
 @router.get("/focus/sessions")
@@ -1317,9 +1319,22 @@ def focus_list(db: Session = Depends(get_db), user: User = Depends(get_current_u
 def focus_finish(session_id: uuid.UUID, data: dto.FocusFinish, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     row = owned(db, FocusSession, user.id, session_id)
     if row.ended_at is not None: raise HTTPException(409, "Focus session is already finished")
-    row.ended_at = now_utc(); row.distractions = data.distractions; row.notes = data.notes
-    game.on_focus_finished(db, row)
-    db.commit(); db.refresh(row); return row
+    out = focus_svc.finish(db, row, data); db.commit(); return out
+
+
+@router.get("/focus/today")
+def focus_today(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return focus_svc.today_view(db, user.id)
+
+
+@router.get("/focus/avoid")
+def focus_avoid(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return focus_svc.avoid_view(db, user.id)
+
+
+@router.post("/focus/avoid/starter", status_code=201)
+def focus_avoid_starter(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    added = focus_svc.setup_avoid(db, user.id); db.commit(); return {"added": added, "habits": focus_svc.avoid_view(db, user.id)}
 
 
 @router.post("/internal/tick", include_in_schema=False)

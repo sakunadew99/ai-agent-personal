@@ -17,7 +17,7 @@ document vault, and voice commands.
 
 ---
 
-## Phase 1: My Day (routines and checklists) ← start here
+## Phase 1: My Day (routines and checklists) ✅ done
 
 Turn the notebook into a day you can tick through on the phone.
 
@@ -35,7 +35,7 @@ Turn the notebook into a day you can tick through on the phone.
 - **Meal card.** Shows your eating rules while eating (chew slowly, no phone, upright, stop at 80% full), then the
   0–10 and 10–20 minute after-meal steps. You can log a meal with "slow / rushed / phone".
 
-## Phase 2: Focus engine ("1 hour, 1 task")
+## Phase 2: Focus engine ("1 hour, 1 task") ✅ done
 
 Your notebook method, built into a focus session.
 

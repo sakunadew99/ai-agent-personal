@@ -648,6 +648,7 @@ class ProjectIn(BaseModel):
 class HabitIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     schedule: str = Field(default="daily", max_length=32)
+    kind: Literal["build", "avoid"] = "build"
 
 
 class HabitLogIn(BaseModel):
@@ -664,13 +665,19 @@ class LifeIn(BaseModel):
 
 class FocusIn(BaseModel):
     minutes: int = Field(default=25, ge=5, le=180)
-    mode: Literal["pomodoro", "focus"] = "pomodoro"
+    mode: Literal["pomodoro", "focus", "deep"] = "pomodoro"   # pomodoro 25/5, deep 50/10, focus = free length
     task_id: uuid.UUID | None = None
+    target: str | None = Field(default=None, max_length=200)
+    break_minutes: int | None = Field(default=None, ge=0, le=30)
 
 
 class FocusFinish(BaseModel):
     distractions: int = Field(default=0, ge=0, le=100)
-    notes: str | None = None
+    notes: str | None = Field(default=None, max_length=4000)    # what got done
+    next_step: str | None = Field(default=None, max_length=300)
+    rating: int | None = Field(default=None, ge=1, le=5)
+    task_done: bool = False                                      # also mark the session's task done
+    next_as_task: bool = False                                   # turn the next step into a new task
 
 
 class CheckinSettingsIn(BaseModel):

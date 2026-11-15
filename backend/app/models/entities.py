@@ -558,11 +558,14 @@ class FreelanceProject(Base):
 
 class Habit(Base):
     __tablename__ = "habits"
+    __table_args__ = (CheckConstraint("kind IN ('build','avoid')", name="ck_habits_kind"),)
 
     id: Mapped[uuid.UUID] = pk()
     user_id: Mapped[uuid.UUID] = user_fk()
     name: Mapped[str] = mapped_column(String(200))
     schedule: Mapped[str] = mapped_column(String(32), default="daily")
+    # "build" = do it (log = done); "avoid" = stay away from it (log completed = clean day, not completed = slipped).
+    kind: Mapped[str] = mapped_column(String(8), default="build", server_default="build")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -621,6 +624,7 @@ class SleepRecord(Base):
 
 class FocusSession(Base):
     __tablename__ = "focus_sessions"
+    __table_args__ = (CheckConstraint("rating IS NULL OR rating BETWEEN 1 AND 5", name="ck_focus_sessions_rating"),)
 
     id: Mapped[uuid.UUID] = pk()
     user_id: Mapped[uuid.UUID] = user_fk()
@@ -630,7 +634,12 @@ class FocusSession(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     distractions: Mapped[int] = mapped_column(Integer, default=0)
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)          # review: what got done
+    # Phase 2 focus engine ("1 hour, 1 task")
+    target: Mapped[str | None] = mapped_column(String(200), nullable=True)  # the clear target set before starting
+    break_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    next_step: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    rating: Mapped[int | None] = mapped_column(Integer, nullable=True)      # 1-5: how focused it felt
 
 
 class Approval(Base):
