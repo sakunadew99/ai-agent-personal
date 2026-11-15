@@ -89,7 +89,7 @@ a personal profile that updates every day:
 - Preferences and facts go into the existing memory (second brain), which you can see and edit.
 - **Answer caching:** repeated questions reuse earlier answers, which keeps the AI cost low.
 
-## Phase 6: News and ideas digest
+## Phase 6: News and ideas digest ✅ done
 
 - One short daily digest: tech and AI, new tools worth learning, and Sri Lanka and CSE market news.
 - Built from public news feeds (RSS) and summarised by the AI. Each item links to its source.

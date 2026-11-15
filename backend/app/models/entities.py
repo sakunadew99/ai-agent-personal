@@ -70,6 +70,7 @@ class UserProfile(Base):
     # 1 = Monday ... 7 = Sunday. null = every day (the old behaviour).
     work_days: Mapped[list | None] = mapped_column(JsonDict, nullable=True)
     gym_days: Mapped[list | None] = mapped_column(JsonDict, nullable=True)
+    news_interests: Mapped[list | None] = mapped_column(JsonDict, nullable=True)   # Phase 6: topics that rank news higher
     financial_target_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     financial_target_currency: Mapped[str] = mapped_column(String(3), default="USD")
     financial_target_date: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -1324,3 +1325,58 @@ class AiCache(Base):
     tokens: Mapped[int] = mapped_column(Integer, default=0)        # tokens the original call used (saved on each hit)
     hits: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# ---------- Life OS Phase 6: news and ideas digest ----------
+
+class NewsSource(Base):
+    """A public RSS/Atom feed. Fetched by the server with SSRF checks; its content is data, never instructions."""
+    __tablename__ = "news_sources"
+    __table_args__ = (
+        UniqueConstraint("user_id", "url", name="uq_news_sources_user_url"),
+        CheckConstraint("topic IN ('ai','tech','sri_lanka','markets','learning','other')", name="ck_news_sources_topic"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    name: Mapped[str] = mapped_column(String(80))
+    url: Mapped[str] = mapped_column(String(500))
+    topic: Mapped[str] = mapped_column(String(16), default="tech")
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    last_fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class NewsItem(Base):
+    __tablename__ = "news_items"
+    __table_args__ = (
+        UniqueConstraint("user_id", "url", name="uq_news_items_user_url"),
+        CheckConstraint("status IN ('new','saved','dismissed')", name="ck_news_items_status"),
+        Index("ix_news_items_user_published", "user_id", "published_at"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    source_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("news_sources.id", ondelete="CASCADE"), index=True)
+    url: Mapped[str] = mapped_column(String(1000))
+    title: Mapped[str] = mapped_column(String(300))
+    excerpt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    topic: Mapped[str] = mapped_column(String(16))
+    status: Mapped[str] = mapped_column(String(10), default="new", server_default="new")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class NewsDigest(Base):
+    __tablename__ = "news_digests"
+    __table_args__ = (UniqueConstraint("user_id", "local_date", name="uq_news_digests_user_date"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    local_date: Mapped[date] = mapped_column(Date)
+    intro: Mapped[str] = mapped_column(Text)
+    items: Mapped[list] = mapped_column(JsonDict, default=list)       # [{id, title, url, source, section, why}]
+    used_ai: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

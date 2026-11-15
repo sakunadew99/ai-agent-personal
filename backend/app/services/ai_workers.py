@@ -33,8 +33,8 @@ WORKERS: dict[str, dict] = {
                        "persona": "a gentle evening reviewer", "available": True},
     "weekly_report": {"name": "Weekly reviewer", "icon": "🪞", "time": time(18, 0), "job": "Sunday 'About you' report: your patterns and one change to try.",
                       "persona": "an honest, warm weekly reviewer", "available": True, "days": [7]},
-    "news_scout": {"name": "News scout", "icon": "📰", "time": time(8, 0), "job": "Tech, AI and CSE market news digest (arrives in Phase 6).",
-                   "persona": "a concise news scout", "available": False},
+    "news_scout": {"name": "News scout", "icon": "📰", "time": time(8, 0), "job": "Morning digest: AI and tech, Sri Lanka and CSE market news, things worth learning.",
+                   "persona": "a concise news scout", "available": True},
     "market_analyst": {"name": "Market analyst", "icon": "📈", "time": time(16, 0), "job": "Your CSE watchlist and portfolio checks (arrives in Phase 7).",
                        "persona": "a careful market analyst", "available": False},
 }
@@ -56,6 +56,11 @@ def ensure_workers(db: Session, user_id) -> list[AiWorker]:
     rows = {w.key: w for w in db.scalars(select(AiWorker).where(AiWorker.user_id == user_id)).all()}
     profile = _profile(db, user_id)
     for key, spec in WORKERS.items():
+        w = rows.get(key)
+        # A helper that became available in a later phase switches on once, unless you ever changed its settings.
+        if (w is not None and spec["available"] and not w.enabled and w.last_run_date is None and w.created_at and w.updated_at
+                and abs((as_utc(w.updated_at) - as_utc(w.created_at)).total_seconds()) < 5):
+            w.enabled = True
         if key not in rows:
             run = spec["time"]
             if run is None:  # morning coach: 15 minutes after wake-up
@@ -267,13 +272,22 @@ def _ai_note(db: Session, w: AiWorker, facts: dict, draft: str, tz) -> str | Non
     return text[:1200] if len(text) >= 20 else None
 
 
-def run_worker(db: Session, w: AiWorker, today: date | None = None, notify: bool = True) -> WorkerNote:
+def run_worker(db: Session, w: AiWorker, today: date | None = None, notify: bool = True, fetch_news: bool = True) -> WorkerNote:
     if not WORKERS[w.key]["available"]:
         raise HTTPException(422, f"{WORKERS[w.key]['name']} arrives in a later phase.")
     tz = _tz(db, w.user_id)
     today = today or datetime.now(tz).date()
     facts = facts_for(db, w.user_id, w.key, today) if w.key != "weekly_report" else {}
-    if w.key == "weekly_report":
+    if w.key == "news_scout":
+        from app.services import news
+        if fetch_news:            # the tick and "Run now" fetch feeds; opening the app uses stories already fetched (stays fast)
+            news.refresh(db, w.user_id)
+        digest = news.build_digest(db, w.user_id, today, use_ai=w.use_ai and tokens_today(db, w.user_id, w.key, tz) < w.daily_token_budget)
+        title = f"News: {len(digest.items)} picks for today" if digest.items else "News: nothing new yet"
+        draft, ai_text = news.digest_text(digest), None
+        actions = [{"id": "news", "label": "Open the digest", "action": "open:News"}, {"id": "done", "label": "Got it", "action": "done"}]
+        facts = {"digest_id": str(digest.id), "items": len(digest.items), "used_ai": digest.used_ai}
+    elif w.key == "weekly_report":
         from app.services.you import build_report
         report = build_report(db, w.user_id, today)
         title = "About you: this week's patterns"
@@ -291,7 +305,8 @@ def run_worker(db: Session, w: AiWorker, today: date | None = None, notify: bool
         note = WorkerNote(user_id=w.user_id, worker_key=w.key, local_date=today)
         db.add(note)
     note.title, note.body, note.facts, note.actions = title, ai_text or draft, json.loads(json.dumps(facts, default=str)), actions
-    note.used_ai, note.status, note.feedback, note.updated_at = ai_text is not None, "new", None, now_utc()
+    used_ai = ai_text is not None or facts.get("used_ai") is True   # news digest / weekly report did their own AI step
+    note.used_ai, note.status, note.feedback, note.updated_at = used_ai, "new", None, now_utc()
     w.last_run_date = today
     db.flush()
     if notify:
@@ -302,7 +317,7 @@ def run_worker(db: Session, w: AiWorker, today: date | None = None, notify: bool
     return note
 
 
-def run_due(db: Session, now: datetime | None = None, user_id=None, late_hours: int = LATE_LIMIT_HOURS) -> int:
+def run_due(db: Session, now: datetime | None = None, user_id=None, late_hours: int = LATE_LIMIT_HOURS, fetch_news: bool = True) -> int:
     """Run every enabled worker whose time has come today (once per day).
 
     Called by the worker tick (all users, at most 6 hours late) and when the app opens the Today card (one user, any time
@@ -328,7 +343,7 @@ def run_due(db: Session, now: datetime | None = None, user_id=None, late_hours: 
             continue
         try:
             with db.begin_nested():
-                run_worker(db, w, local.date())
+                run_worker(db, w, local.date(), fetch_news=fetch_news)
             ran += 1
         except Exception:  # noqa: BLE001 - one worker must never stop the others
             import logging
@@ -345,7 +360,7 @@ def note_out(n: WorkerNote) -> dict:
 def today_view(db: Session, user_id) -> dict:
     workers = ensure_workers(db, user_id)
     tz = _tz(db, user_id)
-    run_due(db, user_id=user_id, late_hours=24)   # catch up on any note the scheduler missed
+    run_due(db, user_id=user_id, late_hours=24, fetch_news=False)   # catch up on any note the scheduler missed (no network wait)
     today = datetime.now(tz).date()
     notes = {n.worker_key: n for n in db.scalars(select(WorkerNote).where(WorkerNote.user_id == user_id, WorkerNote.local_date == today)).all()}
     items = []

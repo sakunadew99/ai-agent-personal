@@ -6,7 +6,7 @@ import hmac
 from typing import Literal
 
 from fastapi.responses import RedirectResponse
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, UploadFile, File
 from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -1710,3 +1710,78 @@ def you_reports(db: Session = Depends(get_db), user: User = Depends(get_current_
 @router.post("/you/reports/{report_id}/memory")
 def you_report_memory(report_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     out = you_svc.save_to_memory(db, you_svc.owned_report(db, user.id, report_id)); db.commit(); return out
+
+
+# ---------- Life OS Phase 6: news and ideas digest ----------
+
+from app.services import news as news_svc  # noqa: E402
+
+
+def _refresh_news_later(user_id) -> None:
+    """Runs after the response: fetch stale feeds without making the screen wait."""
+    from app.core.database import SessionLocal
+    try:
+        with SessionLocal() as db:
+            news_svc.refresh(db, user_id)
+            db.commit()
+    except Exception:  # noqa: BLE001 - background refresh is best-effort
+        import logging
+        logging.getLogger(__name__).exception("background news refresh failed")
+
+
+@router.get("/news")
+def news_view(background: BackgroundTasks, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Today's digest (built from stories already fetched; refreshing the feeds is a separate call) and the ranked list."""
+    from app.models.entities import NewsDigest, NewsSource
+    sources = news_svc.ensure_sources(db, user.id)
+    today = routine_svc.today_for(db, user.id)
+    digest = db.scalar(select(NewsDigest).where(NewsDigest.user_id == user.id, NewsDigest.local_date == today))
+    if digest is None:
+        digest = news_svc.build_digest(db, user.id, today, use_ai=False)
+    names = {s.id: s.name for s in db.scalars(select(NewsSource).where(NewsSource.user_id == user.id)).all()}
+    items = [news_svc.item_out(r, s, names) for r, s in news_svc.ranked(db, user.id, hours=72, limit=30)]
+    stale = any(s.active and (s.last_fetched_at is None or as_utc(s.last_fetched_at) < now_utc() - news_svc.FETCH_EVERY) for s in sources)
+    out = {"digest": news_svc.digest_out(digest), "items": items, "sources": [news_svc.source_out(s) for s in sources],
+           "interests": news_svc.interests(db, user.id), "refreshing": stale}
+    db.commit()
+    if stale:
+        background.add_task(_refresh_news_later, user.id)
+    return out
+
+
+@router.post("/news/refresh")
+def news_refresh(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    result = news_svc.refresh(db, user.id, force=True)
+    digest = news_svc.build_digest(db, user.id)
+    db.commit(); return {**result, "digest": news_svc.digest_out(digest)}
+
+
+@router.put("/news/interests")
+def news_interests(data: dto.NewsInterestsIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    profile = profile_for(db, user)
+    profile.news_interests = sorted({i.strip() for i in data.interests if i.strip()}, key=str.lower)
+    profile.updated_at = now_utc()
+    db.commit(); return {"interests": profile.news_interests}
+
+
+@router.post("/news/sources", status_code=201)
+def news_source_add(data: dto.NewsSourceIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    news_svc.ensure_sources(db, user.id)
+    src = news_svc.add_source(db, user.id, data.name, data.url, data.topic); db.commit(); return news_svc.source_out(src)
+
+
+@router.patch("/news/sources/{source_id}")
+def news_source_update(source_id: uuid.UUID, data: dto.NewsSourceUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    src = news_svc.owned_source(db, user.id, source_id); src.active = data.active; db.commit(); return news_svc.source_out(src)
+
+
+@router.delete("/news/sources/{source_id}")
+def news_source_delete(source_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    src = news_svc.owned_source(db, user.id, source_id)
+    audit(db, user.id, "news.source_delete", "news_source", src.id); db.delete(src); db.commit(); return {"deleted": True}
+
+
+@router.post("/news/items/{item_id}/{action}")
+def news_item_action(item_id: uuid.UUID, action: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if action not in ("save", "task", "dismiss"): raise HTTPException(404, "Unknown action")
+    out = news_svc.item_action(db, news_svc.owned_item(db, user.id, item_id), action); db.commit(); return out

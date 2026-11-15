@@ -1256,3 +1256,19 @@ class WorkerActIn(BaseModel):
 
 class WorkerFeedbackIn(BaseModel):
     feedback: Literal["up", "down"] | None = None
+
+
+# ---------- Life OS Phase 6: news digest ----------
+
+class NewsInterestsIn(BaseModel):
+    interests: list[Annotated[str, Field(min_length=2, max_length=40)]] = Field(max_length=25)
+
+
+class NewsSourceIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    url: str = Field(min_length=10, max_length=500)
+    topic: Literal["ai", "tech", "sri_lanka", "markets", "learning", "other"] = "tech"
+
+
+class NewsSourceUpdate(BaseModel):
+    active: bool

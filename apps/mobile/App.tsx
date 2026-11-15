@@ -19,11 +19,12 @@ import { FocusEngine } from "./src/screens/FocusEngine";
 import { ExamScreen } from "./src/screens/ExamScreens";
 import { AiTeamScreen, TeamTodayCard } from "./src/screens/AiTeamScreens";
 import { AboutYouScreen } from "./src/screens/AboutYouScreen";
+import { NewsScreen } from "./src/screens/NewsScreen";
 import { MonthRoutines, NowRoutineCard, PlanSwitch, TodayRoutines, WeekPlan } from "./src/screens/MyDayScreens";
 import { appendSpeech, MicButton } from "./src/voice";
 
 type Tab = "Home" | "Plan" | "Capture" | "Focus" | "More";
-const SUB_TITLES: Record<MoreTarget, string> = { Assistant: "Assistant", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
+const SUB_TITLES: Record<MoreTarget, string> = { Assistant: "Assistant", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
 
 export default function App() {
   const [email, setEmail] = useState("");
@@ -120,7 +121,7 @@ export default function App() {
   function openTarget(target: string) {
     if (target === "Plan") { setPlanView("day"); setTab("Plan"); setSub(null); }
     else if (target === "Focus") { setTab("Focus"); setSub(null); }
-    else if (target === "Exams" || target === "You" || target === "Team") { setTab("More"); setSub(target as MoreTarget); }
+    else if (["Exams", "You", "Team", "News"].includes(target)) { setTab("More"); setSub(target as MoreTarget); }
     else setTab("Home");
   }
   function signOut() { setToken(""); setUser({}); setDashboard({}); setPassword(""); setSub(null); setTab("Home"); }
@@ -164,6 +165,7 @@ export default function App() {
       {tab === "More" && sub === "Jobs" && <JobsScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Balance" && <BalanceScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Vault" && <VaultScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "News" && <NewsScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "You" && <AboutYouScreen api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/>}
       {tab === "More" && sub === "Team" && <AiTeamScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Exams" && <ExamScreen api={api} onError={showError} onNotice={showNotice}/>}
