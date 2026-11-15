@@ -7,6 +7,7 @@ import {
   errorText, type ListMode, parseLists, scheduleText, Shield,
 } from "../shield";
 import { C } from "../ui";
+import { DateField, TimeField } from "../pickers";
 
 const QUICK = [15, 30, 60, 120, 240];
 const SUGGESTED_SITES = ["youtube.com", "facebook.com", "instagram.com", "tiktok.com", "x.com", "reddit.com", "netflix.com", "web.whatsapp.com", "linkedin.com", "pinterest.com"];
@@ -103,7 +104,7 @@ function ListEditor({ initial, isNew, strict, onClose, onSaved }: { initial: Blo
     if (has && !canRemove(kind, v)) { setError("Strict Mode is on: items can be added but not removed."); return; }
     patch({ [kind]: has ? d[kind].filter(x => x !== v) : [...d[kind], v] } as Partial<BlockList>);
   };
-  const setOption = (key: "newApps" | "adult" | "purchases" | "unsupportedBrowsers", value: boolean) => {
+  const setOption = (key: "newApps" | "adult" | "purchases" | "unsupportedBrowsers" | "shorts", value: boolean) => {
     if (!value && locked && orig[key]) { setError("Strict Mode is on: options can be switched on but not off."); return; }
     patch({ [key]: value } as Partial<BlockList>);
   };
@@ -160,6 +161,7 @@ function ListEditor({ initial, isNew, strict, onClose, onSaved }: { initial: Blo
           hint="Blocks any web address that contains the word, e.g. “games” blocks store.epicgames.com. Works in supported browsers."/>}
 
         <Text style={s.section}>Extra options</Text>
+        <OptionCard icon="🎬" title="Block YouTube Shorts & Instagram Reels" text="Leaves the Shorts / Reels player as soon as it opens; the rest of YouTube and Instagram keeps working (best effort, apps change)." value={!!d.shorts} onChange={v => setOption("shorts", v)}/>
         <OptionCard icon="🆕" title="Block newly installed apps" text="Apps you install from now on are added to this list and blocked." value={d.newApps} onChange={v => setOption("newApps", v)}/>
         <OptionCard icon="🔞" title="Adult sites blocking" text="Known adult sites and adult words in the address are blocked in supported browsers." value={d.adult} onChange={v => setOption("adult", v)}/>
         <OptionCard icon="🛒" title="In-app purchases blocking" text="Closes Google Play's payment screen while this list is blocking (best effort)." value={d.purchases} onChange={v => setOption("purchases", v)}/>
@@ -175,19 +177,25 @@ function ListEditor({ initial, isNew, strict, onClose, onSaved }: { initial: Blo
   </Modal>;
 }
 
-function ScheduleEditor({ value, onChange }: { value: { days: number[]; start: number; end: number }; onChange: (v: { days: number[]; start: number; end: number }) => void }) {
+type Sched = { days: number[]; start: number; end: number; from?: string | null; until?: string | null };
+const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+function ScheduleEditor({ value, onChange }: { value: Sched; onChange: (v: Sched) => void }) {
   const toggleDay = (day: number) => onChange({ ...value, days: value.days.includes(day) ? value.days.filter(x => x !== day) : [...value.days, day].sort() });
-  const presets: [string, { days: number[]; start: number; end: number }][] = [
+  const presets: [string, Sched][] = [
     ["Work hours", { days: [1, 2, 3, 4, 5], start: 540, end: 1020 }], ["Study evenings", { days: [1, 2, 3, 4, 5, 6, 7], start: 1140, end: 1320 }],
     ["Bedtime", { days: [1, 2, 3, 4, 5, 6, 7], start: 1350, end: 360 }],
   ];
   return <View style={{ gap: 10 }}>
-    <View style={s.chips}>{presets.map(([label, p]) => <Chip key={label} on={false} label={label} onPress={() => onChange(p)}/>)}</View>
+    <View style={s.chips}>{presets.map(([label, p]) => <Chip key={label} on={false} label={label} onPress={() => onChange({ ...p, from: value.from, until: value.until })}/>)}</View>
     <View style={s.days}>{DAY_SHORT.map((name, i) => <TouchableOpacity key={name} style={[s.day, value.days.includes(i + 1) && s.dayOn]} onPress={() => toggleDay(i + 1)}>
       <Text style={[s.dayText, value.days.includes(i + 1) && s.dayTextOn]}>{name[0]}</Text></TouchableOpacity>)}</View>
     <View style={{ flexDirection: "row", gap: 10 }}>
-      <TimeStepper label="From" value={value.start} onChange={start => onChange({ ...value, start })}/>
-      <TimeStepper label="To" value={value.end} onChange={end => onChange({ ...value, end })}/>
+      <TimeField label="From" value={clockMin(value.start)} onChange={t => t && onChange({ ...value, start: toMin(t) })}/>
+      <TimeField label="To" value={clockMin(value.end)} onChange={t => t && onChange({ ...value, end: toMin(t) })}/>
+    </View>
+    <View style={{ flexDirection: "row", gap: 10 }}>
+      <DateField label="Starting date (optional)" value={value.from ?? null} allowClear placeholder="From today" onChange={from => onChange({ ...value, from })}/>
+      <DateField label="Until date (optional)" value={value.until ?? null} allowClear placeholder="No end" min={value.from ?? undefined} onChange={until => onChange({ ...value, until })}/>
     </View>
     <Text style={s.small}>{value.start === value.end ? "Same start and end = the whole day." : value.start > value.end ? "Runs overnight into the next morning." : scheduleText(value)}</Text>
   </View>;

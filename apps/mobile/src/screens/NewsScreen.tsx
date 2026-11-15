@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Linking, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 
-import type { ApiRecord as Row } from "../api";
+import { peek, type ApiRecord as Row } from "../api";
 import { Badge, Btn, C, Card, Empty, Kicker, Muted, Row as Line, Screen } from "../ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
@@ -13,7 +13,7 @@ const open = (url: string) => { if (/^https?:\/\//.test(url)) void Linking.openU
 
 /** Daily news digest: public feeds ranked by your interests (plain code); optional AI "why it matters". */
 export function NewsScreen({ api, onError, onNotice }: { api: Api; onError: (m: string) => void; onNotice: (m: string) => void }) {
-  const [v, setV] = useState<Row | null>(null);
+  const [v, setV] = useState<Row | null>(() => peek("/news"));
   const [busy, setBusy] = useState(false);
   const [interest, setInterest] = useState("");
   const [feed, setFeed] = useState({ name: "", url: "", topic: "tech" as (typeof TOPICS)[number] });

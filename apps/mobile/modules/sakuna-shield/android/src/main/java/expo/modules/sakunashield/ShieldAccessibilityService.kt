@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.Toast
 import java.util.Locale
 
 /**
@@ -14,6 +15,8 @@ import java.util.Locale
  */
 class ShieldAccessibilityService : AccessibilityService() {
   private var lastUrlCheckAt = 0L
+  private var lastShortsCheckAt = 0L
+  private var lastShortsToastAt = 0L
   private var lastBlockAt = 0L
   private var browsers: Set<String> = emptySet()
   private var browsersCheckedAt = 0L
@@ -53,6 +56,20 @@ class ShieldAccessibilityService : AccessibilityService() {
 
       if (pkg !in BROWSERS && active.any { it.unsupportedBrowsers && it.hasWebRules } && pkg in browserPackages(now)) {
         block("This browser can't be checked, so it's blocked while website rules are on.", goBack = false)
+        return
+      }
+    }
+
+    // Short videos inside apps: leave the Shorts / Reels player, keep the rest of the app usable.
+    if (pkg in SHORT_FORM && active.any { it.shorts } && now - lastShortsCheckAt > 500) {
+      lastShortsCheckAt = now
+      if (inShortForm(pkg)) {
+        performGlobalAction(GLOBAL_ACTION_BACK)
+        if (now - lastShortsToastAt > 4000) {
+          lastShortsToastAt = now
+          ShieldStore.countBlock(this)
+          Toast.makeText(this, if (pkg == YOUTUBE) "Shorts are blocked. The rest of YouTube is fine." else "Reels are blocked right now.", Toast.LENGTH_SHORT).show()
+        }
         return
       }
     }
@@ -129,6 +146,13 @@ class ShieldAccessibilityService : AccessibilityService() {
     return null
   }
 
+  /** True when the Shorts / Reels player is on screen (matched by the apps' own view ids; best effort, apps change them). */
+  private fun inShortForm(pkg: String): Boolean {
+    val root = rootInActiveWindow ?: return false
+    val ids = SHORT_FORM[pkg] ?: return false
+    return ids.any { id -> !root.findAccessibilityNodeInfosByViewId("$pkg:id/$id").isNullOrEmpty() }
+  }
+
   private fun mentionsSakuna(): Boolean {
     val root = rootInActiveWindow ?: return false
     return !root.findAccessibilityNodeInfosByText("Sakuna").isNullOrEmpty()
@@ -136,6 +160,11 @@ class ShieldAccessibilityService : AccessibilityService() {
 
   companion object {
     private const val PLAY_STORE = "com.android.vending"
+    private const val YOUTUBE = "com.google.android.youtube"
+    private val SHORT_FORM = mapOf(
+      YOUTUBE to listOf("reel_player_page_container", "reel_recycler", "reel_watch_player", "shorts_player_container", "reel_time_bar"),
+      "com.instagram.android" to listOf("clips_viewer_view_pager", "clips_viewer_container", "clips_video_container"),
+    )
     private val IGNORED = setOf("com.android.systemui")
     private val PURCHASE_HINTS = listOf("billing", "acquire", "iabv3", "purchase")
 

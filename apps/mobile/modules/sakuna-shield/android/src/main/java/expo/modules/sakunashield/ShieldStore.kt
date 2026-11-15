@@ -23,8 +23,11 @@ object ShieldStore {
   const val MAX_SESSION_MINUTES = 12 * 60
   const val MAX_STRICT_MINUTES = 24 * 60
 
-  /** days: 1 = Monday … 7 = Sunday. Minutes from midnight. start > end runs overnight; start == end is all day. */
-  data class Schedule(val days: Set<Int>, val start: Int, val end: Int) {
+  /**
+   * days: 1 = Monday … 7 = Sunday. Minutes from midnight. start > end runs overnight; start == end is all day.
+   * from / until: optional calendar dates ("yyyy-MM-dd", inclusive), e.g. block only during an exam month.
+   */
+  data class Schedule(val days: Set<Int>, val start: Int, val end: Int, val from: String? = null, val until: String? = null) {
     fun activeAt(day: Int, minute: Int): Boolean {
       val prev = if (day == 1) 7 else day - 1
       return when {
@@ -36,6 +39,14 @@ object ShieldStore {
 
     fun activeAt(millis: Long): Boolean {
       val c = Calendar.getInstance().apply { timeInMillis = millis }
+      val today = String.format(Locale.US, "%04d-%02d-%02d", c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH))
+      // An overnight block that started on the last date still runs into the next morning.
+      val yesterday = Calendar.getInstance().apply { timeInMillis = millis; add(Calendar.DAY_OF_MONTH, -1) }
+        .let { y -> String.format(Locale.US, "%04d-%02d-%02d", y.get(Calendar.YEAR), y.get(Calendar.MONTH) + 1, y.get(Calendar.DAY_OF_MONTH)) }
+      val minuteNow = c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE)
+      val dateFor = if (start > end && minuteNow < end) yesterday else today
+      if (from != null && dateFor < from) return false
+      if (until != null && dateFor > until) return false
       val day = (c.get(Calendar.DAY_OF_WEEK) + 5) % 7 + 1 // Calendar: Sunday=1 -> 7, Monday=2 -> 1
       return activeAt(day, c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE))
     }
@@ -55,6 +66,7 @@ object ShieldStore {
     val adult: Boolean,
     val purchases: Boolean,
     val unsupportedBrowsers: Boolean,
+    val shorts: Boolean = false,     // YouTube Shorts and Instagram Reels, while the rest of those apps keeps working
   ) {
     val hasWebRules get() = domains.isNotEmpty() || keywords.isNotEmpty() || adult
   }
@@ -76,7 +88,11 @@ object ShieldStore {
       id = o.optString("id").ifBlank { UUID.randomUUID().toString() },
       name = o.optString("name").trim().ifBlank { "Blocklist" }.take(40),
       mode = o.optString("mode").takeIf { it in setOf("manual", "always", "schedule") } ?: "manual",
-      schedule = s?.let { Schedule(days, it.optInt("start").coerceIn(0, 1439), it.optInt("end").coerceIn(0, 1439)) },
+      schedule = s?.let {
+        val dateRe = Regex("\\d{4}-\\d{2}-\\d{2}")
+        Schedule(days, it.optInt("start").coerceIn(0, 1439), it.optInt("end").coerceIn(0, 1439),
+          it.optString("from").takeIf { d -> dateRe.matches(d) }, it.optString("until").takeIf { d -> dateRe.matches(d) })
+      },
       apps = o.optJSONArray("apps").strings(),
       domains = o.optJSONArray("domains").strings().map { normalizeDomain(it) }.filter { it.contains('.') }.toSet(),
       keywords = o.optJSONArray("keywords").strings().map { it.trim().lowercase(Locale.ROOT) }.filter { it.length >= 2 }.toSet(),
@@ -85,15 +101,19 @@ object ShieldStore {
       adult = o.optBoolean("adult"),
       purchases = o.optBoolean("purchases"),
       unsupportedBrowsers = o.optBoolean("unsupportedBrowsers"),
+      shorts = o.optBoolean("shorts"),
     )
   }
 
   fun toJson(l: BlockList): JSONObject = JSONObject().apply {
     put("id", l.id); put("name", l.name); put("mode", l.mode)
-    put("schedule", l.schedule?.let { s -> JSONObject().put("days", JSONArray(s.days.sorted())).put("start", s.start).put("end", s.end) } ?: JSONObject.NULL)
+    put("schedule", l.schedule?.let { s ->
+      JSONObject().put("days", JSONArray(s.days.sorted())).put("start", s.start).put("end", s.end)
+        .put("from", s.from ?: JSONObject.NULL).put("until", s.until ?: JSONObject.NULL)
+    } ?: JSONObject.NULL)
     put("apps", JSONArray(l.apps.sorted())); put("domains", JSONArray(l.domains.sorted())); put("keywords", JSONArray(l.keywords.sorted()))
     put("newApps", l.newApps); put("newAppsSince", l.newAppsSince); put("adult", l.adult)
-    put("purchases", l.purchases); put("unsupportedBrowsers", l.unsupportedBrowsers)
+    put("purchases", l.purchases); put("unsupportedBrowsers", l.unsupportedBrowsers); put("shorts", l.shorts)
   }
 
   fun listsJson(ctx: Context): String = JSONArray(lists(ctx).map { toJson(it) }).toString()
@@ -159,7 +179,7 @@ object ShieldStore {
     !new.domains.containsAll(old.domains) -> "websites can be added but not removed."
     !new.keywords.containsAll(old.keywords) -> "keywords can be added but not removed."
     (old.newApps && !new.newApps) || (old.adult && !new.adult) || (old.purchases && !new.purchases) ||
-      (old.unsupportedBrowsers && !new.unsupportedBrowsers) -> "options can be switched on but not off."
+      (old.unsupportedBrowsers && !new.unsupportedBrowsers) || (old.shorts && !new.shorts) -> "options can be switched on but not off."
     old.mode == "always" && new.mode != "always" -> "an always-on list must stay on."
     old.mode == "schedule" && new.mode == "manual" -> "a scheduled list can't be switched off."
     old.mode == "schedule" && new.mode == "schedule" && old.schedule != new.schedule -> "the schedule can't be changed (you can switch the list to Always)."

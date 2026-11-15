@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { apiRequest as request, apiUpload, loadServerUrl, setAccessToken, setRefresher, type ApiRecord as Row } from "./src/api";
+import { apiRequest as request, apiUpload, clearScreenCache, loadScreenCache, loadServerUrl, peek, prefetchScreens, setAccessToken, setRefresher, type ApiRecord as Row } from "./src/api";
 import { clearSession, endSession, hasSession, onSessionExpired, refreshAccess, saveSession, storedUser } from "./src/session";
 import { LoginScreen, SplashScreen } from "./src/screens/LoginScreen";
 import { ChatScreen } from "./src/screens/ChatScreen";
@@ -24,11 +24,12 @@ import { AboutYouScreen } from "./src/screens/AboutYouScreen";
 import { NewsScreen } from "./src/screens/NewsScreen";
 import { InvestScreen } from "./src/screens/InvestScreen";
 import { LifeCompass } from "./src/screens/LifeCompass";
+import { JournalScreen } from "./src/screens/JournalScreen";
 import { MonthRoutines, NowRoutineCard, PlanSwitch, TodayRoutines, WeekPlan } from "./src/screens/MyDayScreens";
 import { appendSpeech, MicButton } from "./src/voice";
 
 type Tab = "Home" | "Plan" | "Capture" | "Focus" | "More";
-const SUB_TITLES: Record<MoreTarget, string> = { Assistant: "Assistant", Invest: "Invest (CSE)", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
+const SUB_TITLES: Record<MoreTarget, string> = { Assistant: "Assistant", Journal: "Journal", Invest: "Invest (CSE)", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
 
 export default function App() {
   const [booting, setBooting] = useState(true);       // restoring the saved session
@@ -38,11 +39,11 @@ export default function App() {
   const [user, setUser] = useState<Row>({});
   const [tab, setTab] = useState<Tab>("Home");
   const [planView, setPlanView] = useState<"day" | "week" | "month">("day");
-  const [dashboard, setDashboard] = useState<Row>({});
-  const [plan, setPlan] = useState<Row>({});
+  const [dashboard, setDashboard] = useState<Row>(() => peek("/dashboard") || {});
+  const [plan, setPlan] = useState<Row>(() => peek("/planner/daily") || {});
   const [captures, setCaptures] = useState<Row[]>([]);
-  const [finance, setFinance] = useState<Row>({});
-  const [health, setHealth] = useState<Row>({});
+  const [finance, setFinance] = useState<Row>(() => peek("/finance/summary") || {});
+  const [health, setHealth] = useState<Row>(() => peek("/health/summary") || {});
   const [captureText, setCaptureText] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -82,8 +83,11 @@ export default function App() {
     setBootProblem("");
     await loadServerUrl();
     if (!(await hasSession())) { setBooting(false); return; }
+    const saved = await storedUser();
+    await loadScreenCache(String(saved.id || ""));
+    setDashboard(peek("/dashboard") || {}); setFinance(peek("/finance/summary") || {}); setHealth(peek("/health/summary") || {}); setPlan(peek("/planner/daily") || {});
     const access = await refreshAccess();
-    if (access) { setUser(await storedUser()); setToken(access); setBooting(false); return; }
+    if (access) { setUser(saved); setToken(access); setBooting(false); prefetchScreens(access); return; }
     if (await hasSession()) { setBootProblem("Can't reach your server right now. You're still signed in; try again in a moment."); return; }
     setBooting(false); // the session had ended on the server
   }, []);
@@ -97,6 +101,8 @@ export default function App() {
   async function onSignedIn(pair: Row) {
     setAccessToken(pair.access_token);
     await saveSession(pair.refresh_token, pair.user);
+    await loadScreenCache(String(pair.user?.id || ""));
+    prefetchScreens(pair.access_token);
     setUser(pair.user || {}); setTab("Home"); setAuthNote(""); setError("");
     setToken(pair.access_token);
   }
@@ -133,11 +139,12 @@ export default function App() {
   function openTarget(target: string) {
     if (target === "Plan") { setPlanView("day"); setTab("Plan"); setSub(null); }
     else if (target === "Focus") { setTab("Focus"); setSub(null); }
-    else if (["Exams", "You", "Team", "News", "Invest", "Money", "Life", "Balance"].includes(target)) { setTab("More"); setSub(target as MoreTarget); }
+    else if (["Exams", "You", "Team", "News", "Invest", "Money", "Life", "Balance", "Journal"].includes(target)) { setTab("More"); setSub(target as MoreTarget); }
     else setTab("Home");
   }
   async function signOut() {
     await endSession();
+    clearScreenCache();
     setToken(""); setUser({}); setDashboard({}); setSub(null); setTab("Home"); setAuthNote("");
   }
 
@@ -173,6 +180,7 @@ export default function App() {
       {tab === "More" && sub === "Jobs" && <JobsScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Balance" && <BalanceScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Vault" && <VaultScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "Journal" && <JournalScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Invest" && <InvestScreen api={api} upload={(path, file) => apiUpload<Row>(path, token, file)} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "News" && <NewsScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "You" && <AboutYouScreen api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/>}

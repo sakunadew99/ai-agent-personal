@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 
-import type { ApiRecord as Row } from "../api";
+import { peek, type ApiRecord as Row } from "../api";
 import { syncRoutineReminders } from "../notify";
+import { DateField, TimeField } from "../pickers";
 import { Badge, Btn, C, Card, Chips, Empty, H2, Kicker, Muted, Progress, Row as Line } from "../ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
@@ -28,8 +29,8 @@ export function PlanSwitch({ value, onChange }: { value: "day" | "week" | "month
 
 /** Today's routines and checklists: tick through steps, short version on busy days, skip without guilt. */
 export function TodayRoutines({ api, onError, onNotice }: Props) {
-  const [day, setDay] = useState<string | null>(null);
-  const [data, setData] = useState<Row | null>(null);
+  const [data, setData] = useState<Row | null>(() => peek("/routines/today"));
+  const [day, setDay] = useState<string | null>(() => (peek<Row>("/routines/today")?.date as string) ?? null);
   const [playing, setPlaying] = useState<Row | null>(null);
   const [editing, setEditing] = useState<Row | "new" | null>(null);
   const [meal, setMeal] = useState(false);
@@ -98,8 +99,8 @@ export function TodayRoutines({ api, onError, onNotice }: Props) {
     {checklists.map(r => <RoutineCard key={r.id} r={r} onOpen={() => setPlaying(r)}/>)}
 
     <TouchableOpacity onPress={() => setMeal(true)} activeOpacity={0.85}><Card>
-      <Line><Text style={{ fontSize: 24 }}>🍽</Text><View style={{ flex: 1 }}><Text style={s.cardTitle}>Mindful eating</Text>
-        <Muted small>{(data.meals || []).length ? `${data.meals.length} meal${data.meals.length > 1 ? "s" : ""} logged · tap for your eating rules` : "Your eating rules, and a 10-second check after each meal"}</Muted></View><Text style={s.chev}>›</Text></Line>
+      <Line><Text style={{ fontSize: 24 }}>🍽</Text><View style={{ flex: 1 }}><Text style={s.cardTitle}>Food diary & mindful eating</Text>
+        <Muted small>{(data.meals || []).length ? (data.meals as Row[]).map(x => `${x.meal}${x.foods ? `: ${String(x.foods).slice(0, 40)}` : ""}`).join(" · ") : "Log what you ate, and a 10-second mindful check"}</Muted></View><Text style={s.chev}>›</Text></Line>
     </Card></TouchableOpacity>
 
     <Line><Btn kind="outline" title="＋ New routine" onPress={() => setEditing("new")} style={{ flex: 1 }}/><Btn kind="outline" title="📓 Reload notebook" onPress={() => void loadStarter()} style={{ flex: 1 }}/></Line>
@@ -109,7 +110,7 @@ export function TodayRoutines({ api, onError, onNotice }: Props) {
       onMode={mode => act(playing, "mode", { mode })} onClose={() => setPlaying(null)} onEdit={() => { setEditing(playing); setPlaying(null); }}/>}
     {editing && <RoutineEditor api={api} initial={editing === "new" ? null : editing} onClose={() => setEditing(null)}
       onSaved={() => { setEditing(null); load(); void syncRoutineReminders(api); }} onError={onError}/>}
-    {meal && <MealCard api={api} rules={data.eating_rules} meals={data.meals || []} onClose={() => setMeal(false)} onSaved={() => { load(); onNotice("Meal logged 🍽"); }} onError={onError}/>}
+    {meal && <MealCard api={api} rules={data.eating_rules} meals={data.meals || []} onClose={() => setMeal(false)} onSaved={() => { load(); onNotice("Food diary updated 🍽"); }} onError={onError}/>}
   </View>;
 }
 
@@ -220,7 +221,7 @@ function RoutineEditor({ api, initial, onClose, onSaved, onError }: { api: Api; 
         <Chips options={["routine", "checklist"] as const} value={d.kind} onChange={kind => patch({ kind })} labels={{ routine: "Routine (timed)", checklist: "Checklist" }}/>
         {d.kind === "routine" && <Card>
           <Kicker>WHEN</Kicker>
-          <Line><Btn kind="outline" title="−30m" onPress={() => stepTime(-30)}/><Text style={s.big}>{d.start_time ? hhmm(d.start_time) : "At wake-up"}</Text><Btn kind="outline" title="+30m" onPress={() => stepTime(30)}/></Line>
+          {d.start_time ? <TimeField label="Starts at" value={hhmm(d.start_time)} onChange={t => patch({ start_time: t || "07:00" })}/> : <Text style={s.big}>At wake-up</Text>}
           <Line><Muted small>Starts at wake-up instead</Muted><View style={{ flex: 1 }}/><Switch value={!d.start_time} onValueChange={v => patch({ start_time: v ? null : "07:00" })} trackColor={{ true: C.green, false: C.line }} thumbColor={C.text}/></Line>
           <Chips options={["15", "30", "45", "60", "90", "120", "180", "300"] as const} value={String(d.duration_minutes) as "30"} onChange={v => patch({ duration_minutes: Number(v) })}
             labels={{ "15": "15m", "30": "30m", "45": "45m", "60": "1h", "90": "1.5h", "120": "2h", "180": "3h", "300": "5h" }}/>
@@ -254,7 +255,17 @@ function DayPicker({ value, onChange }: { value: number[]; onChange: (v: number[
 
 function MealCard({ api, rules, meals, onClose, onSaved, onError }: { api: Api; rules: Row; meals: Row[]; onClose: () => void; onSaved: () => void; onError: (m: string) => void }) {
   const hour = new Date().getHours();
-  const [m, setM] = useState<Row>({ meal: hour < 11 ? "breakfast" : hour < 16 ? "lunch" : "dinner", slow: false, no_screen: false, upright: false, stopped_80: false, walked_after: false });
+  const now = new Date();
+  const [m, setM] = useState<Row>({ meal: hour < 11 ? "breakfast" : hour < 16 ? "lunch" : hour < 19 ? "snack" : "dinner", slow: false, no_screen: false, upright: false,
+    stopped_80: false, walked_after: false, foods: "", eaten_time: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}` });
+  const [list, setList] = useState<Row[]>(meals);
+  const addFood = (f: string) => setM(cur => ({ ...cur, foods: cur.foods ? `${cur.foods}, ${f}` : f }));
+  const FOODS: Record<string, string[]> = {
+    breakfast: ["String hoppers", "Hoppers", "Pittu", "Bread", "Kiribath", "Oats", "Eggs", "Smoothie", "Tea", "Coffee", "Fruit"],
+    lunch: ["Rice & curry", "Dhal", "Chicken curry", "Fish curry", "Vegetables", "Salad", "Fried rice", "Kottu", "Fruit"],
+    dinner: ["Roti", "String hoppers", "Rice & curry", "Kottu", "Noodles", "Soup", "Dhal", "Eggs", "Salad"],
+    snack: ["Fruit", "Nuts", "Biscuits", "Short eats", "Yoghurt", "Tea", "Coffee", "Iramusu", "Chocolate"],
+  };
   const checks: [string, string][] = [["slow", "Ate slowly, chewed well"], ["no_screen", "No phone, TV or laptop"], ["upright", "Sat upright"], ["stopped_80", "Stopped at 80% full"], ["walked_after", "Short walk after"]];
   return <Modal visible animationType="slide" onRequestClose={onClose}>
     <View style={s.modal}>
@@ -264,14 +275,29 @@ function MealCard({ api, rules, meals, onClose, onSaved, onError }: { api: Api; 
         <Card><Kicker>AFTER · 0–10 MIN</Kicker>{(rules.after_0_10 as string[]).map(t => <Text key={t} style={s.rule}>•  {t}</Text>)}
           <Kicker>10–20 MIN</Kicker>{(rules.after_10_20 as string[]).map(t => <Text key={t} style={s.rule}>•  {t}</Text>)}</Card>
         <Card>
+          <Kicker>WHAT DID YOU EAT?</Kicker>
+          <Chips options={["breakfast", "lunch", "dinner", "snack"] as const} value={m.meal} onChange={meal => setM({ ...m, meal })}
+            labels={{ breakfast: "🌅 Breakfast", lunch: "☀️ Lunch", dinner: "🌙 Dinner", snack: "🍎 Snack / other" }}/>
+          <View style={s.chipsWrap}>{(FOODS[m.meal] || []).map(f => <TouchableOpacity key={f} style={s.chip} onPress={() => addFood(f)}>
+            <Text style={s.chipText}>＋ {f}</Text></TouchableOpacity>)}</View>
+          <TextInput style={[s.input, { minHeight: 60, textAlignVertical: "top" }]} multiline value={m.foods} onChangeText={foods => setM({ ...m, foods })}
+            placeholder="e.g. rice, dhal, chicken curry, beans" placeholderTextColor={C.muted} maxLength={1000}/>
+          <TimeField label="Eaten at" value={m.eaten_time} onChange={eaten_time => setM({ ...m, eaten_time })}/>
           <Kicker>HOW DID IT GO?</Kicker>
-          <Chips options={["breakfast", "lunch", "dinner", "snack"] as const} value={m.meal} onChange={meal => setM({ ...m, meal })}/>
           {checks.map(([k, label]) => <Line key={k}><Text style={[s.rule, { flex: 1 }]}>{label}</Text>
             <Switch value={!!m[k]} onValueChange={v => setM({ ...m, [k]: v })} trackColor={{ true: C.green, false: C.line }} thumbColor={C.text}/></Line>)}
-          <Btn title="Save meal" onPress={() => void api("/meals", "POST", m).then(() => { onSaved(); onClose(); }).catch(r => onError(msg(r)))}/>
-          <Muted small>No calories, no judging: just a check on how you ate. 4+ yes earns a few points.</Muted>
+          <Btn title="Save meal" onPress={() => void api<Row>("/meals", "POST", { ...m, foods: String(m.foods || "").trim() || null })
+            .then(saved => { setList(cur => [...cur, saved]); setM(cur => ({ ...cur, foods: "" })); onSaved(); }).catch(r => onError(msg(r)))}/>
+          <Muted small>No calories, no judging: what you ate and how. 4+ yes earns a few points.</Muted>
         </Card>
-        {meals.length > 0 && <Card><Kicker>TODAY</Kicker>{meals.map(x => <Line key={x.id}><Text style={[s.rule, { flex: 1, textTransform: "capitalize" }]}>{x.meal}</Text><Badge tone={x.mindful >= 4 ? "green" : "amber"}>{`${x.mindful}/5 mindful`}</Badge></Line>)}</Card>}
+        {list.length > 0 && <Card><Kicker>TODAY'S FOOD DIARY</Kicker>{[...list].sort((a, b) => String(a.eaten_time || "").localeCompare(String(b.eaten_time || ""))).map(x =>
+          <View key={x.id} style={s.mealRow}>
+            <Line><Text style={[s.cardTitle, { flex: 1, textTransform: "capitalize" }]}>{x.meal}{x.eaten_time ? ` · ${String(x.eaten_time).slice(0, 5)}` : ""}</Text>
+              <Badge tone={x.mindful >= 4 ? "green" : "amber"}>{`${x.mindful}/5 mindful`}</Badge>
+              <TouchableOpacity hitSlop={8} onPress={() => void api(`/meals/${x.id}`, "DELETE").then(() => { setList(cur => cur.filter(y => y.id !== x.id)); onSaved(); }).catch(r => onError(msg(r)))}>
+                <Text style={{ color: C.muted, marginLeft: 6 }}>✕</Text></TouchableOpacity></Line>
+            {!!x.foods && <Text style={s.rule}>{x.foods}</Text>}
+          </View>)}</Card>}
       </ScrollView>
     </View>
   </Modal>;
@@ -283,8 +309,8 @@ function MealCard({ api, rules, meals, onClose, onSaved, onError }: { api: Api; 
 
 /** The shape of your week: office days, gym days, weekend, Sunday reset, and how each day went. */
 export function WeekPlan({ api, onError, onNotice }: Props) {
-  const [start, setStart] = useState<string | null>(null);
-  const [w, setW] = useState<Row | null>(null);
+  const [w, setW] = useState<Row | null>(() => peek("/routines/week"));
+  const [start, setStart] = useState<string | null>(() => (peek<Row>("/routines/week")?.start as string) ?? null);
   const [open, setOpen] = useState<string | null>(null);
   const load = useCallback((which: string | null = start) => {
     api<Row>(`/routines/week${which ? `?start=${which}` : ""}`).then(v => { setW(v); setStart(String(v.start)); }).catch(r => onError(msg(r)));
@@ -349,8 +375,8 @@ export function WeekPlan({ api, onError, onNotice }: Props) {
 
 /** A month at a glance: a completion calendar, gym sessions, streaks and how each routine is going. */
 export function MonthRoutines({ api, onError }: { api: Api; onError: (m: string) => void }) {
-  const [month, setMonth] = useState<string | null>(null);
-  const [v, setV] = useState<Row | null>(null);
+  const [v, setV] = useState<Row | null>(() => peek("/routines/month"));
+  const [month, setMonth] = useState<string | null>(() => (peek<Row>("/routines/month")?.month as string) ?? null);
   const load = useCallback((which: string | null = month) => {
     api<Row>(`/routines/month${which ? `?month=${which}` : ""}`).then(x => { setV(x); setMonth(String(x.month)); }).catch(r => onError(msg(r)));
   }, [api, month, onError]);
@@ -459,6 +485,7 @@ const s = StyleSheet.create({
   dayTextOn: { color: C.greenDark },
   footer: { position: "absolute", left: 0, right: 0, bottom: 0, padding: 16, paddingBottom: 22, backgroundColor: C.bg, borderTopColor: C.line, borderTopWidth: 1, gap: 8 },
   rule: { color: "#d1ddd4", fontSize: 14, lineHeight: 21 },
+  mealRow: { gap: 4, paddingVertical: 8, borderBottomColor: C.line, borderBottomWidth: StyleSheet.hairlineWidth },
   statRow: { flexDirection: "row", gap: 8 },
   stat: { flex: 1, alignItems: "center", backgroundColor: C.field, borderRadius: 14, paddingVertical: 10 },
   statCard: { flex: 1, alignItems: "center", backgroundColor: C.panel, borderColor: C.line, borderWidth: 1, borderRadius: 16, paddingVertical: 14 },

@@ -253,6 +253,7 @@ def rule_note(key: str, f: dict) -> tuple[str, str, list[dict]]:
             lines.append("Avoid list not logged yet: " + ", ".join(f["avoid_not_logged"][:3]) + ".")
             actions.append({"id": "avoid", "label": "Log the avoid list", "action": "open:Focus"})
         lines.append("One lesson from today? Write it in your journal. Phone down at 00:00; the bedtime list takes over 🌙")
+        actions.append({"id": "journal", "label": "✍️ Write today's journal", "action": "open:Journal"})
     elif key == "life_navigator":
         title = "Life compass" + (f": {f['overall']}% balanced" if f["overall"] is not None else "")
         lines.append(f"Day {f['day_of_week']} of the week. " + " · ".join(

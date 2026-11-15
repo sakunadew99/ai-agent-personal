@@ -1505,12 +1505,14 @@ def routines_today(day: date | None = None, db: Session = Depends(get_db), user:
 
 @router.get("/routines/week")
 def routines_week(start: date | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return routine_svc.week_view(db, user.id, start)
+    from app.core import cache
+    return cache.cached(user.id, f"week:{start}", lambda: routine_svc.week_view(db, user.id, start))
 
 
 @router.get("/routines/month")
 def routines_month(month: str | None = Query(None, pattern=r"^\d{4}-\d{2}$"), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return routine_svc.month_view(db, user.id, month)
+    from app.core import cache
+    return cache.cached(user.id, f"month:{month}", lambda: routine_svc.month_view(db, user.id, month))
 
 
 @router.post("/routines/starter", status_code=201)
@@ -1561,6 +1563,12 @@ def meals_create(data: dto.MealIn, db: Session = Depends(get_db), user: User = D
     row = routine_svc.log_meal(db, user.id, data); db.commit(); return routine_svc.meal_out(row)
 
 
+@router.delete("/meals/{meal_id}")
+def meals_delete(meal_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import MealLog
+    row = owned(db, MealLog, user.id, meal_id); db.delete(row); db.commit(); return {"deleted": True}
+
+
 @router.get("/meals")
 def meals_list(day: date | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     from app.models.entities import MealLog
@@ -1576,8 +1584,9 @@ from app.services import exams as exam_svc  # noqa: E402
 
 @router.get("/exams")
 def exams_list(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.core import cache
     plans = exam_svc.ensure_defaults(db, user.id); db.commit()
-    return [exam_svc.plan_out(db, p) for p in plans]
+    return cache.cached(user.id, "exams", lambda: [exam_svc.plan_out(db, p) for p in plans])
 
 
 @router.get("/exams/status")
@@ -1686,6 +1695,11 @@ from app.services import you as you_svc  # noqa: E402
 
 @router.get("/you")
 def you_view(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.core import cache
+    return cache.cached(user.id, "you", lambda: _you_compute(db, user))
+
+
+def _you_compute(db: Session, user: User) -> dict:
     from app.models.entities import InsightReport
     from app.services.ai_client import cache_stats
     p = you_svc.profile(db, user.id)
@@ -1803,7 +1817,8 @@ def _invest_view(db: Session, user: User) -> dict:
 
 @router.get("/invest")
 def invest_view(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return _invest_view(db, user)
+    from app.core import cache
+    return cache.cached(user.id, "invest", lambda: _invest_view(db, user))
 
 
 @router.post("/invest/fetch")
@@ -1894,7 +1909,8 @@ from app.services import compass as compass_svc  # noqa: E402
 
 @router.get("/compass")
 def compass_view(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    out = compass_svc.view(db, user.id); db.commit(); return out
+    from app.core import cache
+    out = cache.cached(user.id, "compass", lambda: compass_svc.view(db, user.id)); db.commit(); return out
 
 
 @router.post("/compass/{area}/log", status_code=201)
@@ -1902,3 +1918,29 @@ def compass_log(area: str, data: dto.CompassLogIn, db: Session = Depends(get_db)
     compass_svc.log(db, user.id, area, data.amount, data.note)
     audit(db, user.id, "compass.log", "life_area", None, {"area": area})
     out = compass_svc.view(db, user.id); db.commit(); return out
+
+
+
+# ---------- Journal ----------
+
+from app.services import journal as journal_svc  # noqa: E402
+
+
+@router.get("/journal")
+def journal_view(day: date | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return journal_svc.view(db, user.id, day)
+
+
+@router.put("/journal/{day}")
+def journal_save(day: date, data: dto.JournalIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    journal_svc.save(db, user.id, day, data.model_dump(exclude_unset=True)); db.commit(); return journal_svc.view(db, user.id, day)
+
+
+@router.delete("/journal/{day}")
+def journal_delete(day: date, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    journal_svc.delete(db, user.id, day); db.commit(); return journal_svc.view(db, user.id, day)
+
+
+@router.post("/journal/{day}/reflect")
+def journal_reflect(day: date, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = journal_svc.reflect(db, user.id, day); db.commit(); return journal_svc.entry_out(row)

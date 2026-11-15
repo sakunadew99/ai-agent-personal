@@ -20,7 +20,7 @@ export type ShieldStatus = {
 };
 
 /** days: 1 = Monday … 7 = Sunday; start/end in minutes from midnight (start > end runs overnight). */
-export type Schedule = { days: number[]; start: number; end: number };
+export type Schedule = { days: number[]; start: number; end: number; from?: string | null; until?: string | null };
 export type ListMode = "manual" | "always" | "schedule";
 export type BlockList = {
   id: string;
@@ -35,6 +35,7 @@ export type BlockList = {
   adult: boolean;
   purchases: boolean;
   unsupportedBrowsers: boolean;
+  shorts?: boolean;
 };
 
 export type AppCategory = "social" | "games" | "entertainment" | "creativity" | "education" | "health" | "productivity" | "news" | "shopping" | "travel" | "other";
@@ -105,7 +106,8 @@ export function clock(ms: number) { return new Date(ms).toLocaleTimeString([], {
 export function scheduleText(s: Schedule | null) {
   if (!s || !s.days.length) return "No days";
   const days = s.days.length === 7 ? "Every day" : s.days.join(",") === "1,2,3,4,5" ? "Mon–Fri" : s.days.join(",") === "6,7" ? "Weekends" : s.days.map(d => DAY_SHORT[d - 1]).join(" ");
-  return `${days} · ${s.start === s.end ? "all day" : `${clockMin(s.start)}–${clockMin(s.end)}`}`;
+  const range = s.from || s.until ? ` · ${s.from ? new Date(`${s.from}T12:00:00`).toLocaleDateString([], { day: "numeric", month: "short" }) : "now"}–${s.until ? new Date(`${s.until}T12:00:00`).toLocaleDateString([], { day: "numeric", month: "short" }) : "no end"}` : "";
+  return `${days} · ${s.start === s.end ? "all day" : `${clockMin(s.start)}–${clockMin(s.end)}`}${range}`;
 }
 /** Native errors arrive as "Call to function … has been rejected.\n→ Caused by: <our message>". Keep our message. */
 export function errorText(reason: unknown) {

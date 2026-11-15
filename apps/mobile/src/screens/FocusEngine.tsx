@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 
-import type { ApiRecord as Row } from "../api";
+import { peek, type ApiRecord as Row } from "../api";
 import { cancelFocusEnd, scheduleFocusEnd } from "../notify";
 import { defaultMark, parseLists, Shield, type BlockList } from "../shield";
 import { Badge, Btn, C, Card, Empty, H2, Kicker, Muted, Progress, Row as Line } from "../ui";
@@ -25,7 +25,7 @@ const BEDTIME = "Bedtime (no phone after 12)";
 /** "1 hour, 1 task": clear target -> one task -> distractions blocked -> 50/10 or 25/5 -> 2-minute review -> break. */
 export function FocusEngine({ api, onError, onNotice }: Props) {
   const [phase, setPhase] = useState<Phase>("setup");
-  const [today, setToday] = useState<Row | null>(null);
+  const [today, setToday] = useState<Row | null>(() => peek("/focus/today"));
   const [session, setSession] = useState<Row | null>(null);
   const [now, setNow] = useState(Date.now());
   // setup

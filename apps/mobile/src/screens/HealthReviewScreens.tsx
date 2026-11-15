@@ -145,9 +145,10 @@ export function ReviewScreen({ api, onError, onNotice }: { api: Api; onError: (m
   </Screen>;
 }
 
-export type MoreTarget = "Assistant" | "Invest" | "News" | "You" | "Team" | "Exams" | "Life" | "Learning" | "Jobs" | "Money" | "Rewards" | "AI" | "Study" | "Balance" | "Vault" | "Finance" | "Health" | "Memory" | "Review" | "Approvals" | "Profile";
+export type MoreTarget = "Assistant" | "Journal" | "Invest" | "News" | "You" | "Team" | "Exams" | "Life" | "Learning" | "Jobs" | "Money" | "Rewards" | "AI" | "Study" | "Balance" | "Vault" | "Finance" | "Health" | "Memory" | "Review" | "Approvals" | "Profile";
 const MENU: { key: MoreTarget; icon: string; title: string; hint: string }[] = [
   { key: "Assistant", icon: "✳", title: "Assistant", hint: "Chat with Sakuna" },
+  { key: "Journal", icon: "✍️", title: "Journal", hint: "Day, gratitude, lessons" },
   { key: "Invest", icon: "📈", title: "Invest (CSE)", hint: "Portfolio, rules, alerts" },
   { key: "News", icon: "📰", title: "News", hint: "AI, tech, Sri Lanka & CSE" },
   { key: "You", icon: "🪞", title: "About you", hint: "Your patterns & one change" },

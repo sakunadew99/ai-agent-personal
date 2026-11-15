@@ -28,6 +28,7 @@ def rate_limit(request: Request, limit: int = 30, window_seconds: int = 60) -> N
 
 
 def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
     db: Session = Depends(get_db),
 ) -> User:
@@ -37,6 +38,9 @@ def get_current_user(
     user = db.get(User, user_id)
     if user is None or not user.is_active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
+    if request.method not in ("GET", "HEAD", "OPTIONS"):
+        from app.core import cache
+        cache.bump(user.id)          # you changed something: cached pages for you are recomputed next time
     return user
 
 

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-import type { ApiRecord as Row } from "../api";
+import { peek, type ApiRecord as Row } from "../api";
 import { Badge, Btn, C, Card, Empty, H2, Kicker, Muted, Progress, Row as Line, Screen } from "../ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
@@ -11,8 +11,8 @@ const short = (day: string) => day.slice(0, 3);
 
 /** "About you": what Sakuna has learned from your own records (last 28 days), plus the weekly report. No fine-tuning. */
 export function AboutYouScreen({ api, onError, onNotice, onOpen }: { api: Api; onError: (m: string) => void; onNotice: (m: string) => void; onOpen: (t: string) => void }) {
-  const [v, setV] = useState<Row | null>(null);
-  const [reports, setReports] = useState<Row[]>([]);
+  const [v, setV] = useState<Row | null>(() => peek("/you"));
+  const [reports, setReports] = useState<Row[]>(() => peek("/you/reports") || []);
   const [busy, setBusy] = useState(false);
   const load = useCallback(() => {
     Promise.all([api<Row>("/you"), api<Row[]>("/you/reports")]).then(([you, list]) => { setV(you); setReports(list); }).catch(r => onError(msg(r)));

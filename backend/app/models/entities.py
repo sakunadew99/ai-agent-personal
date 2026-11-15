@@ -1173,6 +1173,8 @@ class MealLog(Base):
     stopped_80: Mapped[bool] = mapped_column(Boolean, default=False)
     walked_after: Mapped[bool] = mapped_column(Boolean, default=False)
     note: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    foods: Mapped[str | None] = mapped_column(Text, nullable=True)            # what you ate, e.g. "rice, dhal, chicken curry"
+    eaten_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -1471,3 +1473,30 @@ class StockAlert(Base):
     message: Mapped[str] = mapped_column(String(300))
     status: Mapped[str] = mapped_column(String(6), default="new", server_default="new")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+
+# ---------- Journal ----------
+
+class JournalEntry(Base):
+    """One journal page per day: what I did, positives, negatives, gratitude, lesson, notes, mood. Private."""
+    __tablename__ = "journal_entries"
+    __table_args__ = (
+        UniqueConstraint("user_id", "local_date", name="uq_journal_entries_user_date"),
+        CheckConstraint("mood IS NULL OR mood BETWEEN 1 AND 5", name="ck_journal_entries_mood"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    local_date: Mapped[date] = mapped_column(Date)
+    mood: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    did: Mapped[str | None] = mapped_column(Text, nullable=True)
+    positives: Mapped[list] = mapped_column(JsonDict, default=list)
+    negatives: Mapped[list] = mapped_column(JsonDict, default=list)
+    gratitude: Mapped[list] = mapped_column(JsonDict, default=list)
+    lesson: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tags: Mapped[list] = mapped_column(JsonDict, default=list)
+    ai_reflection: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

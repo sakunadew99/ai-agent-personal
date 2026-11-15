@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 
-import type { ApiRecord as Row } from "../api";
+import { peek, type ApiRecord as Row } from "../api";
 import { Badge, Btn, C, Card, Empty, H2, Kicker, Muted, Progress, Row as Line, Screen } from "../ui";
 import { appendSpeech, MicButton } from "../voice";
+import { DateField, TimeField } from "../pickers";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 type Props = { api: Api; onError: (m: string) => void; onNotice: (m: string) => void };
@@ -18,7 +19,7 @@ const fmtScore = (v: unknown, exam: string) => (v == null ? "—" : exam === "ie
 
 /** Exam coach: IELTS + Goethe. Plain-code plan and forecast; AI only for writing/speaking feedback (an estimate). */
 export function ExamScreen({ api, onError, onNotice }: Props) {
-  const [plans, setPlans] = useState<Row[] | null>(null);
+  const [plans, setPlans] = useState<Row[] | null>(() => peek("/exams"));
   const [exam, setExam] = useState<"ielts" | "goethe">("ielts");
   const [modal, setModal] = useState<"score" | "settings" | "writing" | "speaking" | null>(null);
   const load = useCallback(() => { api<Row[]>("/exams").then(setPlans).catch(r => onError(msg(r))); }, [api, onError]);
@@ -143,7 +144,8 @@ function SettingsModal({ p, api, onClose, onSaved, onError }: { p: Row; api: Api
     <Text style={s.label}>{p.exam === "ielts" ? "Target band" : "Target points per module (60 = pass)"}</Text>
     <TextInput style={s.input} value={d.target_score} onChangeText={v => setD({ ...d, target_score: v })} keyboardType="decimal-pad"/>
     <Text style={s.label}>Exam date</Text>
-    <Line><Btn kind="outline" title="−1 wk" onPress={() => shiftDate(-7)}/><TextInput style={[s.input, { flex: 1, textAlign: "center" }]} value={d.exam_date} onChangeText={v => setD({ ...d, exam_date: v })} placeholder="YYYY-MM-DD" placeholderTextColor={C.muted}/><Btn kind="outline" title="+1 wk" onPress={() => shiftDate(7)}/></Line>
+    <DateField value={d.exam_date} onChange={v => v && setD({ ...d, exam_date: v })} min={new Date().toISOString().slice(0, 10)}/>
+    <Line><Btn kind="outline" title="−1 week" onPress={() => shiftDate(-7)} style={{ flex: 1 }}/><Btn kind="outline" title="+1 week" onPress={() => shiftDate(7)} style={{ flex: 1 }}/></Line>
     {p.date_is_estimate && <Muted small>This date is an estimate. Saving a new date marks it as your real exam date.</Muted>}
     <Text style={s.label}>Minutes per study day</Text>
     <Pills options={["20", "30", "45", "60", "90", "120"]} value={String(d.daily_minutes)} onChange={v => setD({ ...d, daily_minutes: Number(v) })}/>
@@ -152,7 +154,7 @@ function SettingsModal({ p, api, onClose, onSaved, onError }: { p: Row; api: Api
       return <TouchableOpacity key={n} style={[s.day, on && s.dayOn]} onPress={() => setD({ ...d, study_days: on ? (d.study_days as number[]).filter(x => x !== i + 1) : [...d.study_days, i + 1].sort() })}>
         <Text style={[s.dayText, on && s.dayTextOn]}>{n}</Text></TouchableOpacity>; })}</View>
     <Text style={s.label}>Study time (added to your day plan)</Text>
-    <Line><Btn kind="outline" title="−30m" onPress={() => shiftTime(-30)}/><Text style={s.time}>{d.study_time}</Text><Btn kind="outline" title="+30m" onPress={() => shiftTime(30)}/></Line>
+    <TimeField value={d.study_time} onChange={t => t && setD({ ...d, study_time: t })}/>
     <Line><Text style={[s.skill, { flex: 1 }]}>Preparing for this exam</Text><Switch value={!!d.active} onValueChange={v => setD({ ...d, active: v })} trackColor={{ true: C.green, false: C.line }} thumbColor={C.text}/></Line>
     <Btn title="Save plan" onPress={() => void save()}/>
   </Sheet>;

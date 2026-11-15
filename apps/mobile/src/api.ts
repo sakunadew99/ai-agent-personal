@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
+import { File, Paths } from "expo-file-system";
 
 export type ApiRecord = Record<string, any>;
 
@@ -68,7 +69,55 @@ export async function apiRequest<T = ApiRecord>(path: string, token = "", method
   if (response.status === 204) return null as T;
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new ApiError(String(payload.detail || `Request failed (${response.status})`), response.status);
+  if (method === "GET" && bearer && CACHEABLE.test(path)) remember(path, payload);
   return payload as T;
+}
+
+// ---------- Fast screens: show the last data at once, refresh in the background ----------
+// Successful reads of the main screens are kept in memory and in a small file on this phone (only for the signed-in
+// account; deleted on sign-out). Screens start from peek(path) and then load fresh data as usual.
+const CACHEABLE = /^\/(compass|workers(\/today)?|routines\/(today|week|month)|focus\/(today|avoid)|exams|you(\/reports)?|invest|news|journal|dashboard|planner\/daily|tasks|finance\/summary|health\/summary|me)(\?|$)/;
+const memCache = new Map<string, unknown>();
+let cacheOwner = "";
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+const cacheFile = () => new File(Paths.document, "sakuna-screen-cache.json");
+
+export function peek<T = ApiRecord>(path: string): T | null {
+  return (memCache.get(path) as T | undefined) ?? null;
+}
+
+function remember(path: string, data: unknown) {
+  memCache.set(path, data);
+  if (memCache.size > 60) memCache.delete(memCache.keys().next().value as string);
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    if (!cacheOwner) return;
+    try { void cacheFile().write(JSON.stringify({ owner: cacheOwner, saved: Date.now(), entries: Object.fromEntries(memCache) })); } catch { /* best effort */ }
+  }, 1500);
+}
+
+/** Load this account's saved screens (call once after sign-in or on start). */
+export async function loadScreenCache(owner: string) {
+  cacheOwner = owner;
+  try {
+    const file = cacheFile();
+    if (!file.exists) return;
+    const data = JSON.parse(await file.text());
+    if (data?.owner !== owner || Date.now() - Number(data.saved) > 7 * 86400000) return;
+    for (const [k, v] of Object.entries(data.entries || {})) if (!memCache.has(k)) memCache.set(k, v);
+  } catch { /* a broken cache file is simply ignored */ }
+}
+
+export function clearScreenCache() {
+  memCache.clear();
+  cacheOwner = "";
+  try { const file = cacheFile(); if (file.exists) file.delete(); } catch { /* already gone */ }
+}
+
+/** Load the main screens together in the background, so every tab opens instantly. */
+export function prefetchScreens(token: string) {
+  const paths = ["/compass", "/workers/today", "/routines/today", "/focus/today", "/journal", "/exams", "/you", "/invest", "/news", "/routines/week", "/tasks"];
+  void Promise.allSettled(paths.map(path => apiRequest(path, token)));
 }
 
 /** Upload one file (multipart/form-data) to the API, e.g. a CSV or Excel file picked on the phone. */

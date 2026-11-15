@@ -2,8 +2,9 @@ import * as DocumentPicker from "expo-document-picker";
 import React, { useCallback, useEffect, useState } from "react";
 import { Linking, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
-import type { ApiRecord as Row } from "../api";
+import { peek, type ApiRecord as Row } from "../api";
 import { Badge, Btn, C, Card, Empty, H2, Kicker, Muted, Progress, Row as Line, Screen } from "../ui";
+import { DateField } from "../pickers";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 type Upload = (path: string, file: { uri: string; name: string; type?: string | null }) => Promise<Row>;
@@ -17,7 +18,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 /** CSE investing: portfolio from your trades, prices from the CSE website or your file, signals from YOUR rules. */
 export function InvestScreen({ api, upload, onError, onNotice }: Props) {
-  const [v, setV] = useState<Row | null>(null);
+  const [v, setV] = useState<Row | null>(() => peek("/invest"));
   const [busy, setBusy] = useState<string | null>(null);
   const [modal, setModal] = useState<"trade" | "paste" | null>(null);
   const [symbol, setSymbol] = useState<string | null>(null);
@@ -121,7 +122,7 @@ function TradeModal({ api, onClose, onSaved, onError }: { api: Api; onClose: () 
     <TextInput style={s.input} value={t.quantity} onChangeText={quantity => setT({ ...t, quantity })} placeholder={t.side === "dividend" ? "Shares that received it" : "Quantity"} placeholderTextColor={C.muted} keyboardType="decimal-pad"/>
     <TextInput style={s.input} value={t.price} onChangeText={price => setT({ ...t, price })} placeholder={t.side === "dividend" ? "Dividend per share (Rs)" : "Price per share (Rs)"} placeholderTextColor={C.muted} keyboardType="decimal-pad"/>
     {t.side !== "dividend" && <TextInput style={s.input} value={t.fees} onChangeText={fees => setT({ ...t, fees })} placeholder="Fees / commission (Rs)" placeholderTextColor={C.muted} keyboardType="decimal-pad"/>}
-    <TextInput style={s.input} value={t.trade_date} onChangeText={trade_date => setT({ ...t, trade_date })} placeholder="YYYY-MM-DD" placeholderTextColor={C.muted}/>
+    <DateField label="Trade date" value={t.trade_date} onChange={v => v && setT({ ...t, trade_date: v })}/>
     <Btn title="Save trade" onPress={() => void api<Row>("/invest/trades", "POST", { ...t, quantity: Number(t.quantity), price: Number(t.price), fees: Number(t.fees || 0) })
       .then(onSaved).catch(e => onError(msg(e)))}/>
     <Muted small>This only records what you did at your broker. Sakuna never places orders.</Muted>

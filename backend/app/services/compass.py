@@ -159,9 +159,12 @@ def view(db: Session, user_id, today: date | None = None) -> dict:
     reflect = {r.run_date for r in runs if r.routine_id in routines and routines[r.routine_id].name in ("Morning", "Sunday reset")}
     reflect |= {c.local_date for c in db.scalars(select(DailyCheckin).where(DailyCheckin.user_id == user_id, DailyCheckin.local_date >= start,
                                                                             DailyCheckin.local_date <= start + timedelta(days=6))).all()}
+    from app.models.entities import JournalEntry
+    reflect |= {j.local_date for j in db.scalars(select(JournalEntry).where(JournalEntry.user_id == user_id, JournalEntry.local_date >= start,
+                                                                            JournalEntry.local_date <= start + timedelta(days=6))).all()}
     growth = [_signal("Learning days", max(int(learn), len(study_days)), target_of("learning", 4.0), "days",
                       note=f"{study_minutes} min of exam study this week" if study_minutes else "Flashcards, exam study or learning focus"),
-              _signal("Reflection", len(reflect) + manual("growth"), 4, "times", note="Morning routine, daily check-in, or logged prayer / meditation")]
+              _signal("Reflection", len(reflect) + manual("growth"), 4, "times", note="Journal, morning routine, daily check-in, or logged prayer / meditation")]
 
     signals = {"health": health, "work": work, "family": [_signal("Time with family", manual("family"), target_of("relationships", 3.0), "check-ins")],
                "social": [_signal("Friends and community", manual("social"), target_of("social", 2.0), "times")], "money": money, "leisure": leisure,

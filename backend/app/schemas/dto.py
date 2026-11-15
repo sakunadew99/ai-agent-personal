@@ -1201,6 +1201,8 @@ class MealIn(BaseModel):
     stopped_80: bool = False
     walked_after: bool = False
     note: str | None = Field(default=None, max_length=200)
+    foods: str | None = Field(default=None, max_length=1000)
+    eaten_time: time | None = None
 
 
 # ---------- Life OS Phase 3: exam coach ----------
@@ -1315,3 +1317,19 @@ class ImportTextIn(BaseModel):
 class CompassLogIn(BaseModel):
     amount: Decimal = Field(default=Decimal("1"), gt=0, le=24, max_digits=6, decimal_places=2)
     note: str | None = Field(default=None, max_length=200)
+
+
+# ---------- Journal ----------
+
+_Line = Annotated[str, Field(max_length=300)]
+
+
+class JournalIn(BaseModel):
+    mood: int | None = Field(default=None, ge=1, le=5)
+    did: str | None = Field(default=None, max_length=4000)
+    positives: list[_Line] | None = Field(default=None, max_length=10)
+    negatives: list[_Line] | None = Field(default=None, max_length=10)
+    gratitude: list[_Line] | None = Field(default=None, max_length=5)
+    lesson: str | None = Field(default=None, max_length=1000)
+    notes: str | None = Field(default=None, max_length=8000)
+    tags: list[Annotated[str, Field(max_length=30)]] | None = Field(default=None, max_length=10)

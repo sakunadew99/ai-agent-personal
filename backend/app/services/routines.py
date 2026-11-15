@@ -301,7 +301,7 @@ def day_view(db: Session, user_id, day: date) -> dict:
     items.sort(key=lambda x: (x["kind"] != "checklist", x["starts"] or time(0, 0)))
     routines = [i for i in items if i["kind"] == "routine"]
     done = sum(1 for i in routines if i["status"] == "done")
-    meals = list(db.scalars(select(MealLog).where(MealLog.user_id == user_id, MealLog.local_date == day)).all())
+    meals = list(db.scalars(select(MealLog).where(MealLog.user_id == user_id, MealLog.local_date == day).order_by(MealLog.eaten_time, MealLog.created_at)).all())
     return {"date": day, "day_type": day_type(profile, day), "items": items, "has_routines": bool(all_routines),
             "score": round(done / len(routines), 2) if routines else None, "done": done, "total": len(routines),
             "meals": [meal_out(m) for m in meals], "eating_rules": EATING_RULES}
@@ -415,7 +415,8 @@ def month_view(db: Session, user_id, month: str | None = None) -> dict:
 def meal_out(m: MealLog) -> dict:
     checks = [m.slow, m.no_screen, m.upright, m.stopped_80, m.walked_after]
     return {"id": m.id, "meal": m.meal, "local_date": m.local_date, "slow": m.slow, "no_screen": m.no_screen, "upright": m.upright,
-            "stopped_80": m.stopped_80, "walked_after": m.walked_after, "note": m.note, "mindful": sum(checks), "created_at": m.created_at}
+            "stopped_80": m.stopped_80, "walked_after": m.walked_after, "note": m.note, "mindful": sum(checks), "created_at": m.created_at,
+            "foods": m.foods, "eaten_time": m.eaten_time}
 
 
 def log_meal(db: Session, user_id, data) -> MealLog:

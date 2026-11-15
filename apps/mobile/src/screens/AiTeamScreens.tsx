@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
 
-import type { ApiRecord as Row } from "../api";
+import { peek, type ApiRecord as Row } from "../api";
 import { Badge, Btn, C, Card, Empty, Kicker, Muted, Row as Line, Screen } from "../ui";
+import { TimeField } from "../pickers";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 const msg = (r: unknown) => (r instanceof Error ? r.message : "Something went wrong");
@@ -11,7 +12,7 @@ const DAY_SHORT = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
 /** Home card: today's notes from the AI team. Actions are the note's own (open a screen, add a task, move leftovers). */
 export function TeamTodayCard({ api, onError, onNotice, onOpen }: { api: Api; onError: (m: string) => void; onNotice: (m: string) => void; onOpen: (target: string) => void }) {
-  const [v, setV] = useState<Row | null>(null);
+  const [v, setV] = useState<Row | null>(() => peek("/workers/today"));
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const load = useCallback(() => { api<Row>("/workers/today").then(x => { setV(x); }).catch(() => setV(null)); }, [api]);
@@ -66,7 +67,7 @@ export function TeamTodayCard({ api, onError, onNotice, onOpen }: { api: Api; on
 
 /** Settings for each worker: on/off, time, days, AI on/off and its daily token budget. */
 export function AiTeamScreen({ api, onError, onNotice }: { api: Api; onError: (m: string) => void; onNotice: (m: string) => void }) {
-  const [workers, setWorkers] = useState<Row[] | null>(null);
+  const [workers, setWorkers] = useState<Row[] | null>(() => peek("/workers"));
   const load = useCallback(() => { api<Row[]>("/workers").then(setWorkers).catch(r => onError(msg(r))); }, [api, onError]);
   useEffect(() => { load(); }, [load]);
   if (!workers) return <Screen><Empty>Loading your AI team…</Empty></Screen>;
@@ -83,7 +84,7 @@ export function AiTeamScreen({ api, onError, onNotice }: { api: Api; onError: (m
         {w.available ? <Switch value={w.enabled} onValueChange={v => void save(w, { enabled: v })} trackColor={{ true: C.green, false: C.line }} thumbColor={C.text}/>
           : <Badge tone="muted">later phase</Badge>}</Line>
       {w.available && w.enabled && <>
-        <Line><Btn kind="outline" title="−15m" onPress={() => shift(w, -15)}/><Text style={s.time}>{hhmm(w.run_time)}</Text><Btn kind="outline" title="+15m" onPress={() => shift(w, 15)}/></Line>
+        <TimeField label="Writes its note at" value={hhmm(w.run_time)} onChange={t => t && void save(w, { run_time: t })}/>
         <View style={s.days}>{DAY_SHORT.map((n, i) => { const on = (w.days as number[]).includes(i + 1);
           return <TouchableOpacity key={n} style={[s.day, on && s.dayOn]} onPress={() => void save(w, { days: on ? (w.days as number[]).filter(x => x !== i + 1) : [...w.days, i + 1].sort() })}>
             <Text style={[s.dayText, on && s.dayTextOn]}>{n}</Text></TouchableOpacity>; })}</View>

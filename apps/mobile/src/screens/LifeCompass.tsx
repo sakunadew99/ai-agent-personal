@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-import type { ApiRecord as Row } from "../api";
+import { peek, type ApiRecord as Row } from "../api";
 import { Badge, Btn, C, Muted, Row as Line } from "../ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
@@ -12,7 +12,7 @@ const hm = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}
 
 /** Home: your seven life areas this week (from every feature), today in numbers, and the next best actions. */
 export function LifeCompass({ api, onError, onNotice, onOpen }: { api: Api; onError: (m: string) => void; onNotice: (m: string) => void; onOpen: (target: string) => void }) {
-  const [v, setV] = useState<Row | null>(null);
+  const [v, setV] = useState<Row | null>(() => peek("/compass"));
   const [open, setOpen] = useState<string | null>(null);
   const load = useCallback(() => { api<Row>("/compass").then(setV).catch(() => setV(null)); }, [api]);
   useEffect(() => { load(); }, [load]);
