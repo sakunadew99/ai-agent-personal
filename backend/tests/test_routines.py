@@ -11,7 +11,7 @@ MON, WED, SAT, SUN = date(2026, 11, 16), date(2026, 11, 18), date(2026, 11, 21),
 
 
 def _user(client):
-    r = client.post("/api/v1/auth/register", json={"email": f"rt.{uuid.uuid4().hex[:8]}@example.com", "password": "Routine-pass-1", "full_name": "R"})
+    r = client.post("/api/v1/auth/register", json={"email": f"rt.{uuid.uuid4().hex[:8]}@example.com", "password": "Routine-test-pass-1", "full_name": "R"})
     assert r.status_code == 201, r.text
     headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
 
