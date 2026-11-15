@@ -15,6 +15,12 @@ WRITE_TOOLS = [
     "create_daily_plan",
     "create_expense",
 ]
+# Adding to your OWN buy list / wish list buys nothing and is easy to undo, so it runs when you ask (level A).
+# Change a tool to "approval" in your permissions to be asked first.
+LIST_TOOLS = [
+    "add_to_buy_list",
+    "add_to_wishlist",
+]
 
 
 def seed_user_defaults(db, user) -> None:
@@ -27,6 +33,8 @@ def seed_user_defaults(db, user) -> None:
         db.add(UserPermission(user_id=user.id, tool_name=name, mode="allow"))
     for name in WRITE_TOOLS:
         db.add(UserPermission(user_id=user.id, tool_name=name, mode="approval"))
+    for name in LIST_TOOLS:
+        db.add(UserPermission(user_id=user.id, tool_name=name, mode="allow"))
 
 
 def mode_for(db, user_id, tool_name: str) -> str:

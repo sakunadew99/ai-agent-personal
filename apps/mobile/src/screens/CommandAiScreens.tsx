@@ -29,7 +29,7 @@ export function CommandCard({ api, onError, onCreated }: { api: Api; onError: (m
 
   return <Card accent>
     <Kicker>SAY IT ONCE</Kicker>
-    <Field voice value={text} onChangeText={v => { setText(v); if (v.length > text.length + 3) setVoice(true); }} placeholder="“Dentist next Tuesday at 3”" maxLength={500} onSubmitEditing={() => void submit()}/>
+    <Field voice value={text} onChangeText={v => { setText(v); if (v.length > text.length + 3) setVoice(true); }} placeholder="“Dentist Tuesday at 3” · “add milk to my buy list”" maxLength={500} onSubmitEditing={() => void submit()}/>
     <Btn title={busy ? "…" : "Do it"} onPress={() => void submit()} disabled={busy || !text.trim()}/>
     {card?.status === "created" && <View style={{ gap: 4 }}>
       <Line><Text style={{ color: C.green, fontWeight: "900" }}>✓</Text><Text style={{ color: C.text, fontWeight: "700", flex: 1 }}>{card.summary}</Text>

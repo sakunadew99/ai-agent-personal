@@ -263,6 +263,13 @@ def execute_action(db: Session, user: User, action: str, body: dict) -> dict:
     if action == "create_expense":
         row = create_expense(db, user.id, ExpenseIn.model_validate(body))
         return {"id": str(row.id), "amount": str(row.amount), "category": row.category}
+    if action in ("add_to_buy_list", "add_to_wishlist"):
+        from app.services.commands import add_list_items
+        items = [str(i)[:200] for i in (body.get("items") or [])][:20]
+        list_name = (str(body.get("list_name") or "groceries").strip().lower() or "groceries")[:32]
+        added = add_list_items(db, user.id, "buy" if action == "add_to_buy_list" else "wish", list_name, items, _profile(db, user.id).currency)
+        ids = added["buy_item_ids"] + added["wish_ids"]
+        return {"id": ids[0] if ids else None, "ids": ids, "summary": added["summary"]}
     raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown action")
 
 

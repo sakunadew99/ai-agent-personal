@@ -20,6 +20,9 @@ def classify_intent(text: str) -> str:
     lowered = text.lower().strip()
     if lowered.startswith("remember"):
         return "remember"
+    from app.services.commands import parse_list_command
+    if parse_list_command(text):
+        return "list_add"
     if any(word in lowered for word in ("spent", "paid ", "expense", "bought")):
         return "expense"
     if any(phrase in lowered for phrase in ("plan tomorrow", "organize tomorrow", "plan my day", "help me organize")):
@@ -134,6 +137,18 @@ def _act(db: Session, user: User, intent: str, message: str):
                 f"Create task '{parsed['title']}'",
             )
         _collect(outcome, proposed, completed, refused)
+    elif intent == "list_add":
+        from app.services.commands import parse_list_command
+
+        listed = parse_list_command(message) or {}
+        if listed.get("target") == "todo":
+            return _act(db, user, "capture", listed["rest"] if re.match(r"(?i)(i need to|remind me to)", listed["rest"]) else f"I need to {listed['rest']}")
+        if listed.get("items"):
+            tool = "add_to_buy_list" if listed["target"] == "buy" else "add_to_wishlist"
+            where = "wish list" if listed["target"] == "wish" else f"{listed['list_name']} list" if listed["list_name"] != "groceries" else "buy list"
+            body = {"items": listed["items"], "list_name": listed.get("list_name")}
+            outcome = queue_or_run(db, user, tool, body, f"Add {', '.join(listed['items'][:5])} to your {where}")
+            _collect(outcome, proposed, completed, refused)
     elif intent == "expense":
         from app.services.actions import _today
 
@@ -334,7 +349,7 @@ def _local_reply(message: str, draft: str, intent: str) -> str:
         if "Completed now:" in draft:
             return "Your plan has been created. Open Planner to review the scheduled blocks."
         return "I couldn’t create the plan from this request. Check Planner and try again."
-    if intent in {"capture", "remember", "expense"}:
+    if intent in {"capture", "remember", "expense", "list_add"}:
         if "Proposed only." in draft:
             return "I’ve prepared that request, but it’s waiting for your approval. Open Approvals to review it."
         if "Completed now:" in draft:

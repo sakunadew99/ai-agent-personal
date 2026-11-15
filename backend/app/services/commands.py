@@ -13,6 +13,7 @@ import json
 import re
 import uuid
 from datetime import date, datetime, time, timedelta, timezone
+from decimal import Decimal
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
@@ -269,6 +270,110 @@ def _strip(text: str, spans: list[str]) -> str:
     return text
 
 
+# ---------- list commands: "add milk and eggs to my buy list", "AirPods to wish list for 25000", "todo: call bank" ----------
+
+_LIST_NAME = (r"wish\s*-?\s*list|wants\s+list|buy(?:ing)?\s*-?\s*list|shopping(?:\s+list)?|grocer(?:y|ies)(?:\s+list)?|"
+              r"to\s*-?\s*do(?:\s*list)?|task\s+list|[a-z][a-z-]{1,20}\s+list")
+_PRICE_TAIL = r"(?P<tail>\s+(?:for|at|around|about|~)\s*(?:rs\.?|lkr|usd|\$|eur|€)?\s*\d[\d,]*(?:\.\d{1,2})?\s*(?:rs|lkr|usd|eur|rupees|dollars)?)?"
+LIST_SUFFIX = re.compile(r"\s+(?:to|on|onto|in|into)\s+(?:my\s+|the\s+|our\s+)?(?P<name>" + _LIST_NAME + r")" + _PRICE_TAIL + r"\s*[.!]*\s*$", re.I)
+LIST_PREFIX = re.compile(r"^(?P<name>" + _LIST_NAME + r")\s*[:\-]\s*", re.I)
+ADD_VERB = re.compile(r"^(?:please\s+)?(?:can you\s+|could you\s+)?(?:add|put|save|note|include|write)\s+(?:down\s+)?", re.I)
+# "<word> list" names that are not shopping lists, so they stay ordinary tasks.
+NOT_SHOPPING = {"reading", "watch", "play", "bucket", "guest", "contact", "mailing", "waiting", "check", "the", "a", "my", "this", "that", "whole"}
+QTY = re.compile(r"^(?P<n>\d+(?:\.\d+)?|a|an|one|two|three|four|five|six|seven|eight|nine|ten)\s+"
+                 r"(?:(?P<unit>kg|g|l|ml|pcs?|packs?|packets?|bottles?|boxes?|cans?|dozen|loaves|loaf|bags?)\s+(?:of\s+)?)?(?P<name>.+)$", re.I)
+PRICE = re.compile(r"\s*(?:\bfor|\bat|\baround|\babout|~)?\s*(?P<cur>rs\.?|lkr|usd|\$|eur|€)?\s*(?P<amount>\d[\d,]*(?:\.\d{1,2})?)\s*"
+                   r"(?P<cur2>rs|lkr|usd|eur|rupees|dollars)?\s*$", re.I)
+CURRENCY = {"rs": "LKR", "rs.": "LKR", "lkr": "LKR", "rupees": "LKR", "usd": "USD", "$": "USD", "dollars": "USD", "eur": "EUR", "€": "EUR"}
+
+
+def parse_list_command(text: str) -> dict | None:
+    """Recognise an explicit 'add … to my <list>' command. Returns target buy | wish | todo, list name and items, else None."""
+    clean = re.sub(r"\s+", " ", text.strip())
+    m = LIST_SUFFIX.search(clean)
+    body = clean[:m.start()] if m else None
+    if m is None:
+        m = LIST_PREFIX.match(clean)
+        body = clean[m.end():] if m else None
+    if m is None or not body:
+        return None
+    name = re.sub(r"[\s-]+", " ", m.group("name").lower()).strip()
+    body = ADD_VERB.sub("", body).strip(" ,.")
+    if not body:
+        return None
+    if name.startswith(("wish", "wants")):
+        target, list_name = "wish", None
+    elif name.startswith(("to do", "todo", "task")):
+        return {"target": "todo", "list_name": None, "rest": body}
+    elif name.startswith(("buy", "shopping", "grocer")):
+        target, list_name = "buy", "groceries"
+    else:
+        word = name.removesuffix(" list").strip()
+        if word in NOT_SHOPPING:
+            return None
+        target, list_name = "buy", word[:32]
+    parts = [p.strip(" ,.") for p in re.split(r",|\s+(?:and|&|plus)\s+", body) if p.strip(" ,.")]
+    tail = (m.groupdict().get("tail") or "").strip()
+    if tail and parts:  # "add AirPods to my wish list for 25000": the price belongs to the (last) item
+        parts[-1] = f"{parts[-1]} {tail}"
+    return {"target": target, "list_name": list_name, "items": parts[:20]}
+
+
+def _buy_item(text: str) -> tuple[str, Decimal, str | None]:
+    m = QTY.match(text)
+    if not m:
+        return text, Decimal("1"), None
+    n = m.group("n").lower()
+    qty = Decimal(n) if n[0].isdigit() else Decimal(NUMBER_WORDS[n])
+    unit = (m.group("unit") or "").lower() or None
+    if unit == "dozen":
+        qty, unit = qty * 12, None
+    return m.group("name"), qty if qty > 0 else Decimal("1"), unit
+
+
+def _wish_item(text: str, default_currency: str) -> tuple[str, Decimal | None, str]:
+    """A trailing price counts only with 'for/at/around' or a currency, so 'iPhone 15' keeps its number."""
+    m = PRICE.search(text)
+    if m and m.start() > 0 and (m.group("cur") or m.group("cur2") or re.match(r"\s*(?:for|at|around|about|~)\b", m.group(0), re.I)):
+        cur = CURRENCY.get((m.group("cur") or m.group("cur2") or "").lower(), default_currency)
+        return text[:m.start()].strip(" ,.-"), Decimal(m.group("amount").replace(",", "")), cur
+    return text, None, default_currency
+
+
+def _cap(name: str) -> str:
+    name = re.sub(r"(?i)^(?:a|an|the|some|my)\s+", "", name.strip(" ,.-"))[:200]
+    return name[:1].upper() + name[1:]
+
+
+def add_list_items(db: Session, user_id, target: str, list_name: str | None, items: list[str], currency: str) -> dict:
+    """Adds items to the buy list or wish list (your own lists; nothing is bought). Returns ids and a summary."""
+    from app.models.entities import BuyListItem
+    from app.schemas.dto import WishIn
+    from app.services.money import add_wish
+    names, buy_ids, wish_ids = [], [], []
+    for raw in items:
+        if target == "buy":
+            name, qty, unit = _buy_item(raw)
+            if not name.strip(" ,.-"):
+                continue
+            row = BuyListItem(user_id=user_id, name=_cap(name), qty=qty, unit=unit, list_name=list_name or "groceries", currency=currency)
+            db.add(row)
+            db.flush()
+            audit(db, user_id, "command.buy_list", "buy_list_item", row.id)
+            buy_ids.append(str(row.id))
+            names.append(row.name if qty == 1 and not unit else f"{row.name} ({qty.normalize()}{' ' + unit if unit else ''})")
+        else:
+            name, price, cur = _wish_item(raw, currency)
+            if not name.strip(" ,.-"):
+                continue
+            wish = add_wish(db, user_id, WishIn(name=_cap(name), price=price, currency=cur))
+            wish_ids.append(str(wish.id))
+            names.append(wish.name + (f" ({cur} {price:,.0f})" if price is not None else ""))
+    where = "wish list" if target == "wish" else ("buy list" if (list_name or "groceries") == "groceries" else f"{list_name} list")
+    shown = ", ".join(f"“{n}”" for n in names[:5]) + (f" and {len(names) - 5} more" if len(names) > 5 else "")
+    return {"summary": f"Added {shown} to your {where}" if names else "", "buy_item_ids": buy_ids, "wish_ids": wish_ids, "names": names}
+
+
 # ---------- AI fallback for odd phrasing (optional; validated by code) ----------
 
 def _ai_fill(db: Session, user_id, text: str, today: date, parsed: dict) -> dict:
@@ -449,7 +554,22 @@ def start(db: Session, user_id, text: str, source: str, key: str | None) -> Capt
             return existing
     profile = _profile(db, user_id)
     today = datetime.now(zone(profile.timezone if profile else None)).date()
-    parsed = _ai_fill(db, user_id, text, today, parse(text, today))
+    listed = parse_list_command(text)
+    if listed and listed["target"] in ("buy", "wish"):
+        # You named the list, so add straight away (your own list; nothing is bought). Undo removes them.
+        added = add_list_items(db, user_id, listed["target"], listed["list_name"], listed["items"], profile.currency if profile else "LKR")
+        if added["names"]:
+            kind = "buy_list" if listed["target"] == "buy" else "wish_list"
+            parsed = {"title": ", ".join(added["names"])[:200], "kind": kind, "summary": added["summary"], "list_name": listed["list_name"],
+                      "buy_item_ids": added["buy_item_ids"], "wish_ids": added["wish_ids"], "defaults": []}
+            cmd = CapturedCommand(user_id=user_id, raw_text=text[:500], source=source, parsed=parsed, idempotency_key=key, status="created")
+            db.add(cmd)
+            db.flush()
+            return cmd
+    task_text = listed["rest"] if listed and listed["target"] == "todo" else text
+    parsed = _ai_fill(db, user_id, task_text, today, parse(task_text, today))
+    if listed and listed["target"] == "todo" and not parsed.get("time"):
+        parsed["kind"] = "task"  # "…to my to-do list" is a to-do, so don't ask "When?" (a date still counts if given)
     cmd = CapturedCommand(user_id=user_id, raw_text=text[:500], source=source, parsed=parsed, idempotency_key=key)
     db.add(cmd)
     db.flush()
@@ -539,11 +659,14 @@ def undo(db: Session, cmd: CapturedCommand) -> CapturedCommand:
                 except HTTPException:
                     pass
             db.delete(task)
-    if (cmd.parsed or {}).get("buy_item_id"):
-        from app.models.entities import BuyListItem
-        item = db.get(BuyListItem, uuid.UUID(cmd.parsed["buy_item_id"]))
-        if item is not None and item.user_id == cmd.user_id:
-            db.delete(item)
+    from app.models.entities import BuyListItem, WishlistItem
+    p = cmd.parsed or {}
+    for model, ids in ((BuyListItem, ([p["buy_item_id"]] if p.get("buy_item_id") else []) + list(p.get("buy_item_ids") or [])),
+                       (WishlistItem, list(p.get("wish_ids") or []))):
+        for item_id in ids:
+            item = db.get(model, uuid.UUID(item_id))
+            if item is not None and item.user_id == cmd.user_id:
+                db.delete(item)
     cmd.status, cmd.updated_at = "undone", now_utc()
     audit(db, cmd.user_id, "command.undone", "captured_command", cmd.id)
     return cmd

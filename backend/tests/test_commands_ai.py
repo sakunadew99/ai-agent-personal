@@ -183,3 +183,70 @@ def test_daily_token_cap(api):
     assert view["today"]["tokens"] == 1100 and view["by_feature"]["chat"]["tokens"] == 1100
     assert any("NOT shared" in line for line in view["what_ai_can_see"])
     assert api("PATCH", "/ai/settings", {"daily_token_cap": 0}, 200).json()["settings"]["daily_token_cap"] is None   # 0 clears
+
+
+# ---------- list commands: buy list, wish list, to-do ----------
+
+@pytest.mark.parametrize(("text", "target", "list_name", "items"), [
+    ("add milk, eggs and bread to my buy list", "buy", "groceries", ["milk", "eggs", "bread"]),
+    ("put 2 kg rice on the shopping list", "buy", "groceries", ["2 kg rice"]),
+    ("Grocery list: sugar, tea", "buy", "groceries", ["sugar", "tea"]),
+    ("add panadol to my pharmacy list", "buy", "pharmacy", ["panadol"]),
+    ("add AirPods to my wish list for 25000", "wish", None, ["AirPods for 25000"]),
+    ("wishlist: Kindle", "wish", None, ["Kindle"]),
+])
+def test_parse_list_command(text, target, list_name, items):
+    from app.services.commands import parse_list_command
+    got = parse_list_command(text)
+    assert got == {"target": target, "list_name": list_name, "items": items}, text
+
+
+def test_parse_list_command_leaves_ordinary_commands_alone():
+    from app.services.commands import parse_list_command
+    assert parse_list_command("add call bank tomorrow to my to-do list") == {"target": "todo", "list_name": None, "rest": "call bank tomorrow"}
+    for text in ("German class every Monday at 7 pm", "remind me to update the reading list", "add book to my reading list", "buy rice"):
+        assert parse_list_command(text) is None, text
+
+
+def test_list_item_details():
+    from decimal import Decimal
+    from app.services.commands import _buy_item, _wish_item
+    assert _buy_item("2 kg rice") == ("rice", Decimal("2"), "kg")
+    assert _buy_item("a dozen eggs") == ("eggs", Decimal("12"), None)
+    assert _buy_item("milk") == ("milk", Decimal("1"), None)
+    assert _wish_item("AirPods for 25,000", "LKR") == ("AirPods", Decimal("25000"), "LKR")
+    assert _wish_item("Kindle $120", "LKR") == ("Kindle", Decimal("120"), "USD")
+    assert _wish_item("iPhone 15", "LKR") == ("iPhone 15", None, "LKR")              # a model number is not a price
+
+
+def test_command_adds_to_buy_list_and_undo(api):
+    out = api("POST", "/commands", {"text": "add 2 kg rice, milk and eggs to my buy list", "source": "voice"}, 201).json()
+    assert out["status"] == "created" and out["understood"]["kind"] == "buy_list"
+    assert "rice" in out["summary"].lower() and "buy list" in out["summary"]
+    names = {r["name"]: r for r in api("GET", "/money/buy-list", expect=200).json()}
+    assert {"Rice", "Milk", "Eggs"} <= set(names) and names["Rice"]["unit"] == "kg" and float(names["Rice"]["qty"]) == 2
+    api("POST", f"/commands/{out['id']}/undo", expect=200)
+    assert not {"Rice", "Milk", "Eggs"} & {r["name"] for r in api("GET", "/money/buy-list", expect=200).json()}
+
+
+def test_command_adds_to_named_list_wish_list_and_todo(api):
+    api("POST", "/commands", {"text": "add panadol to my pharmacy list"}, 201)
+    assert any(r["name"] == "Panadol" and r["list_name"] == "pharmacy" for r in api("GET", "/money/buy-list", expect=200).json())
+    wish = api("POST", "/commands", {"text": "add AirPods to my wish list for 25000"}, 201).json()
+    assert wish["status"] == "created" and wish["understood"]["kind"] == "wish_list"
+    row = next(w for w in api("GET", "/money/wishlist", expect=200).json() if w["name"] == "AirPods")
+    assert float(row["price"]) == 25000 and row["state"] == "waiting"                     # cooling-off still applies
+    api("POST", f"/commands/{wish['id']}/undo", expect=200)
+    assert not [w for w in api("GET", "/money/wishlist", expect=200).json() if w["name"] == "AirPods"]
+    todo = api("POST", "/commands", {"text": "add call the bank to my to-do list"}, 201).json()
+    assert todo["status"] == "created" and todo["understood"]["title"] == "Call the bank" and todo["task_id"]
+
+
+def test_chat_adds_to_lists(api):
+    reply = api("POST", "/chat", {"message": "add bread and butter to my shopping list"}, 200).json()
+    done = [a for a in reply["actions_completed"] if a["tool"] == "add_to_buy_list"]
+    assert done, reply
+    assert {"Bread", "Butter"} <= {r["name"] for r in api("GET", "/money/buy-list", expect=200).json()}
+    reply = api("POST", "/chat", {"message": "add a standing desk to my wishlist"}, 200).json()
+    assert [a for a in reply["actions_completed"] if a["tool"] == "add_to_wishlist"], reply
+    assert any(w["name"] == "Standing desk" for w in api("GET", "/money/wishlist", expect=200).json())

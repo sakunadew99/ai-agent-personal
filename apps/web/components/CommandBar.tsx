@@ -33,7 +33,7 @@ export function CommandBar({ token, onChanged }: { token: string; onChanged?: ()
     <form className="command-form" onSubmit={submit}>
       <span className="with-mic">
         <input value={text} onChange={e => { setText(e.target.value); if (!e.target.value) setSource("text"); }} maxLength={500}
-          placeholder="Say it once: “dentist next Tuesday at 3”, “German class every Mon and Thu 7pm”…" aria-label="Command"/>
+          placeholder="Say it once: “dentist next Tuesday at 3”, “add milk and eggs to my buy list”, “AirPods to my wish list for 25000”…" aria-label="Command"/>
         <VoiceButton onText={spoken => { setText(v => appendSpeech(v, spoken)); setSource("voice"); }}/>
       </span>
       <button className="primary" disabled={busy || !text.trim()}>{busy ? "…" : "Do it"}</button>
