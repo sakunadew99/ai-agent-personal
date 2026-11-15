@@ -18,4 +18,4 @@ USER app
 EXPOSE 8000
 # The same image runs the API (default) and the worker (command override).
 # Migrations are idempotent; in production deploy.sh also runs them explicitly before `up`.
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"]
+CMD ["sh", "-c", "sh ./start.sh uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"]

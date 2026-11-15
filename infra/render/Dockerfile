@@ -19,5 +19,5 @@ COPY infra/render/combined.py /app/combined.py
 RUN useradd --create-home --uid 10001 app && chown -R app:app /app
 USER app
 
-# Render provides $PORT. Migrations are idempotent and run on every start.
-CMD ["sh", "-c", "alembic upgrade head && uvicorn combined:app --host 0.0.0.0 --port ${PORT:-10000} --proxy-headers --forwarded-allow-ips='*'"]
+# Render provides $PORT. Migrations are idempotent and run on every start (start.sh also survives a rollback).
+CMD ["sh", "-c", "sh ./start.sh uvicorn combined:app --host 0.0.0.0 --port ${PORT:-10000} --proxy-headers --forwarded-allow-ips='*'"]
