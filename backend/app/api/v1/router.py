@@ -421,6 +421,30 @@ def finance_reports(month: str | None = None, db: Session = Depends(get_db), use
     return finance_summary(db, user, month)
 
 
+@router.get("/finance/trends")
+def finance_trends(months: int = Query(default=6, ge=2, le=12), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Chart data: income vs spending by month, daily spending, categories vs last month (display currency only)."""
+    from app.core import cache
+    from app.services import dashboards
+    return cache.cached(user.id, f"finance_trends:{months}", lambda: dashboards.finance_trends(db, user.id, months))
+
+
+@router.get("/health/trends")
+def health_trends(days: int = Query(default=14, ge=7, le=60), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Chart data: steps, sleep, workouts and heart rate per day, with weekly averages and goal days."""
+    from app.core import cache
+    from app.services import dashboards
+    return cache.cached(user.id, f"health_trends:{days}", lambda: dashboards.health_trends(db, user.id, days))
+
+
+@router.get("/life/overview")
+def life_overview(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Chart data for My life: tasks done per day, habit week grid and streaks, goal progress."""
+    from app.core import cache
+    from app.services import dashboards
+    return cache.cached(user.id, "life_overview", lambda: dashboards.life_overview(db, user.id))
+
+
 @router.post("/health/records", status_code=201)
 def health_create(data: dto.HealthMetricIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     row = HealthRecord(user_id=user.id, metric=data.metric, value=data.value, unit=data.unit, recorded_at=as_utc(data.recorded_at or now_utc()), source=data.source)
@@ -605,6 +629,63 @@ def vault_reminder(doc_id: uuid.UUID, db: Session = Depends(get_db), user: User 
 @router.get("/study")
 def study_overview(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     return study.overview(db, user.id)
+
+
+def _daad_fields(fields: str) -> list[str]:
+    return [f.strip() for f in fields.replace(";", ",").split(",") if f.strip()][:5]
+
+
+def _daad_saved(db: Session, user_id) -> dict[int, str]:
+    """DAAD programme number -> tracker id, for programmes this user already saved."""
+    import re as _re
+    rows = db.execute(select(StudyProgram.id, StudyProgram.link).where(StudyProgram.user_id == user_id, StudyProgram.link.like("%daad.de%"))).all()
+    return {int(m.group(1)): str(pid) for pid, link in rows if (m := _re.search(r"/detail/(\d+)", link or ""))}
+
+
+@router.get("/study/germany/search")
+def study_germany_search(fields: str = Query(min_length=2, max_length=300), lang: Literal["en", "de", "any"] = "en", free: bool = False,
+                         db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Master's programmes in Germany from DAAD for the fields you like, with a summary, first-year costs and documents."""
+    from app.services import daad
+    result = daad.search(_daad_fields(fields), lang, free)
+    saved = _daad_saved(db, user.id)
+    for c in result["courses"]:
+        c["saved_id"] = saved.get(c["id"])
+    return result
+
+
+@router.post("/study/germany/explain")
+def study_germany_explain(data: dto.DaadExplainIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """A short plain-language plan from the search results. AI only when allowed; otherwise Sakuna's rules write it."""
+    from app.services import daad
+    result = daad.search(_daad_fields(data.fields), data.lang, data.free)
+    text = daad.explain(db, user.id, result)
+    db.commit()
+    return {"text": text}
+
+
+@router.get("/study/germany/{course_id}")
+def study_germany_detail(course_id: int, user: User = Depends(get_current_user)):
+    from app.services import daad
+    if course_id <= 0 or course_id > 10_000_000:
+        raise HTTPException(404, "Programme not found")
+    return daad.detail(course_id)
+
+
+@router.post("/study/germany/{course_id}/save", response_model=dto.ProgramOut, status_code=201)
+def study_germany_save(course_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Add a DAAD programme to your Study abroad tracker (costs, deadline and requirements filled in)."""
+    from app.services import daad
+    if course_id <= 0 or course_id > 10_000_000:
+        raise HTTPException(404, "Programme not found")
+    existing = _daad_saved(db, user.id).get(course_id)
+    if existing:
+        return owned(db, StudyProgram, user.id, uuid.UUID(existing))
+    info = daad.detail(course_id)
+    course = daad.find_course(course_id, None, date.today())
+    row = StudyProgram(user_id=user.id, **daad.program_fields(course, info))
+    db.add(row); audit(db, user.id, "study.daad_saved", "study_program", None, {"daad_id": course_id}); db.commit(); db.refresh(row)
+    return row
 
 
 @router.get("/study/programs", response_model=list[dto.ProgramOut])
@@ -1364,8 +1445,21 @@ def insights(db: Session = Depends(get_db), user: User = Depends(get_current_use
 
 
 @router.post("/chat", response_model=dto.ChatOut)
-def chat(data: dto.ChatIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return converse(db, user, data.message, data.conversation_id)
+def chat(data: dto.ChatIn, idempotency_key: str | None = Header(default=None, max_length=100),
+         db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """A retry with the same Idempotency-Key (e.g. after the server restarted mid-request) returns the first answer."""
+    from app.services import idempotency
+    payload_hash = idempotency.canonical_hash(data.model_dump(mode="json"))
+    previous = idempotency.replay(db, user.id, idempotency_key, payload_hash)
+    if previous is not None:
+        return previous.response_json
+    result = converse(db, user, data.message, data.conversation_id)
+    if idempotency_key:
+        body = dto.ChatOut.model_validate(result).model_dump(mode="json")
+        idempotency.remember(db, user.id, idempotency_key, payload_hash, body)
+        db.commit()
+        return body
+    return result
 
 
 @router.get("/assistant/status")
@@ -1894,6 +1988,12 @@ def invest_alerts_seen(db: Session = Depends(get_db), user: User = Depends(get_c
     for a in db.scalars(select(StockAlert).where(StockAlert.user_id == user.id, StockAlert.status == "new")).all():
         a.status = "seen"
     db.commit(); return {"ok": True}
+
+
+@router.get("/invest/symbols")
+def invest_symbol_search(q: str = Query(default="", max_length=40), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Dropdown for the symbol field: every matching share class (e.g. COMB.N0000 voting and COMB.X0000 non-voting)."""
+    return invest_svc.search_symbols(db, user.id, q)
 
 
 @router.get("/invest/symbols/{symbol}")

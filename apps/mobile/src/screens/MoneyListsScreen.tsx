@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Alert, Text, TouchableOpacity, View } from "react-native";
+import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import type { ApiRecord as Row } from "../api";
+import { Hero, Meter, PALETTE, Ring, Segments, SplitBar, StatTile, TileRow } from "../charts";
 import { Badge, Btn, C, Card, Chips, Empty, Field, H2, Kicker, Muted, Progress, Row as Line, Screen } from "../ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
@@ -14,7 +15,7 @@ const clean = (v: string) => v.replace(/,/g, "").trim();
 export function MoneyListsScreen(props: Props) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("balance");
   return <Screen>
-    <Chips options={TABS} value={tab} onChange={setTab} labels={{ balance: "Balance", wishes: "Wish list", buy: "Buy list" }}/>
+    <Segments options={TABS} value={tab} onChange={setTab} labels={{ balance: "💳 Balance", wishes: "✨ Wishes", buy: "🛒 Buy list" }}/>
     {tab === "balance" && <Balance {...props}/>}
     {tab === "wishes" && <Wishes {...props}/>}
     {tab === "buy" && <Buy {...props}/>}
@@ -36,17 +37,33 @@ function Balance({ api, onError, onNotice }: Props) {
   const run = (work: Promise<unknown>, note: string) => void work.then(() => { onNotice(note); load(); }).catch(r => onError(msg(r)));
 
   return <>
-    {((view.currencies || []) as Row[]).map(v => <Card key={v.currency} accent>
-      <Kicker>{`${v.currency} · SAFE TO SPEND`}</Kicker>
-      <Text style={{ color: C.green, fontSize: 30, fontWeight: "800" }}>{fmt(v.safe_to_spend, v.currency)}</Text>
-      <Line><View style={{ flex: 1 }}><Muted small>Have now</Muted><H2>{fmt(v.have_now)}</H2></View>
-        <View style={{ flex: 1 }}><Muted small>Committed 30d</Muted><H2>{fmt(v.committed_30_days)}</H2></View></Line>
-      <Line><View style={{ flex: 1 }}><Muted small>In savings</Muted><H2>{fmt(v.in_savings)}</H2></View>
-        <View style={{ flex: 1 }}><Muted small>Runway</Muted><H2>{v.runway_months != null ? `${v.runway_months} mo` : "—"}</H2></View></Line>
-      {v.next_month_forecast && <Muted small>{`Next month: ${fmt(v.next_month_forecast.low)} – ${fmt(v.next_month_forecast.high)}`}</Muted>}
-      {v.stale_accounts?.length > 0 && <Text style={{ color: C.amber, fontSize: 12 }}>Not checked this week: {v.stale_accounts.join(", ")}</Text>}
-    </Card>)}
-    <Card><Kicker>ACCOUNTS</Kicker>
+    {((view.currencies || []) as Row[]).map(v => { const have = Number(v.have_now || 0), safe = Number(v.safe_to_spend || 0);
+      return <React.Fragment key={v.currency}>
+      <Hero kicker={`${v.currency} · SAFE TO SPEND`} title={fmt(v.safe_to_spend)} sub={v.next_month_forecast ? `Next month: ${fmt(v.next_month_forecast.low)} – ${fmt(v.next_month_forecast.high)}` : "after bills and commitments for 30 days"}
+        right={<Ring value={have > 0 ? (safe / have) * 100 : 0} size={96} color={safe < 0 ? C.red : C.green} label={have > 0 ? `${Math.round((safe / have) * 100)}%` : "—"} sub="FREE"/>}>
+        {v.stale_accounts?.length > 0 && <Text style={{ color: C.amber, fontSize: 12 }}>Not checked this week: {v.stale_accounts.join(", ")}</Text>}
+      </Hero>
+      <TileRow>
+        <StatTile label="Have now" tone="green" value={fmt(v.have_now)}/>
+        <StatTile label="Committed" icon="📌" tone="amber" value={fmt(v.committed_30_days)} hint="next 30 days"/>
+      </TileRow>
+      <TileRow>
+        <StatTile label="Savings" icon="🏦" tone="blue" value={fmt(v.in_savings)}/>
+        <StatTile label="Runway" icon="🛟" tone="violet" value={v.runway_months != null ? `${v.runway_months} mo` : "—"} hint="months you could live on savings"/>
+      </TileRow>
+    </React.Fragment>; })}
+    {accounts.length > 0 && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 8 }}>
+      {accounts.map((a, i) => <TouchableOpacity key={a.id} onPress={() => { setEditing(editing === a.id ? null : a.id); setNewBalance(String(a.balance)); }}
+        style={{ width: 210, height: 124, borderRadius: 22, padding: 16, justifyContent: "space-between", backgroundColor: ["#123a2a", "#13294a", "#3a2a12", "#2a1a44", "#3a1620"][i % 5], borderWidth: 1, borderColor: PALETTE[i % PALETTE.length] + "55", overflow: "hidden" }}>
+        <View style={{ position: "absolute", width: 140, height: 140, borderRadius: 70, right: -50, top: -60, backgroundColor: PALETTE[i % PALETTE.length], opacity: 0.18 }}/>
+        <Line style={{ justifyContent: "space-between" }}><Text style={{ color: C.text, fontWeight: "800" }} numberOfLines={1}>{a.name}</Text>
+          <Text style={{ fontSize: 16 }}>{({ bank: "🏦", cash: "💵", wallet: "📱", savings: "🐷" } as Record<string, string>)[a.account_type] || "💳"}</Text></Line>
+        <View><Muted small>{`${a.account_type} · ${a.currency}`}</Muted><Text style={{ color: C.text, fontSize: 22, fontWeight: "900" }} numberOfLines={1} adjustsFontSizeToFit>{fmt(a.balance)}</Text></View>
+      </TouchableOpacity>)}
+    </ScrollView>}
+    {accounts.length > 1 && <Card><Kicker>WHERE YOUR MONEY SITS</Kicker>
+      <SplitBar parts={accounts.filter(a => a.currency === accounts[0].currency).map(a => ({ label: a.name, value: Math.max(0, Number(a.balance)) }))} format={n => fmt(n, accounts[0].currency)}/></Card>}
+    <Card><Kicker>ACCOUNTS · TAP A CARD TO RECONCILE</Kicker>
       {accounts.length ? accounts.map(a => <View key={a.id} style={{ gap: 6, paddingVertical: 6, borderTopColor: C.line, borderTopWidth: 1 }}>
         <TouchableOpacity onPress={() => { setEditing(editing === a.id ? null : a.id); setNewBalance(String(a.balance)); }}>
           <Line><View style={{ flex: 1 }}><Text style={{ color: C.text, fontWeight: "700" }}>{a.name}</Text><Muted small>{`${a.account_type} · tap to reconcile`}</Muted></View>
@@ -63,10 +80,8 @@ function Balance({ api, onError, onNotice }: Props) {
       <Btn title="Add account" disabled={!name.trim()} onPress={() => { run(api("/money/accounts", "POST", { name, account_type: kind, currency: cur, balance: clean(amount) || "0" }), "Account added."); setName(""); setAmount(""); }}/>
       <Muted small>No bank logins or passwords. Sakuna never pays or transfers.</Muted>
     </Card>
-    {envelopes.length > 0 && <Card><Kicker>ENVELOPES · THIS MONTH</Kicker>{envelopes.map(e => <View key={e.id} style={{ gap: 4, paddingVertical: 4 }}>
-      <Line><Text style={{ color: C.text, fontWeight: "700", flex: 1 }}>{e.name}</Text><Text style={{ color: e.over ? C.red : C.text }}>{`${fmt(e.left, e.currency)} left`}</Text></Line>
-      <Progress value={Math.min(100, e.used_percent ?? 0)}/>
-    </View>)}<Muted small>Add or change envelopes on the web Finance page.</Muted></Card>}
+    {envelopes.length > 0 && <Card><Kicker>ENVELOPES · THIS MONTH</Kicker>{envelopes.map(e => <Meter key={e.id} label={e.name}
+      value={Math.min(100, e.used_percent ?? 0)} color={e.over ? C.red : (e.used_percent ?? 0) > 80 ? C.amber : C.green} right={`${fmt(e.left, e.currency)} left`}/>)}<Muted small>Add or change envelopes on the web Finance page.</Muted></Card>}
   </>;
 }
 
@@ -92,7 +107,8 @@ function Wishes({ api, onError, onNotice }: Props) {
     <Card><Kicker>{`${rows.length} WISHES`}</Kicker>
       {rows.length ? rows.map(w => <View key={w.id} style={{ gap: 4, paddingVertical: 8, borderTopColor: C.line, borderTopWidth: 1 }}>
         <Line><Text style={{ color: C.text, fontWeight: "700", flex: 1 }}>{w.name}</Text>{w.price != null && <Text style={{ color: C.text }}>{fmt(w.price, w.currency)}</Text>}</Line>
-        <Line>{w.state === "ready" ? <Badge>ready</Badge> : <Badge tone="amber">{`waiting · ${w.days_left}d`}</Badge>}</Line>
+        <Line>{w.state === "ready" ? <Badge>ready to decide</Badge> : <Badge tone="amber">{`cooling off · ${w.days_left}d left`}</Badge>}</Line>
+        {w.state !== "ready" && w.cooling_days > 0 && <Meter value={100 - (Number(w.days_left) / Number(w.cooling_days)) * 100} color={C.amber} height={6}/>}
         <Line style={{ flexWrap: "wrap" }}>
           {w.price != null && <Btn kind="link" title="Afford?" onPress={() => void api<Row>(`/money/wishlist/${w.id}/affordability`).then(setCheck).catch(r => onError(msg(r)))}/>}
           <Btn kind="link" title="Bought" onPress={() => Alert.alert("Bought it?", `Log ${w.price != null ? fmt(w.price, w.currency) : "it"} as an expense?`, [
@@ -124,7 +140,13 @@ function Buy({ api, onError, onNotice }: Props) {
       <Chips options={["no", "staple"] as const} value={staple} onChange={setStaple} labels={{ no: "one-off", staple: "staple (rebuy)" }}/>
       <Btn title="Add" disabled={!name.trim()} onPress={() => { run(api("/money/buy-list", "POST", { name, currency: "LKR", staple: staple === "staple", ...(clean(est) ? { est_price: clean(est) } : {}) }), "Added."); setName(""); setEst(""); }}/>
     </Card>
-    <Card><Kicker>{`${rows.length} TO BUY · EST. ${fmt(total, "LKR")}`}</Kicker>
+    <View style={{ borderRadius: 24, padding: 18, backgroundColor: "#123a6b", borderWidth: 1, borderColor: "#2d64a8", overflow: "hidden", gap: 4 }}>
+      <View style={{ position: "absolute", width: 180, height: 180, borderRadius: 90, right: -60, top: -70, backgroundColor: "#5aa8ff", opacity: 0.2 }}/>
+      <Text style={{ color: "#cfe3ff", fontWeight: "800", fontSize: 12, letterSpacing: 1 }}>{`ITEMS ${selected.length}/${rows.length} PICKED`}</Text>
+      <Text style={{ color: "#fff", fontSize: 30, fontWeight: "900" }}>{fmt(total, "LKR")}</Text>
+      <Text style={{ color: "#cfe3ff", fontSize: 12 }}>estimated total for your list</Text>
+    </View>
+    <Card><Kicker>{`${rows.length} TO BUY`}</Kicker>
       {rows.length ? rows.map(r => { const on = selected.includes(r.id); return <TouchableOpacity key={r.id} onPress={() => setSelected(s => on ? s.filter(x => x !== r.id) : [...s, r.id])}>
         <Line style={{ paddingVertical: 6 }}>
           <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 1, borderColor: on ? C.green : C.line, backgroundColor: on ? C.green : "transparent" }}/>

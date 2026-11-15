@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Linking, Text, TouchableOpacity, View } from "react-native";
 import * as SecureStore from "expo-secure-store";
-import type { ApiRecord as Row } from "../api";
+import { peek, type ApiRecord as Row } from "../api";
+import { Bars, Hero, LineChart, Ring, StatTile, TileRow } from "../charts";
 import { connectHealthConnect, getHealthConnectStatus, readTodayHealth, type HealthConnectStatus, type TodayHealth } from "../health/health-connect";
 import { Btn, C, Card, Empty, Field, H1, H2, Kicker, Muted, Progress, Row as Line, Screen } from "../ui";
 
@@ -16,6 +17,9 @@ export function HealthScreen({ api, onError, onNotice }: { api: Api; onError: (m
   const [summary, setSummary] = useState<Row>({});
   const [lastSync, setLastSync] = useState<number>(0);
   const [busy, setBusy] = useState(false);
+  const [trends, setTrends] = useState<Row | null>(() => peek<Row>("/health/trends?days=14"));
+  const [showSetup, setShowSetup] = useState(false);
+  const loadTrends = useCallback(() => { api<Row>("/health/trends?days=14").then(setTrends).catch(() => undefined); }, [api]);
 
   const sync = useCallback(async (quiet = false) => {
     setBusy(true);
@@ -31,21 +35,22 @@ export function HealthScreen({ api, onError, onNotice }: { api: Api; onError: (m
       if (result.sleep && !sleeps.some(r => r.source === "health_connect" && new Date(r.start_at).getTime() === new Date(result.sleep!.startAt).getTime())) {
         await api("/health/sleep", "POST", { start_at: result.sleep.startAt, end_at: result.sleep.endAt, stages: { stage_codes: result.sleep.stages }, source: "health_connect" }); saved++;
       }
-      setToday(result); setSummary(await api<Row>("/health/summary"));
+      setToday(result); setSummary(await api<Row>("/health/summary")); loadTrends();
       const now = Date.now(); setLastSync(now); await SecureStore.setItemAsync(LAST_SYNC, String(now)).catch(() => undefined);
       if (!quiet) onNotice(saved ? `Synced ${saved} new record${saved === 1 ? "" : "s"} from Health Connect.` : "Already up to date. If numbers look old, open Mi Fitness so the band syncs first.");
     } catch (reason) { if (!quiet) onError(reason instanceof Error ? reason.message : "Could not sync"); }
     finally { setBusy(false); }
-  }, [api, onError, onNotice]);
+  }, [api, onError, onNotice, loadTrends]);
 
   useEffect(() => {
+    loadTrends();
     void (async () => {
       const s = await getHealthConnectStatus(); setStatus(s);
       try { setSummary(await api<Row>("/health/summary")); } catch { /* shown on sync */ }
       const saved = Number(await SecureStore.getItemAsync(LAST_SYNC).catch(() => null)) || 0; setLastSync(saved);
       if (s.connected && Date.now() - saved > AUTO_SYNC_EVERY_MS) void sync(true);   // automatic, silent
     })();
-  }, [api, sync]);
+  }, [api, sync, loadTrends]);
 
   async function connect() {
     setBusy(true);
@@ -60,24 +65,43 @@ export function HealthScreen({ api, onError, onNotice }: { api: Api; onError: (m
   const sleeps: Row[] = Array.isArray(summary.sleep) ? summary.sleep : [];
   const sleepMin = today?.sleep?.minutes ?? Number(sleeps[0]?.duration_minutes ?? 0);
 
+  const days: Row[] = Array.isArray(trends?.days) ? trends!.days : [];
+  const week: Row = trends?.week || {};
+  const stepGoal = Number(trends?.goals?.steps || 8000), sleepGoal = Number(trends?.goals?.sleep_hours || 7.5);
+  const score = Number(trends?.score ?? Math.round(Math.min(1, steps / stepGoal) * 100));
+
   return <Screen>
-    <Card accent={!!status?.connected}>
-      <Kicker>HEALTH CONNECT · MI BAND</Kicker>
-      <H2>{status?.connected ? "Connected" : "Not connected yet"}</H2>
-      <Muted>{status?.reason || "Checking…"}</Muted>
+    <Hero kicker="HEALTH · MI BAND" title="Body" accent="battery"
+      sub={status?.connected ? `Connected${lastSync ? ` · synced ${new Date(lastSync).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}` : status?.reason || "Checking Health Connect…"}
+      right={<Ring value={score} size={104} label={`${score}`} sub="SCORE"/>}>
       {!status?.connected ? <Btn title="Connect Health Connect" onPress={() => void connect()} busy={busy}/>
-        : <Btn title="Sync now" onPress={() => void sync()} busy={busy}/>}
-      {!!lastSync && <Muted small>Last synced {new Date(lastSync).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}. Sakuna syncs automatically when you open this screen (every 30 min at most).</Muted>}
-    </Card>
+        : <Btn kind="outline" title="Sync now ↻" onPress={() => void sync()} busy={busy}/>}
+    </Hero>
 
-    <Card><Kicker>TODAY</Kicker>
-      <Line><View style={{ flex: 1 }}><Muted small>Steps</Muted><H1>{steps ? steps.toLocaleString() : "—"}</H1><Progress value={steps / 80}/><Muted small>goal 8,000</Muted></View>
-        <View style={{ flex: 1 }}><Muted small>Heart rate</Muted><H1>{hr ? `${hr}` : "—"}</H1><Muted small>bpm, latest</Muted></View></Line>
-      <Line><View style={{ flex: 1 }}><Muted small>Last sleep</Muted><H2>{sleepMin ? `${Math.floor(sleepMin / 60)} h ${sleepMin % 60} min` : "—"}</H2></View></Line>
-      <Muted small>Personal records, not medical advice.</Muted>
-    </Card>
+    <TileRow>
+      <StatTile label="Steps" icon="👟" tone="green" value={steps ? steps.toLocaleString() : "—"} hint={`${Math.round(Math.min(100, (steps / stepGoal) * 100))}% of ${stepGoal.toLocaleString()}`}/>
+      <StatTile label="Heart" icon="❤️" tone="red" value={hr ? `${hr}` : "—"} hint="bpm, latest"/>
+    </TileRow>
+    <TileRow>
+      <StatTile label="Sleep" icon="🌙" tone="violet" value={sleepMin ? `${Math.floor(sleepMin / 60)}h ${sleepMin % 60}m` : "—"} hint={`goal ${sleepGoal} h`}/>
+      <StatTile label="Active week" icon="🏋️" tone="blue" value={`${week.active_days ?? 0}/7`} hint={`${week.workout_minutes ?? 0} min workouts`}/>
+    </TileRow>
 
-    <Card><Kicker>SET UP MI FITNESS (ONCE)</Kicker>
+    {days.length > 0 && <>
+      <Card><Line style={{ justifyContent: "space-between" }}><Kicker>STEPS · 14 DAYS</Kicker><Muted small>{`avg ${Math.round(Number(week.avg_steps || 0)).toLocaleString()}/day`}</Muted></Line>
+        <Bars data={days.map((d, i) => ({ label: d.label, value: Number(d.steps), highlight: i === days.length - 1, color: Number(d.steps) >= stepGoal ? C.green : "#2f6b4c" }))}
+          goal={stepGoal} format={n => Math.round(n).toLocaleString()}/>
+        <Muted small>{`Goal reached ${week.step_goal_days ?? 0} of the last 7 days. Tap a bar for the number.`}</Muted></Card>
+      <Card><Line style={{ justifyContent: "space-between" }}><Kicker>SLEEP HOURS</Kicker><Muted small>{week.avg_sleep_hours ? `avg ${week.avg_sleep_hours} h` : "no sleep data yet"}</Muted></Line>
+        <Bars data={days.map((d, i) => ({ label: d.label, value: Number(d.sleep_hours), highlight: i === days.length - 1, color: Number(d.sleep_hours) >= sleepGoal ? "#b48cff" : "#4e3d78" }))}
+          goal={sleepGoal} height={110} format={n => `${n.toFixed(1)}h`}/></Card>
+      {days.some(d => d.heart_rate) && <Card><Line style={{ justifyContent: "space-between" }}><Kicker>HEART RATE</Kicker><Muted small>{week.avg_heart_rate ? `avg ${week.avg_heart_rate} bpm` : ""}</Muted></Line>
+        <LineChart series={[{ values: days.map(d => (d.heart_rate ? Number(d.heart_rate) : null)), color: C.red }]} labels={days.map(d => d.label)} height={110} format={n => `${Math.round(n)} bpm`}/></Card>}
+    </>}
+    <Muted small>{trends?.note || "Personal records, not medical advice."}</Muted>
+
+    <Card><TouchableOpacity onPress={() => setShowSetup(v => !v)}><Line style={{ justifyContent: "space-between" }}><Kicker>SET UP MI FITNESS (ONCE)</Kicker><Text style={{ color: C.green }}>{showSetup ? "Hide" : "Show"}</Text></Line></TouchableOpacity>
+      {showSetup && <>
       {[
         "Install Health Connect from Play Store if your phone doesn't have it (built into Android 14+).",
         "Open Mi Fitness → Profile → Settings (or Third-party data) → Health Connect → turn on Steps, Heart rate and Sleep.",
@@ -87,6 +111,7 @@ export function HealthScreen({ api, onError, onNotice }: { api: Api; onError: (m
       ].map((step, i) => <Line key={i} style={{ alignItems: "flex-start" }}><Text style={{ color: C.green, fontWeight: "800", width: 18 }}>{i + 1}</Text><Text style={{ color: C.text, flex: 1, lineHeight: 20 }}>{step}</Text></Line>)}
       <Btn kind="outline" title="Open Health Connect in Play Store" onPress={() => void Linking.openURL("market://details?id=com.google.android.apps.healthdata").catch(() => Linking.openURL("https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata"))}/>
       <Muted small>Menu names in Mi Fitness can differ by version. Band 10 support depends on Mi Fitness writing to Health Connect; check that numbers match the band for a few days.</Muted>
+      </>}
     </Card>
   </Screen>;
 }

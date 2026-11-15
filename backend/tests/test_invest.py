@@ -167,3 +167,30 @@ def test_ownership(client):
     b("DELETE", "/invest/watch/JKH", expect=404)
     view = b("GET", "/invest", expect=200).json()
     assert view["portfolio"]["items"] == [] and view["watchlist"] == [] and b("GET", "/invest/trades", expect=200).json() == []
+
+
+def test_symbol_dropdown_tells_share_classes_apart(client, monkeypatch):
+    stamp = int(datetime(2026, 11, 13, 9, 0, tzinfo=timezone.utc).timestamp() * 1000)
+
+    def post(path):
+        if path == "aspiData":
+            return {"value": 22024.18, "change": 10, "percentage": 0.1, "timestamp": stamp}
+        return {"reqTradeSummery": [
+            {"symbol": "COMB.N0000", "name": "COMMERCIAL BANK OF CEYLON PLC", "closingPrice": 150.0},
+            {"symbol": "COMB.X0000", "name": "COMMERCIAL BANK OF CEYLON PLC", "closingPrice": 120.0},
+            {"symbol": "COCO.N0000", "name": "RENUKA FOODS", "closingPrice": 30.0},
+            {"symbol": "JKH.N0000", "name": "JOHN KEELLS HOLDINGS PLC", "closingPrice": 21.5},
+        ]}
+    monkeypatch.setattr(invest, "_cse_post", post)
+    a, b = _user(client), _user(client)
+    assert b("GET", "/invest/symbols", params={"q": "COMB"}, expect=200).json()["loaded"] is False
+    a("POST", "/invest/fetch", expect=200)
+    items = a("GET", "/invest/symbols", params={"q": "COMB"}, expect=200).json()["items"]
+    assert [i["symbol"] for i in items] == ["COMB.N0000", "COMB.X0000"]
+    assert [i["class_label"] for i in items] == ["voting", "non-voting"] and all(i["has_other_classes"] for i in items)
+    assert [i["symbol"] for i in a("GET", "/invest/symbols", params={"q": "comb.x"}, expect=200).json()["items"]] == ["COMB.X0000"]
+    assert [i["symbol"] for i in a("GET", "/invest/symbols", params={"q": "keells"}, expect=200).json()["items"]] == ["JKH.N0000"]
+    assert {i["symbol"] for i in a("GET", "/invest/symbols", params={"q": "CO"}, expect=200).json()["items"]} == {"COMB.N0000", "COMB.X0000", "COCO.N0000"}
+    # B sees nothing of A's prices
+    assert b("GET", "/invest/symbols", params={"q": "COMB"}, expect=200).json()["items"] == []
+    assert invest.share_class("COMB.X0000") == ("X", "non-voting")

@@ -49,34 +49,56 @@ let refresher: (() => Promise<string | null>) | null = null;
 export function setAccessToken(token: string) { latestAccess = token; }
 export function setRefresher(fn: (() => Promise<string | null>) | null) { refresher = fn; }
 
+// Requests that are safe to send again after the server restarted mid-way: reads, and chat (it carries an
+// Idempotency-Key, so a repeat returns the first answer instead of a second message).
+const RETRY_SAFE = (method: string, path: string) => method === "GET" || path === "/chat";
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const newKey = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+const SERVER_BUSY = "The server is waking up or restarting. Please try again in a few seconds.";
+
 export async function apiRequest<T = ApiRecord>(path: string, token = "", method = "GET", body?: unknown): Promise<T> {
+  const key = path === "/chat" && method === "POST" ? newKey() : "";
   const send = (bearer: string) => fetch(`${baseUrl}/api/v1${path}`, {
     method,
-    headers: { "Content-Type": "application/json", ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}) },
+    headers: { "Content-Type": "application/json", ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}), ...(key ? { "Idempotency-Key": key } : {}) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
-  const bearer = token ? latestAccess || token : "";
-  let response: Response;
-  try {
-    response = await send(bearer);
-    if (response.status === 401 && bearer && refresher && !path.startsWith("/auth/")) {
-      const fresh = await refresher();
-      if (fresh) response = await send(fresh);
+  let response: Response | null = null;
+  let payload: ApiRecord = {};
+  const retrySafe = RETRY_SAFE(method, path);
+  for (let attempt = 0; attempt < (retrySafe ? 3 : 1); attempt++) {
+    if (attempt) await sleep(attempt === 1 ? 2500 : 6000);
+    const bearer = token ? latestAccess || token : "";
+    try {
+      response = await send(bearer);
+      if (response.status === 401 && bearer && refresher && !path.startsWith("/auth/")) {
+        const fresh = await refresher();
+        if (fresh) response = await send(fresh);
+      }
+    } catch {
+      response = null;
+      if (retrySafe && attempt < 2) continue;
+      throw new ApiError(`Can't reach the server at ${baseUrl}. Check your internet connection and the server address.`, 0);
     }
-  } catch {
-    throw new ApiError(`Can't reach the server at ${baseUrl}. Check your internet connection and the server address.`, 0);
+    if (response.status === 204) return null as T;
+    payload = await response.json().catch(() => ({}));
+    // A 502/503/504 without our JSON "detail" comes from the hosting proxy while the server restarts or wakes up.
+    const proxyBusy = [502, 503, 504].includes(response.status) && !payload.detail;
+    if (!(proxyBusy && retrySafe && attempt < 2)) break;
   }
-  if (response.status === 204) return null as T;
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new ApiError(String(payload.detail || `Request failed (${response.status})`), response.status);
-  if (method === "GET" && bearer && CACHEABLE.test(path)) remember(path, payload);
+  if (!response) throw new ApiError(`Can't reach the server at ${baseUrl}.`, 0);
+  if (!response.ok) {
+    const busy = [502, 503, 504].includes(response.status) && !payload.detail;
+    throw new ApiError(busy ? SERVER_BUSY : String(payload.detail || `Request failed (${response.status})`), response.status);
+  }
+  if (method === "GET" && token && CACHEABLE.test(path)) remember(path, payload);
   return payload as T;
 }
 
 // ---------- Fast screens: show the last data at once, refresh in the background ----------
 // Successful reads of the main screens are kept in memory and in a small file on this phone (only for the signed-in
 // account; deleted on sign-out). Screens start from peek(path) and then load fresh data as usual.
-const CACHEABLE = /^\/(compass|workers(\/today)?|routines\/(today|week|month)|focus\/(today|avoid)|exams|you(\/reports)?|invest|news|journal|dashboard|planner\/daily|tasks|finance\/summary|health\/summary|me)(\?|$)/;
+const CACHEABLE = /^\/(compass|workers(\/today)?|routines\/(today|week|month)|focus\/(today|avoid)|exams|you(\/reports)?|invest|news|journal|dashboard|planner\/daily|tasks|finance\/(summary|trends)|health\/(summary|trends)|life\/overview|study|me)(\?|$)/;
 const memCache = new Map<string, unknown>();
 let cacheOwner = "";
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -116,7 +138,7 @@ export function clearScreenCache() {
 
 /** Load the main screens together in the background, so every tab opens instantly. */
 export function prefetchScreens(token: string) {
-  const paths = ["/compass", "/workers/today", "/routines/today", "/focus/today", "/journal", "/exams", "/you", "/invest", "/news", "/routines/week", "/tasks"];
+  const paths = ["/compass", "/workers/today", "/routines/today", "/focus/today", "/journal", "/exams", "/you", "/invest", "/news", "/routines/week", "/tasks", "/life/overview", "/finance/trends", "/health/trends?days=14"];
   void Promise.allSettled(paths.map(path => apiRequest(path, token)));
 }
 

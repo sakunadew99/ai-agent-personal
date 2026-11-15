@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Alert, Text, TouchableOpacity, View } from "react-native";
-import type { ApiRecord as Row } from "../api";
+import { peek, type ApiRecord as Row } from "../api";
+import { Bars, Hero, Meter, PALETTE, Ring, Section, Segments, StatTile, TileRow, WeekDots } from "../charts";
 import { Badge, Btn, C, Card, Chips, Empty, Field, H2, Kicker, Muted, niceDate, Progress, Row as Line, Screen } from "../ui";
 import { syncReminders } from "../notify";
 import { GoalMilestones } from "./PlanExtras";
@@ -43,11 +44,13 @@ export function LifeScreen({ api, onError }: { api: Api; onError: (m: string) =>
   const [repeat, setRepeat] = useState<(typeof REPEATS)[number]>("once");
   const [reminders, setReminders] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  const [ov, setOv] = useState<Row | null>(() => peek<Row>("/life/overview"));
+  const [adding, setAdding] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [t, g, h] = await Promise.all([api<Row[]>("/tasks"), api<Row[]>("/goals"), api<Row[]>("/habits")]);
-      setTasks(t.filter(x => x.status !== "done" && x.status !== "cancelled")); setGoals(g); setHabits(h);
+      const [t, g, h, o] = await Promise.all([api<Row[]>("/tasks"), api<Row[]>("/goals"), api<Row[]>("/habits"), api<Row>("/life/overview")]);
+      setTasks(t.filter(x => x.status !== "done" && x.status !== "cancelled")); setGoals(g); setHabits(h); setOv(o);
       void syncReminders(api).then(setReminders); // keep phone reminders in step with the task list
     } catch (reason) { onError(reason instanceof Error ? reason.message : "Could not load"); }
   }, [api, onError]);
@@ -74,9 +77,34 @@ export function LifeScreen({ api, onError }: { api: Api; onError: (m: string) =>
   const confirmDelete = (label: string, fn: () => Promise<unknown>) =>
     Alert.alert("Delete?", `Delete “${label}”?`, [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => void run(fn) }]);
 
+  const hour = new Date().getHours();
+  const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const t: Row = ov?.tasks || {};
+  const doneDays: Row[] = ov?.done_14_days || [];
+  const habitRows: Row[] = ov?.habits || [];
+  const goalRows: Row[] = ov?.goals || [];
   return <Screen>
-    <Chips options={TABS} value={tab} onChange={setTab}/>
-    <Card>
+    <Hero kicker="MY LIFE" title={greet} accent="✦" sub={new Date().toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" })}
+      right={<Ring value={Number(ov?.score ?? 0)} size={104} label={`${ov?.score ?? "—"}`} sub="TODAY"/>}>
+      <Muted small>Score = tasks done this week, today's habits, goal progress and overdue tasks. Plain maths, no AI.</Muted>
+    </Hero>
+    <TileRow>
+      <StatTile label="Open" icon="☑" value={`${t.open ?? tasks.length}`} hint={`${t.due_today ?? 0} due today`} onPress={() => setTab("tasks")}/>
+      <StatTile label="Overdue" icon="⏰" tone={(t.overdue ?? 0) > 0 ? "red" : "plain"} value={`${t.overdue ?? 0}`} hint={(t.overdue ?? 0) > 0 ? "move or drop them" : "nothing late"} onPress={() => setTab("tasks")}/>
+      <StatTile label="Done · 7d" icon="✓" tone="green" value={`${t.done_this_week ?? 0}`} hint="tasks finished"/>
+    </TileRow>
+    {doneDays.length > 0 && <Card><Kicker>TASKS DONE · 2 WEEKS</Kicker>
+      <Bars data={doneDays.map((d, i) => ({ label: d.label, value: Number(d.done), highlight: i === doneDays.length - 1 }))} height={100}/></Card>}
+    {habitRows.length > 0 && <Card><Line style={{ justifyContent: "space-between" }}><Kicker>HABITS · THIS WEEK</Kicker><Muted small>{`${ov?.habits_done_today ?? 0}/${habitRows.length} today`}</Muted></Line>
+      <WeekDots today={Number(ov?.weekday ?? 0)} rows={habitRows.map(h => ({ label: `${h.name}${h.streak > 1 ? `  🔥${h.streak}` : ""}`, done: h.week as boolean[],
+        onToggle: (i: number) => { if (i === Number(ov?.weekday) && !h.done_today) void run(() => api(`/habits/${h.id}/logs`, "POST", { completed: true })); } }))}/>
+      <Muted small>Tap today's circle to mark a habit done.</Muted></Card>}
+    {goalRows.length > 0 && <Card><Kicker>GOALS</Kicker>{goalRows.slice(0, 5).map((g, i) => <Meter key={g.id} label={g.title} color={PALETTE[i % PALETTE.length]}
+      value={Number(g.percent ?? 0)} right={g.percent === null ? `${g.current} ${g.unit || ""}` : `${Math.round(g.percent)}%`}/>)}</Card>}
+
+    <Section title="Manage" action={adding ? "Close" : "＋ Add"} onAction={() => setAdding(a => !a)}/>
+    <Segments options={TABS} value={tab} onChange={setTab}/>
+    {adding && <Card>
       <Kicker>{tab === "tasks" ? "ADD A TASK" : tab === "goals" ? "CREATE A GOAL" : "BUILD A HABIT"}</Kicker>
       <Field voice value={title} onChangeText={setTitle} placeholder={tab === "tasks" ? "What needs doing?" : tab === "goals" ? "e.g. German B1 by June" : "e.g. Read 20 pages"} onSubmitEditing={add}/>
       {tab === "tasks" && <Chips options={PRIORITIES} value={priority} onChange={setPriority}/>}
@@ -90,7 +118,7 @@ export function LifeScreen({ api, onError }: { api: Api; onError: (m: string) =>
       {tab === "goals" && <Line><View style={{ flex: 1 }}><Field value={target} onChangeText={setTarget} placeholder="Target (e.g. 100)" keyboardType="numeric"/></View>
         <View style={{ flex: 1 }}><Field value={unit} onChangeText={setUnit} placeholder="Unit (lessons, USD…)"/></View></Line>}
       <Btn title="Add" onPress={add} busy={busy} disabled={!title.trim()}/>
-    </Card>
+    </Card>}
 
     {tab === "tasks" && <Card><Kicker>{tasks.length} OPEN TASKS</Kicker>
       {reminders !== null && <Muted small>{reminders < 0 ? "Phone reminders are off. Allow notifications for Sakuna in Android settings to get them." : `🔔 ${reminders} reminder${reminders === 1 ? "" : "s"} set on this phone for the next 7 days (quiet hours respected).`}</Muted>}

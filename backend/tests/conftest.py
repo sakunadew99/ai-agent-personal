@@ -16,6 +16,9 @@ def _no_real_news_downloads(monkeypatch):
     def blocked(url):
         raise ValueError("network disabled in tests")
     monkeypatch.setattr(news, "_download", blocked)
+    from app.services import daad
+    daad.clear_cache()
+    monkeypatch.setattr(daad, "_fetch", lambda url, params=None: blocked(url))
 
 
 @pytest.fixture(autouse=True)

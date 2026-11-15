@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Alert, Text, TouchableOpacity, View } from "react-native";
-import type { ApiRecord as Row } from "../api";
+import { peek, type ApiRecord as Row } from "../api";
+import { Bars, Hero, LineChart, Ring, Segments, SplitBar, StatTile, TileRow } from "../charts";
 import { Badge, Btn, C, Card, Chips, Empty, Field, H1, H2, Kicker, Muted, money, niceDate, Row as Line, Screen } from "../ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
@@ -18,10 +19,11 @@ export function FinanceScreen({ api, onError, onNotice }: { api: Api; onError: (
   const [source, setSource] = useState<(typeof SOURCES)[number]>("freelance");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [trends, setTrends] = useState<Row | null>(() => peek<Row>("/finance/trends"));
   const month = new Date().toISOString().slice(0, 7);
 
   const load = useCallback(async () => {
-    try { setSummary(await api<Row>(`/finance/summary?month=${month}`)); } catch (reason) { onError(reason instanceof Error ? reason.message : "Could not load"); }
+    try { const [sum, tr] = await Promise.all([api<Row>(`/finance/summary?month=${month}`), api<Row>("/finance/trends")]); setSummary(sum); setTrends(tr); } catch (reason) { onError(reason instanceof Error ? reason.message : "Could not load"); }
   }, [api, onError, month]);
   useEffect(() => { void load(); }, [load]);
 
@@ -37,30 +39,63 @@ export function FinanceScreen({ api, onError, onNotice }: { api: Api; onError: (
     } catch (reason) { onError(reason instanceof Error ? reason.message : "Could not save"); } finally { setBusy(false); }
   }
 
-  const cur = String(summary.currency || "USD");
-  const cats = Object.entries((summary.expense_by_category || {}) as Record<string, unknown>);
+  const cur = String(summary.currency || trends?.currency || "USD");
+  const tm: Row = trends?.this_month || {};
+  const months: Row[] = trends?.months || [];
+  const days: Row[] = trends?.days || [];
+  const cats: Row[] = trends?.categories || [];
+  const short = (n: number) => Math.abs(n) >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : Math.abs(n) >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(Math.round(n));
+  const rate = tm.savings_rate === null || tm.savings_rate === undefined ? null : Number(tm.savings_rate);
   return <Screen>
-    <Card><Kicker>THIS MONTH · {month}</Kicker>
-      <Line><View style={{ flex: 1 }}><Muted small>Income</Muted><H2>{money(summary.total_income, cur)}</H2></View>
-        <View style={{ flex: 1 }}><Muted small>Spent</Muted><H2>{money(summary.total_expenses, cur)}</H2></View></Line>
-      <Line><View style={{ flex: 1 }}><Muted small>Net</Muted><H2>{money(summary.net_income, cur)}</H2></View>
-        <View style={{ flex: 1 }}><Muted small>Net worth</Muted><H2>{money(summary.net_worth, cur)}</H2></View></Line>
-      <Muted small>Totals use your display currency ({cur}); records in other currencies are kept separately, never converted by guess.</Muted>
+    <Hero kicker={`MONEY · ${month}`} title={money(tm.net ?? summary.net_income, cur)} sub="left this month after spending"
+      right={<Ring value={Math.max(0, rate ?? 0)} size={100} color={rate !== null && rate < 0 ? C.red : C.green} label={rate === null ? "—" : `${Math.round(rate)}%`} sub="SAVED"/>}/>
+    <TileRow>
+      <StatTile label="Income" icon="↘" tone="green" value={short(Number(tm.income ?? summary.total_income ?? 0))} hint={cur}/>
+      <StatTile label="Spent" icon="↗" tone="red" value={short(Number(tm.spent ?? summary.total_expenses ?? 0))}
+        trend={tm.change_vs_last_month_pct ?? null} hint="vs same day last month"/>
+    </TileRow>
+    <TileRow>
+      <StatTile label="Per day" tone="amber" value={short(Number(tm.avg_per_day || 0))} hint={`on track for ${short(Number(tm.projected_spend || 0))} this month`}/>
+      <StatTile label="Net worth" tone="blue" value={short(Number(summary.net_worth || 0))} hint={summary.target_progress_percent ? `${summary.target_progress_percent}% of target` : cur}/>
+    </TileRow>
+
+    {months.length > 0 && <Card><Kicker>INCOME VS SPENDING · 6 MONTHS</Kicker>
+      <LineChart series={[{ values: months.map(m => Number(m.income)), color: C.green, name: "Income" }, { values: months.map(m => Number(m.expenses)), color: C.red, name: "Spent" }]}
+        labels={months.map(m => m.label)} format={short}/>
+      <Line><View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: C.green }}/><Muted small>Income</Muted>
+        <View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: C.red, marginLeft: 10 }}/><Muted small>Spent</Muted></Line></Card>}
+
+    {days.length > 1 && <Card><Kicker>DAILY SPENDING · THIS MONTH</Kicker>
+      <Bars data={days.map((d, i) => ({ label: days.length > 16 ? (i % 5 === 0 ? d.label : "") : d.label, value: Number(d.spent), highlight: i === days.length - 1, color: Number(d.spent) > Number(tm.avg_per_day || 0) * 1.5 ? C.amber : C.green }))}
+        height={110} format={short}/>
+      <Muted small>Amber days are well above your daily average. Tap a bar to see it.</Muted></Card>}
+
+    <Card><Kicker>WHERE IT WENT</Kicker>
+      {cats.length ? <SplitBar parts={cats.map(c => ({ label: c.category, value: Number(c.amount) }))} format={n => money(n, cur)}/> : <Empty>Log an expense to see categories.</Empty>}
+      {cats.filter(c => Number(c.previous) > 0 && Number(c.amount) > Number(c.previous) * 1.2).slice(0, 2).map(c =>
+        <Text key={c.category} style={{ color: C.amber, fontSize: 12 }}>{`▲ ${c.category} is already above last month (${money(c.previous, cur)}).`}</Text>)}
     </Card>
+
     <Card><Kicker>QUICK ADD</Kicker>
-      <Chips options={KINDS} value={kind} onChange={setKind}/>
+      <Segments options={KINDS} value={kind} onChange={setKind}/>
       <Line><View style={{ flex: 2 }}><Field value={amount} onChangeText={setAmount} placeholder="Amount" keyboardType="decimal-pad"/></View>
         <View style={{ flex: 1 }}><Field value={currency} onChangeText={setCurrency} placeholder="LKR" autoCapitalize="characters" maxLength={3}/></View></Line>
       {kind === "expense" ? <Chips options={EXPENSE_CATS} value={category} onChange={setCategory}/> : <Chips options={SOURCES} value={source} onChange={setSource}/>}
       <Field voice value={note} onChangeText={setNote} placeholder="Note (optional)"/>
       <Btn title={`Save ${kind}`} onPress={() => void save()} busy={busy}/>
     </Card>
-    <Card><Kicker>SPENDING BY CATEGORY</Kicker>
-      {cats.length ? cats.map(([name, value]) => <Line key={name} style={{ justifyContent: "space-between" }}><Text style={{ color: C.text, textTransform: "capitalize" }}>{name}</Text><Text style={{ color: C.text, fontWeight: "700" }}>{money(value, cur)}</Text></Line>)
-        : <Empty>Log an expense to see categories.</Empty>}
-    </Card>
+
+    {(trends?.biggest || []).length > 0 && <Card><Kicker>BIGGEST THIS MONTH</Kicker>
+      {(trends!.biggest as Row[]).map(b => <Line key={b.id} style={{ paddingVertical: 4 }}>
+        <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: C.panel2, alignItems: "center", justifyContent: "center" }}><Text>{CAT_ICON[b.category] || "•"}</Text></View>
+        <View style={{ flex: 1 }}><Text style={{ color: C.text, fontWeight: "700", textTransform: "capitalize" }}>{b.merchant || b.notes || b.category}</Text><Muted small>{`${b.category} · ${b.date}`}</Muted></View>
+        <Text style={{ color: C.red, fontWeight: "800" }}>{`−${money(b.amount, cur)}`}</Text></Line>)}
+    </Card>}
+    <Muted small>{`Charts use your display currency (${cur}); ${trends?.other_currency_records ? `${trends.other_currency_records} record(s) in other currencies are kept separately, ` : ""}never converted by guess.`}</Muted>
   </Screen>;
 }
+
+const CAT_ICON: Record<string, string> = { food: "🍛", transport: "🚌", housing: "🏠", subscriptions: "🔁", shopping: "🛍️", health: "💊", education: "🎓", business: "💼", other: "📦" };
 
 /** What Sakuna remembers: search, add, delete. */
 export function MemoryScreen({ api, onError }: { api: Api; onError: (m: string) => void }) {

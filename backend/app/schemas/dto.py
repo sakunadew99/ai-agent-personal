@@ -1016,6 +1016,12 @@ class ProgramOut(ORMModel):
     created_at: datetime
 
 
+class DaadExplainIn(BaseModel):
+    fields: str = Field(min_length=2, max_length=300)
+    lang: Literal["en", "de", "any"] = "en"
+    free: bool = False
+
+
 class ChecklistIn(BaseModel):
     create_tasks: bool = True
     portfolio: bool = False

@@ -11,7 +11,7 @@ import csv
 import io
 import json
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
@@ -499,3 +499,50 @@ def summary_text(db: Session, user_id) -> str:
         lines.append("Rule alerts: " + " | ".join(a.message for a in alerts))
     lines.append(DISCLAIMER)
     return "\n".join(lines)
+
+
+# ---------- symbol search: tell share classes apart (COMB.N0000 voting vs COMB.X0000 non-voting) ----------
+
+SHARE_CLASSES = {"N": "voting", "X": "non-voting", "P": "preference", "R": "rights", "W": "warrant", "Y": "non-voting"}
+
+
+def share_class(symbol: str) -> tuple[str, str]:
+    """'COMB.X0000' -> ('X', 'non-voting'). Unknown suffixes get a generic label."""
+    parts = str(symbol).upper().split(".", 1)
+    if len(parts) < 2 or not parts[1]:
+        return "", ""
+    code = parts[1][0]
+    return code, SHARE_CLASSES.get(code, f"class {code}")
+
+
+def search_symbols(db: Session, user_id, q: str, limit: int = 20) -> dict:
+    """Symbols you have prices, trades or watch rules for, matching the text (symbol or company name)."""
+    term = re.sub(r"[^A-Za-z0-9 .&-]", "", q or "").strip().upper()[:40]
+    latest = latest_prices(db, user_id)
+    known = set(latest) | set(db.scalars(select(StockTrade.symbol).where(StockTrade.user_id == user_id)).all()) \
+        | set(db.scalars(select(WatchItem.symbol).where(WatchItem.user_id == user_id)).all())
+    known.discard(INDEX)
+    rows = []
+    for sym in known:
+        px = latest.get(sym)
+        name = (px.name or "") if px else ""
+        root = sym.split(".")[0]
+        if term:
+            if root.startswith(term.split(".")[0]) and (("." not in term) or sym.startswith(term)):
+                rank = 0 if root == term.split(".")[0] else 1
+            elif term in name.upper():
+                rank = 2
+            else:
+                continue
+        else:
+            rank = 3
+        code, label = share_class(sym)
+        rows.append((rank, root, code != "N", {"symbol": sym, "root": root, "share_class": code, "class_label": label, "name": name or None,
+                                              "close": px.close if px else None, "date": px.trade_date if px else None}))
+    rows.sort(key=lambda r: (r[0], r[1], r[2], r[3]["symbol"]))
+    items = [r[3] for r in rows[:limit]]
+    roots = Counter(i["root"] for i in items)
+    for i in items:
+        i["has_other_classes"] = roots[i["root"]] > 1
+    return {"items": items, "loaded": bool(latest),
+            "hint": None if latest else "Tap 'Fetch CSE prices' once to load every listed share (both voting and non-voting classes)."}

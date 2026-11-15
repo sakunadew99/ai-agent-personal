@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { apiRequest, patchJson, postJson, type JsonRecord as Row } from "@/lib/api";
+import { GermanyFinder } from "./Dashboards";
 
 const STAGES = ["explore", "shortlist", "requirements", "prepare", "apply", "offer", "visa", "move", "dropped"];
 const COST_ITEMS = ["application_fee", "test_fee", "translation", "travel", "visa_fee", "deposit", "first_month", "tuition", "living", "insurance", "other"];
@@ -32,6 +33,7 @@ export function StudyPage({ token }: { token: string }) {
   }
 
   return <>
+    <GermanyFinder token={token} onSaved={load}/>
     {ov && <div className="grid metrics">
       <section className="panel metric"><p className="muted">Programs</p><h2>{ov.programs}</h2><span className="trend">{Object.entries(ov.by_stage as Record<string, number>).map(([k, v]) => `${v} ${k}`).join(" · ") || "add your first"}</span></section>
       <section className="panel metric"><p className="muted">Deadlines (60 days)</p><h2>{ov.deadlines_60_days.length}</h2><span className="trend">{ov.deadlines_60_days[0] ? `next: ${ov.deadlines_60_days[0].title} in ${ov.deadlines_60_days[0].days_left} d` : "none soon"}</span></section>

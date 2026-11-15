@@ -13,7 +13,35 @@ const msg = (r: unknown) => (r instanceof Error ? r.message : "Something went wr
 const lkr = (v: unknown) => (v == null ? "—" : `Rs ${Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 })}`);
 const signed = (v: unknown, suffix = "") => (v == null ? "—" : `${Number(v) >= 0 ? "+" : ""}${Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 })}${suffix}`);
 const tone = (v: unknown) => (v == null ? C.muted : Number(v) >= 0 ? C.green : "#ff9b8c");
-const root = (s: string) => String(s).split(".")[0];
+/** "JKH.N0000" -> "JKH"; other share classes keep their letter so they can't be mixed up: "COMB.X0000" -> "COMB.X". */
+const root = (s: string) => { const [r, cls] = String(s).split("."); return cls && cls[0] !== "N" ? `${r}.${cls[0]}` : r; };
+const CLASS_NAME: Record<string, string> = { N: "voting", X: "non-voting", Y: "non-voting", P: "preference", R: "rights", W: "warrant" };
+
+/** Symbol box with a dropdown of matching CSE shares, so COMB.N0000 (voting) and COMB.X0000 (non-voting) are picked exactly. */
+function SymbolPicker({ api, value, onChange, placeholder = "Symbol or company, e.g. COMB" }: { api: Api; value: string; onChange: (v: string) => void; placeholder?: string }) {
+  const [items, setItems] = useState<Row[]>([]);
+  const [hint, setHint] = useState<string | null>(null);
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!focused) return;
+    const q = value.trim();
+    const timer = setTimeout(() => { api<Row>(`/invest/symbols?q=${encodeURIComponent(q)}`).then(r => { setItems(r.items || []); setHint(r.hint || null); }).catch(() => setItems([])); }, 250);
+    return () => clearTimeout(timer);
+  }, [api, value, focused]);
+  const exact = items.some(i => i.symbol === value.trim().toUpperCase());
+  return <View style={{ gap: 6 }}>
+    <TextInput style={s.input} value={value} onChangeText={t => onChange(t.toUpperCase())} onFocus={() => setFocused(true)} placeholder={placeholder} placeholderTextColor={C.muted} autoCapitalize="characters"/>
+    {focused && !exact && (items.length > 0 || hint) && <View style={s.dropdown}>
+      {items.slice(0, 8).map(i => <TouchableOpacity key={i.symbol} style={s.dropItem} onPress={() => { onChange(i.symbol); setFocused(false); }}>
+        <View style={{ flex: 1 }}><Text style={s.sym}>{i.symbol}</Text><Text style={{ color: C.muted, fontSize: 11 }} numberOfLines={1}>{i.name || "—"}</Text></View>
+        <Text style={[s.classTag, i.share_class !== "N" && { color: C.amber, borderColor: C.amber }]}>{i.class_label || CLASS_NAME[i.share_class] || "share"}</Text>
+        {i.close != null && <Text style={{ color: C.text, marginLeft: 8, fontWeight: "700" }}>{Number(i.close).toFixed(2)}</Text>}
+      </TouchableOpacity>)}
+      {!items.length && !!hint && <Text style={{ color: C.muted, fontSize: 12, padding: 10 }}>{hint}</Text>}
+    </View>}
+    {exact && <Text style={{ color: C.muted, fontSize: 11 }}>{`${value.split(".")[1]?.[0] === "N" ? "Voting" : "Non-voting / other class"} share selected.`}</Text>}
+  </View>;
+}
 const today = () => new Date().toISOString().slice(0, 10);
 
 /** CSE investing: portfolio from your trades, prices from the CSE website or your file, signals from YOUR rules. */
@@ -92,8 +120,8 @@ export function InvestScreen({ api, upload, onError, onNotice }: Props) {
           w.pe != null && `P/E ${w.pe}`, w.yield_pct != null && `yield ${w.yield_pct}%`].filter(Boolean).join(" · ") || "No rules yet: tap to set"}</Muted>
         {(w.signals as Row[]).map(sg => <Text key={sg.rule} style={s.signal}>● {sg.text}</Text>)}
       </TouchableOpacity>)}
-      <Line><TextInput style={[s.input, { flex: 1 }]} value={watchAdd} onChangeText={setWatchAdd} placeholder="Symbol, e.g. JKH" placeholderTextColor={C.muted} autoCapitalize="characters"/>
-        <Btn title="Watch" onPress={() => { if (watchAdd.trim()) void api(`/invest/watch/${encodeURIComponent(watchAdd.trim())}`, "PUT", {}).then(() => { setSymbol(watchAdd.trim().toUpperCase().includes(".") ? watchAdd.trim().toUpperCase() : `${watchAdd.trim().toUpperCase()}.N0000`); setWatchAdd(""); load(); }).catch(e => onError(msg(e))); }}/></Line>
+      <View style={{ gap: 8 }}><SymbolPicker api={api} value={watchAdd} onChange={setWatchAdd}/>
+        <Btn title="Add to watchlist" onPress={() => { if (watchAdd.trim()) void api(`/invest/watch/${encodeURIComponent(watchAdd.trim())}`, "PUT", {}).then(() => { setSymbol(watchAdd.trim().toUpperCase().includes(".") ? watchAdd.trim().toUpperCase() : `${watchAdd.trim().toUpperCase()}.N0000`); setWatchAdd(""); load(); }).catch(e => onError(msg(e))); }}/></View>
       <Muted small>{v.disclaimer}</Muted>
     </Card>
 
@@ -118,7 +146,7 @@ function TradeModal({ api, onClose, onSaved, onError }: { api: Api; onClose: () 
   return <Sheet title="Record a trade" onClose={onClose}>
     <View style={s.pills}>{(["buy", "sell", "dividend"] as const).map(x => <TouchableOpacity key={x} style={[s.pill, t.side === x && s.pillOn]} onPress={() => setT({ ...t, side: x })}>
       <Text style={[s.pillText, t.side === x && { color: C.green }]}>{x}</Text></TouchableOpacity>)}</View>
-    <TextInput style={s.input} value={t.symbol} onChangeText={symbol => setT({ ...t, symbol })} placeholder="Symbol, e.g. JKH" placeholderTextColor={C.muted} autoCapitalize="characters"/>
+    <SymbolPicker api={api} value={t.symbol} onChange={symbol => setT({ ...t, symbol })}/>
     <TextInput style={s.input} value={t.quantity} onChangeText={quantity => setT({ ...t, quantity })} placeholder={t.side === "dividend" ? "Shares that received it" : "Quantity"} placeholderTextColor={C.muted} keyboardType="decimal-pad"/>
     <TextInput style={s.input} value={t.price} onChangeText={price => setT({ ...t, price })} placeholder={t.side === "dividend" ? "Dividend per share (Rs)" : "Price per share (Rs)"} placeholderTextColor={C.muted} keyboardType="decimal-pad"/>
     {t.side !== "dividend" && <TextInput style={s.input} value={t.fees} onChangeText={fees => setT({ ...t, fees })} placeholder="Fees / commission (Rs)" placeholderTextColor={C.muted} keyboardType="decimal-pad"/>}
@@ -184,6 +212,9 @@ function SymbolSheet({ api, symbol, watch, holding, onClose, onError, onNotice }
 }
 
 const s = StyleSheet.create({
+  dropdown: { backgroundColor: C.panel2, borderColor: C.line, borderWidth: 1, borderRadius: 14, overflow: "hidden" },
+  dropItem: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, borderBottomColor: C.line, borderBottomWidth: 1 },
+  classTag: { color: C.green, borderColor: C.green, borderWidth: 1, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2, fontSize: 10, fontWeight: "800", overflow: "hidden" },
   value: { color: C.text, fontSize: 32, fontWeight: "900", fontVariant: ["tabular-nums"] },
   stat: { fontSize: 16, fontWeight: "800", fontVariant: ["tabular-nums"] },
   index: { color: "#d1ddd4", fontSize: 13, fontWeight: "700" },

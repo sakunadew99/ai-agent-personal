@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Alert, Linking, Text, TouchableOpacity, View } from "react-native";
 import type { ApiRecord as Row } from "../api";
+import { GermanyFinder } from "./GermanyFinder";
 import { Badge, Btn, C, Card, Chips, Empty, Field, H2, Kicker, Muted, Row as Line, Screen } from "../ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
@@ -71,7 +72,8 @@ export function StudyScreen({ api, onError, onNotice }: { api: Api; onError: (m:
   const run = (w: Promise<unknown>, note: string) => void w.then(() => { onNotice(note); load(); if (open) api<Row[]>(`/study/programs/${open}/requirements`).then(setReqs).catch(() => undefined); }).catch(r => onError(msg(r)));
 
   return <Screen onRefresh={load}>
-    {ov && <Card accent><Kicker>STUDY ABROAD</Kicker>
+    <GermanyFinder api={api} onError={onError} onNotice={onNotice} onSaved={load}/>
+    {ov && <Card accent><Kicker>MY APPLICATIONS</Kicker>
       <Line><View style={{ flex: 1 }}><Muted small>Programs</Muted><H2>{String(ov.programs)}</H2></View>
         <View style={{ flex: 1 }}><Muted small>Deadlines 60 d</Muted><H2>{String(ov.deadlines_60_days.length)}</H2></View>
         <View style={{ flex: 1 }}><Muted small>To re-check</Muted><H2>{String(ov.to_verify.length)}</H2></View></Line>

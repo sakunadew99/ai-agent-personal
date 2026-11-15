@@ -5,8 +5,8 @@ import { appendSpeech, MicButton } from "./voice";
 
 /** Shared look for all mobile screens (matches the web app's dark theme). */
 export const C = {
-  bg: "#0d1110", panel: "#141b18", panel2: "#19211e", line: "#27312d", text: "#edf4ef", muted: "#8b9a91",
-  green: "#39d98a", greenDark: "#082316", greenSoft: "#183323", amber: "#f2b768", red: "#ff7272", field: "#0e1411", blue: "#7cb8ff",
+  bg: "#070b09", panel: "#0f1613", panel2: "#141d19", line: "#1d2a24", text: "#eef6f1", muted: "#8a9b92",
+  green: "#3ee08f", greenDark: "#04170d", greenSoft: "#123222", amber: "#f5b65b", red: "#ff7a8a", field: "#0b110e", blue: "#5aa8ff",
 };
 
 export function Screen({ children, onRefresh }: { children: ReactNode; onRefresh?: () => void }) {
@@ -69,22 +69,22 @@ export function money(value: unknown, currency = "USD") {
 }
 
 export const u = StyleSheet.create({
-  scroll: { padding: 16, paddingBottom: 110, gap: 12 },
-  card: { backgroundColor: C.panel, borderColor: C.line, borderWidth: 1, borderRadius: 16, padding: 16, gap: 10 },
-  cardAccent: { borderColor: C.green },
-  kicker: { color: C.muted, fontSize: 10, letterSpacing: 1.5, fontWeight: "700" },
-  h1: { color: C.text, fontSize: 24, fontWeight: "800", letterSpacing: -0.5 },
-  h2: { color: C.text, fontSize: 17, fontWeight: "700" },
+  scroll: { padding: 16, paddingBottom: 120, gap: 14 },
+  card: { backgroundColor: C.panel, borderColor: C.line, borderWidth: 1, borderRadius: 22, padding: 16, gap: 10 },
+  cardAccent: { borderColor: "#2a6b4a", backgroundColor: "#0f1a15" },
+  kicker: { color: C.green, fontSize: 10, letterSpacing: 1.6, fontWeight: "800", opacity: 0.9 },
+  h1: { color: C.text, fontSize: 26, fontWeight: "900", letterSpacing: -0.8 },
+  h2: { color: C.text, fontSize: 17, fontWeight: "800", letterSpacing: -0.3 },
   muted: { color: C.muted, fontSize: 13, lineHeight: 19 },
   small: { color: C.muted, fontSize: 11, lineHeight: 16 },
   label: { color: "#aab8af", fontSize: 11 },
   empty: { borderColor: C.line, borderWidth: 1, borderStyle: "dashed", borderRadius: 12, padding: 16, alignItems: "center" },
-  input: { backgroundColor: C.field, borderColor: C.line, borderWidth: 1, borderRadius: 11, color: C.text, paddingHorizontal: 12, paddingVertical: 11, fontSize: 14 },
-  btnPrimary: { backgroundColor: C.green, borderRadius: 12, paddingVertical: 13, paddingHorizontal: 16, alignItems: "center" },
+  input: { backgroundColor: C.field, borderColor: C.line, borderWidth: 1, borderRadius: 14, color: C.text, paddingHorizontal: 12, paddingVertical: 11, fontSize: 14 },
+  btnPrimary: { backgroundColor: C.green, borderRadius: 99, paddingVertical: 13, paddingHorizontal: 16, alignItems: "center" },
   btnPrimaryText: { color: C.greenDark, fontWeight: "800", fontSize: 14 },
-  btnOutline: { borderColor: C.line, borderWidth: 1, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, alignItems: "center" },
+  btnOutline: { borderColor: C.line, borderWidth: 1, borderRadius: 99, paddingVertical: 12, paddingHorizontal: 16, alignItems: "center" },
   btnOutlineText: { color: C.text, fontWeight: "600", fontSize: 14 },
-  btnDanger: { borderColor: "#593a34", borderWidth: 1, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, alignItems: "center" },
+  btnDanger: { borderColor: "#593a34", borderWidth: 1, borderRadius: 99, paddingVertical: 12, paddingHorizontal: 16, alignItems: "center" },
   btnDangerText: { color: "#ff9b8c", fontWeight: "600" },
   btnLink: { paddingVertical: 6 },
   btnLinkText: { color: C.green, fontWeight: "700", fontSize: 13 },
@@ -93,8 +93,8 @@ export const u = StyleSheet.create({
   chipOn: { borderColor: C.green, backgroundColor: C.greenSoft },
   chipText: { color: C.muted, fontWeight: "600", fontSize: 13, textTransform: "capitalize" },
   chipTextOn: { color: C.green },
-  track: { height: 6, backgroundColor: C.line, borderRadius: 3, overflow: "hidden" },
-  fill: { height: 6, backgroundColor: C.green, borderRadius: 3 },
+  track: { height: 8, backgroundColor: "#1d2924", borderRadius: 4, overflow: "hidden" },
+  fill: { height: 8, backgroundColor: C.green, borderRadius: 4 },
   badge: { fontSize: 10, fontWeight: "700", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99, overflow: "hidden", textTransform: "capitalize" },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
 });
