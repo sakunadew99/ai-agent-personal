@@ -18,11 +18,12 @@ import { syncReminders } from "./src/notify";
 import { FocusEngine } from "./src/screens/FocusEngine";
 import { ExamScreen } from "./src/screens/ExamScreens";
 import { AiTeamScreen, TeamTodayCard } from "./src/screens/AiTeamScreens";
+import { AboutYouScreen } from "./src/screens/AboutYouScreen";
 import { MonthRoutines, NowRoutineCard, PlanSwitch, TodayRoutines, WeekPlan } from "./src/screens/MyDayScreens";
 import { appendSpeech, MicButton } from "./src/voice";
 
 type Tab = "Home" | "Plan" | "Capture" | "Focus" | "More";
-const SUB_TITLES: Record<MoreTarget, string> = { Assistant: "Assistant", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
+const SUB_TITLES: Record<MoreTarget, string> = { Assistant: "Assistant", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
 
 export default function App() {
   const [email, setEmail] = useState("");
@@ -115,6 +116,13 @@ export default function App() {
     catch (reason) { setError(reason instanceof Error ? reason.message : "Could not update the task"); }
   }
 
+  /** Where a worker note or the "About you" change sends you. */
+  function openTarget(target: string) {
+    if (target === "Plan") { setPlanView("day"); setTab("Plan"); setSub(null); }
+    else if (target === "Focus") { setTab("Focus"); setSub(null); }
+    else if (target === "Exams" || target === "You" || target === "Team") { setTab("More"); setSub(target as MoreTarget); }
+    else setTab("Home");
+  }
   function signOut() { setToken(""); setUser({}); setDashboard({}); setPassword(""); setSub(null); setTab("Home"); }
 
   if (!token) return <SafeAreaView style={styles.safe}><StatusBar barStyle="light-content"/><KeyboardAvoidingView style={styles.auth} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -137,9 +145,7 @@ export default function App() {
     {!!error && <Text style={styles.errorBox}>{error}</Text>}{!!notice && <TouchableOpacity onPress={() => setNotice("")}><Text style={styles.notice}>{notice}  ×</Text></TouchableOpacity>}
     <View style={styles.screen}>
       {tab === "Home" && <HomeScreen dashboard={dashboard} finance={finance} health={health} onComplete={completeTask} onOpenPlan={() => setTab("Plan")} top={<><NowRoutineCard api={api} onOpen={() => { setPlanView("day"); setTab("Plan"); }}/>
-        <TeamTodayCard api={api} onError={showError} onNotice={showNotice} onOpen={target => {
-          if (target === "Plan") { setPlanView("day"); setTab("Plan"); } else if (target === "Focus") setTab("Focus");
-          else if (target === "Exams") { setTab("More"); setSub("Exams"); } else setTab("Home"); }}/><CoachCardMobile api={api} onError={showError}/><BrainCard api={api}/></>}/>}
+        <TeamTodayCard api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/><CoachCardMobile api={api} onError={showError}/><BrainCard api={api}/></>}/>}
       {tab === "Plan" && planView === "day" && <PlanScreen plan={plan} busy={busy} generate={generatePlan}
         top={<><PlanSwitch value={planView} onChange={setPlanView}/><TodayRoutines api={api} onError={showError} onNotice={showNotice}/><Text style={styles.sectionTitle}>Time plan</Text></>}
         extra={<TimeCard api={api}/>}/>}
@@ -158,6 +164,7 @@ export default function App() {
       {tab === "More" && sub === "Jobs" && <JobsScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Balance" && <BalanceScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Vault" && <VaultScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "You" && <AboutYouScreen api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/>}
       {tab === "More" && sub === "Team" && <AiTeamScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Exams" && <ExamScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Study" && <StudyScreen api={api} onError={showError} onNotice={showNotice}/>}

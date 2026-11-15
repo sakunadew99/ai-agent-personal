@@ -268,6 +268,17 @@ def _facts(db: Session, user: User, intent: str, memories=None) -> str:
             notes = ""
         if notes:
             lines.append("Today's notes from the AI team (morning coach, focus guard, study coach, night reviewer):\n" + notes)
+        try:
+            from app.services.you import findings, preferences_text, profile
+            learned = findings(profile(db, user.id))
+            if learned:
+                lines.append("What Sakuna has learned about this user (last 28 days, from their own records): "
+                             + " | ".join(f"{f['text']} [{f['evidence']}]" for f in learned[:6]))
+            prefs = preferences_text(db, user.id)
+            if prefs:
+                lines.append(f"Advice preferences from 👍/👎: {prefs}.")
+        except Exception:  # noqa: BLE001 - extra context only
+            pass
     if intent in {"exam_status", "exam_update", "learning"}:
         from app.services.exams import status_text
         lines.append("Exam coach (calculated by Sakuna, current):\n" + status_text(db, user.id))

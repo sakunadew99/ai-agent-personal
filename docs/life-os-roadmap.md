@@ -78,7 +78,7 @@ Named helpers, each with one job. They run on a schedule and put their notes int
 - Each worker has an on/off switch, a time, and a daily AI budget. With no AI key they still work, using plain rules.
 - Workers only suggest. Anything that changes data goes through the existing approval levels.
 
-## Phase 5: Learns you, day by day
+## Phase 5: Learns you, day by day ✅ done
 
 **Why not fine-tuning:** retraining a model on your data is expensive, slow and bad for privacy. Instead Sakuna builds
 a personal profile that updates every day:

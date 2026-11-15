@@ -78,11 +78,12 @@ def today_view(db: Session, user_id) -> dict:
     by_day: Counter = Counter()
     for r in done:
         local = as_utc(r.started_at).astimezone(tz)
-        by_hour[local.hour] += minutes(r)
+        from app.services.you import _spread
+        _spread(by_hour, local, minutes(r))
         by_day[local.date()] += minutes(r)
     best = None
     if by_hour:
-        start_hour = max(range(24), key=lambda h: by_hour[h] + by_hour[(h + 1) % 24])
+        start_hour = max(range(24), key=lambda h: (by_hour[h] + by_hour[(h + 1) % 24], by_hour[h]))
         if by_hour[start_hour] + by_hour[(start_hour + 1) % 24] >= 20:
             best = {"from": f"{start_hour:02d}:00", "to": f"{(start_hour + 2) % 24:02d}:00",
                     "minutes": round(by_hour[start_hour] + by_hour[(start_hour + 1) % 24])}

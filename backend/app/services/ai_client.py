@@ -1,3 +1,5 @@
+import hashlib
+import json
 import logging
 from datetime import timedelta
 from decimal import Decimal
@@ -23,6 +25,7 @@ def _url(path: str) -> str:
 
 # Last provider failure, for the in-app status (provider's message only; the API key is never included).
 last_error: dict | None = None
+_last_tokens = 0  # tokens used by the most recent successful chat_complete (for the cache)
 
 
 def _remember_error(exc: Exception) -> None:
@@ -168,6 +171,9 @@ def chat_complete(db: Session, user_id, feature: str, model: str, messages: list
         response.raise_for_status()
         data = response.json()
         _record(db, user_id, feature, model, data.get("usage") or {})
+        global _last_tokens
+        usage = data.get("usage") or {}
+        _last_tokens = int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0) + int(usage.get("completion_tokens") or usage.get("output_tokens") or 0)
         global last_error
         last_error = None
         return data["choices"][0]["message"]["content"]
@@ -231,3 +237,46 @@ def model_for(purpose: str) -> str:
     if purpose == "classification":
         return settings.openai_model_small
     return settings.openai_model_balanced
+
+
+# ---------- answer cache (Phase 5): the same request within its time-to-live reuses the earlier answer ----------
+
+def _cache_key(feature: str, model: str, messages: list[dict]) -> str:
+    return hashlib.sha256(json.dumps([feature, model, messages], sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest()
+
+
+def cached_complete(db: Session, user_id, feature: str, model: str, messages: list[dict], temperature: float = 0.2,
+                    ttl_hours: int = 6) -> str | None:
+    """Like chat_complete, but an identical request (same feature, model and messages) within ttl_hours costs nothing.
+
+    Only for answers that depend purely on their input (worker notes, feedback on the same text, reports); never for chat.
+    The AI off switch and budgets still apply first, so a cached answer is never served when AI is switched off.
+    """
+    from app.models.entities import AiCache
+    if user_id is None or not ai_enabled() or _blocked(db, user_id, feature):
+        return chat_complete(db, user_id, feature, model, messages, temperature) if user_id is None else None
+    key = _cache_key(feature, model, messages)
+    row = db.scalar(select(AiCache).where(AiCache.user_id == user_id, AiCache.key == key))
+    if row is not None and row.created_at is not None and _aware(row.created_at) >= now_utc() - timedelta(hours=ttl_hours):
+        row.hits += 1
+        return row.response
+    answer = chat_complete(db, user_id, feature, model, messages, temperature)
+    if answer:
+        if row is None:
+            row = AiCache(user_id=user_id, key=key, feature=feature[:64], response=answer, tokens=_last_tokens, hits=0)
+            db.add(row)
+        else:
+            row.response, row.tokens, row.hits, row.created_at = answer, _last_tokens, 0, now_utc()
+        db.flush()
+    return answer
+
+
+def _aware(value):
+    from app.core.clock import as_utc
+    return as_utc(value)
+
+
+def cache_stats(db: Session, user_id) -> dict:
+    from app.models.entities import AiCache
+    rows = db.scalars(select(AiCache).where(AiCache.user_id == user_id)).all()
+    return {"entries": len(rows), "hits": sum(r.hits for r in rows), "tokens_saved": sum(r.hits * r.tokens for r in rows)}

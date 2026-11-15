@@ -1677,3 +1677,36 @@ def workers_note_feedback(note_id: uuid.UUID, data: dto.WorkerFeedbackIn, db: Se
     note.feedback = data.feedback; note.updated_at = now_utc()
     audit(db, user.id, "worker.feedback", "worker_note", note.id, {"feedback": data.feedback}); db.commit()
     return worker_svc.note_out(note)
+
+
+# ---------- Life OS Phase 5: learns you ----------
+
+from app.services import you as you_svc  # noqa: E402
+
+
+@router.get("/you")
+def you_view(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import InsightReport
+    from app.services.ai_client import cache_stats
+    p = you_svc.profile(db, user.id)
+    found = you_svc.findings(p)
+    latest = db.scalar(select(InsightReport).where(InsightReport.user_id == user.id).order_by(InsightReport.week_start.desc()).limit(1))
+    return {"profile": p, "findings": found, "change": you_svc.one_change(p, found), "preferences": you_svc.preferences_text(db, user.id),
+            "latest_report": you_svc.report_out(latest) if latest else None, "cache": cache_stats(db, user.id)}
+
+
+@router.post("/you/report", status_code=201)
+def you_report(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = you_svc.build_report(db, user.id); db.commit(); return you_svc.report_out(row)
+
+
+@router.get("/you/reports")
+def you_reports(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import InsightReport
+    rows = db.scalars(select(InsightReport).where(InsightReport.user_id == user.id).order_by(InsightReport.week_start.desc()).limit(12)).all()
+    return [you_svc.report_out(r) for r in rows]
+
+
+@router.post("/you/reports/{report_id}/memory")
+def you_report_memory(report_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    out = you_svc.save_to_memory(db, you_svc.owned_report(db, user.id, report_id)); db.commit(); return out

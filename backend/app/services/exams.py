@@ -430,7 +430,7 @@ def speaking_metrics(exam: str, transcript: str, seconds: int) -> dict:
 
 
 def _ai_feedback(db: Session, user_id, exam: str, plan: ExamPlan, mode: str, prompt: str, answer: str, metrics: dict) -> dict | None:
-    from app.services.ai_client import ai_enabled, chat_complete, model_for
+    from app.services.ai_client import ai_enabled, cached_complete, model_for
     if not ai_enabled():
         return None
     cat = CATALOG[exam]
@@ -443,7 +443,8 @@ def _ai_feedback(db: Session, user_id, exam: str, plan: ExamPlan, mode: str, pro
         "\"tips\": [str] (max 4, concrete), \"summary\": str (2 sentences)}. Write comments in English."
     )
     user = f"Task: {prompt[:1500]}\nMeasured: {json.dumps(metrics)}\n\nAnswer:\n{answer[:6000]}"
-    reply = chat_complete(db, user_id, "exam_feedback", model_for("analysis"), [{"role": "system", "content": system}, {"role": "user", "content": user}], 0.2)
+    reply = cached_complete(db, user_id, "exam_feedback", model_for("analysis"), [{"role": "system", "content": system}, {"role": "user", "content": user}],
+                            0.2, ttl_hours=72)
     if not reply:
         return None
     try:

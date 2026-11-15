@@ -1290,3 +1290,37 @@ class WorkerNote(Base):
     feedback: Mapped[str | None] = mapped_column(String(4), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# ---------- Life OS Phase 5: learns you (weekly "about you" report, AI answer cache) ----------
+
+class InsightReport(Base):
+    """The weekly 'about you' report: patterns found by plain code, one change to try, optional AI wording."""
+    __tablename__ = "insight_reports"
+    __table_args__ = (UniqueConstraint("user_id", "week_start", name="uq_insight_reports_user_week"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    week_start: Mapped[date] = mapped_column(Date)
+    data: Mapped[dict] = mapped_column(JsonDict, default=dict)
+    findings: Mapped[list] = mapped_column(JsonDict, default=list)
+    change: Mapped[dict | None] = mapped_column(JsonDict, nullable=True)
+    body: Mapped[str] = mapped_column(Text)
+    used_ai: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AiCache(Base):
+    """Reuses an AI answer when exactly the same request comes again within its time-to-live (saves tokens)."""
+    __tablename__ = "ai_cache"
+    __table_args__ = (UniqueConstraint("user_id", "key", name="uq_ai_cache_user_key"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    key: Mapped[str] = mapped_column(String(64))                  # sha256 of feature + model + messages
+    feature: Mapped[str] = mapped_column(String(64))
+    response: Mapped[str] = mapped_column(Text)
+    tokens: Mapped[int] = mapped_column(Integer, default=0)        # tokens the original call used (saved on each hit)
+    hits: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
