@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { apiRequest as request, apiUpload, getServerUrl, loadServerUrl, saveServerUrl, type ApiRecord as Row } from "./src/api";
+import { apiRequest as request, apiUpload, loadServerUrl, setAccessToken, setRefresher, type ApiRecord as Row } from "./src/api";
+import { clearSession, endSession, hasSession, onSessionExpired, refreshAccess, saveSession, storedUser } from "./src/session";
+import { LoginScreen, SplashScreen } from "./src/screens/LoginScreen";
 import { ChatScreen } from "./src/screens/ChatScreen";
 import { BrainCard } from "./src/screens/BrainCard";
 import { LifeScreen } from "./src/screens/LifeScreen";
@@ -28,12 +30,9 @@ type Tab = "Home" | "Plan" | "Capture" | "Focus" | "More";
 const SUB_TITLES: Record<MoreTarget, string> = { Assistant: "Assistant", Invest: "Invest (CSE)", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
 
 export default function App() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [registerMode, setRegisterMode] = useState(false);
-  const [server, setServer] = useState(getServerUrl());
-  const [showServer, setShowServer] = useState(false);
+  const [booting, setBooting] = useState(true);       // restoring the saved session
+  const [bootProblem, setBootProblem] = useState("");
+  const [authNote, setAuthNote] = useState("");
   const [token, setToken] = useState("");
   const [user, setUser] = useState<Row>({});
   const [tab, setTab] = useState<Tab>("Home");
@@ -77,17 +76,28 @@ export default function App() {
   // Phone reminders for tasks due in the next 7 days (local notifications, quiet hours applied by the API).
   useEffect(() => { if (token) void syncReminders(api); }, [token, api]);
 
-  useEffect(() => { void loadServerUrl().then(setServer); }, []);
+  // Stay signed in: restore the saved session on start; renew the access token whenever it expires.
+  const restore = useCallback(async () => {
+    setBootProblem("");
+    await loadServerUrl();
+    if (!(await hasSession())) { setBooting(false); return; }
+    const access = await refreshAccess();
+    if (access) { setUser(await storedUser()); setToken(access); setBooting(false); return; }
+    if (await hasSession()) { setBootProblem("Can't reach your server right now. You're still signed in; try again in a moment."); return; }
+    setBooting(false); // the session had ended on the server
+  }, []);
+  useEffect(() => {
+    setRefresher(refreshAccess);
+    onSessionExpired(() => { setToken(""); setAuthNote("Your session ended. Please sign in again."); });
+    void restore();
+    return () => { setRefresher(null); onSessionExpired(null); };
+  }, [restore]);
 
-  async function authenticate() {
-    setBusy(true); setError("");
-    try {
-      setServer(await saveServerUrl(server));
-      const route = registerMode ? "/auth/register" : "/auth/login";
-      const result = await request<Row>(route, "", "POST", registerMode ? { email, password, full_name: name } : { email, password });
-      setToken(result.access_token); setUser(result.user || {}); setTab("Home");
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not sign in"); if (reason instanceof Error && reason.message.startsWith("Can't reach")) setShowServer(true); }
-    finally { setBusy(false); }
+  async function onSignedIn(pair: Row) {
+    setAccessToken(pair.access_token);
+    await saveSession(pair.refresh_token, pair.user);
+    setUser(pair.user || {}); setTab("Home"); setAuthNote(""); setError("");
+    setToken(pair.access_token);
   }
 
   async function saveCapture() {
@@ -125,19 +135,14 @@ export default function App() {
     else if (["Exams", "You", "Team", "News", "Invest"].includes(target)) { setTab("More"); setSub(target as MoreTarget); }
     else setTab("Home");
   }
-  function signOut() { setToken(""); setUser({}); setDashboard({}); setPassword(""); setSub(null); setTab("Home"); }
+  async function signOut() {
+    await endSession();
+    setToken(""); setUser({}); setDashboard({}); setSub(null); setTab("Home"); setAuthNote("");
+  }
 
-  if (!token) return <SafeAreaView style={styles.safe}><StatusBar barStyle="light-content"/><KeyboardAvoidingView style={styles.auth} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-    <Text style={styles.logo}>S</Text><Text style={styles.kicker}>PERSONAL LIFE OPERATING SYSTEM</Text><Text style={styles.title}>{registerMode ? "Create your space" : "Welcome back"}</Text><Text style={styles.subtitle}>A calmer place to organize what matters.</Text>
-    {registerMode && <TextInput placeholder="Your name" placeholderTextColor="#75877c" value={name} onChangeText={setName} style={styles.input}/>}
-    <TextInput autoCapitalize="none" keyboardType="email-address" placeholder="Email address" placeholderTextColor="#75877c" value={email} onChangeText={setEmail} style={styles.input}/>
-    <TextInput secureTextEntry placeholder="Password · at least 8 characters" placeholderTextColor="#75877c" value={password} onChangeText={setPassword} style={styles.input}/>
-    {showServer ? <TextInput autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="Server address, e.g. https://xyz.trycloudflare.com" placeholderTextColor="#75877c" value={server} onChangeText={setServer} style={styles.input}/>
-      : <TouchableOpacity onPress={() => setShowServer(true)}><Text style={styles.link}>Server: {server.replace(/^https?:\/\//, "")} · Change</Text></TouchableOpacity>}
-    <TouchableOpacity style={styles.primary} onPress={authenticate} disabled={busy}><Text style={styles.primaryText}>{busy ? "Please wait…" : registerMode ? "Create account" : "Sign in"}</Text></TouchableOpacity>
-    {!!error && <Text style={styles.error}>{error}</Text>}
-    <TouchableOpacity onPress={() => { setRegisterMode(!registerMode); setError(""); }}><Text style={styles.link}>{registerMode ? "Already have an account? Sign in" : "New to Sakuna? Create an account"}</Text></TouchableOpacity>
-  </KeyboardAvoidingView></SafeAreaView>;
+  if (booting) return <SplashScreen problem={bootProblem} onRetry={() => void restore()}
+    onSignInAgain={() => { void clearSession(); setBootProblem(""); setBooting(false); }}/>;
+  if (!token) return <LoginScreen onSignedIn={onSignedIn} initialError={authNote}/>;
 
   return <SafeAreaView style={styles.safe}><StatusBar barStyle="light-content"/><View style={styles.app}>
     <View style={styles.topbar}>{tab === "More" && sub
@@ -180,7 +185,7 @@ export default function App() {
       {tab === "More" && sub === "Memory" && <MemoryScreen api={api} onError={showError}/>}
       {tab === "More" && sub === "Review" && <ReviewScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Approvals" && <ApprovalsScreen api={api} onError={showError} onNotice={showNotice}/>}
-      {tab === "More" && sub === "Profile" && <ProfileScreen user={user} signOut={signOut} onHealth={() => setSub("Health")}/>}
+      {tab === "More" && sub === "Profile" && <ProfileScreen user={user} signOut={() => void signOut()} onHealth={() => setSub("Health")}/>}
     </View>
     <View style={styles.tabbar}>{(["Home", "Plan", "Capture", "Focus", "More"] as Tab[]).map(item => <TouchableOpacity key={item} style={styles.tab} onPress={() => { setTab(item); setSub(null); setNotice(""); setError(""); }}><Text style={[styles.tabIcon, tab === item && styles.tabIconActive]}>{({ Home: "⌂", Plan: "▦", Capture: "＋", Focus: "◷", More: "☰" } as Record<Tab, string>)[item]}</Text><Text style={[styles.tabText, tab === item && styles.tabTextActive]}>{item}</Text></TouchableOpacity>)}</View>
   </View></SafeAreaView>;

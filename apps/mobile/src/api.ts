@@ -41,14 +41,27 @@ export async function saveServerUrl(value: string): Promise<string> {
   return baseUrl;
 }
 
+// Staying signed in: the newest access token (it lasts 15 minutes) and a function that renews it with the saved
+// refresh token (see session.ts). Screens keep passing the token they got at sign-in; requests use the newest one.
+let latestAccess = "";
+let refresher: (() => Promise<string | null>) | null = null;
+export function setAccessToken(token: string) { latestAccess = token; }
+export function setRefresher(fn: (() => Promise<string | null>) | null) { refresher = fn; }
+
 export async function apiRequest<T = ApiRecord>(path: string, token = "", method = "GET", body?: unknown): Promise<T> {
+  const send = (bearer: string) => fetch(`${baseUrl}/api/v1${path}`, {
+    method,
+    headers: { "Content-Type": "application/json", ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}) },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  const bearer = token ? latestAccess || token : "";
   let response: Response;
   try {
-    response = await fetch(`${baseUrl}/api/v1${path}`, {
-      method,
-      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
+    response = await send(bearer);
+    if (response.status === 401 && bearer && refresher && !path.startsWith("/auth/")) {
+      const fresh = await refresher();
+      if (fresh) response = await send(fresh);
+    }
   } catch {
     throw new ApiError(`Can't reach the server at ${baseUrl}. Check your internet connection and the server address.`, 0);
   }
@@ -63,9 +76,14 @@ export async function apiUpload<T = ApiRecord>(path: string, token: string, file
   const form = new FormData();
   // React Native's FormData accepts { uri, name, type } for files on the device.
   form.append("file", { uri: file.uri, name: file.name, type: file.type || "application/octet-stream" } as unknown as Blob);
+  const bearer = token ? latestAccess || token : "";
   let response: Response;
   try {
-    response = await fetch(`${baseUrl}/api/v1${path}`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, body: form });
+    response = await fetch(`${baseUrl}/api/v1${path}`, { method: "POST", headers: bearer ? { Authorization: `Bearer ${bearer}` } : {}, body: form });
+    if (response.status === 401 && bearer && refresher) {
+      const fresh = await refresher();
+      if (fresh) response = await fetch(`${baseUrl}/api/v1${path}`, { method: "POST", headers: { Authorization: `Bearer ${fresh}` }, body: form });
+    }
   } catch {
     throw new ApiError(`Can't reach the server at ${baseUrl}. Check your internet connection and the server address.`, 0);
   }

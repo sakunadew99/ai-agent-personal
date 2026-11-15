@@ -167,6 +167,8 @@ export default function Home() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [authBusy, setAuthBusy] = useState(false);
   const [page, setPage] = useState("Home");
   const [data, setData] = useState<Row>({});
   const [loading, setLoading] = useState(false);
@@ -265,7 +267,7 @@ export default function Home() {
   useEffect(() => { if (!toast) return; const timer = window.setTimeout(() => setToast(""), 3200); return () => window.clearTimeout(timer); }, [toast]);
 
   async function authenticate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setAuthError("");
+    event.preventDefault(); setAuthError(""); setAuthBusy(true);
     try {
       const endpoint = authMode === "login" ? "/auth/login" : "/auth/register";
       const body = authMode === "login" ? { email, password } : { email, password, full_name: fullName };
@@ -276,6 +278,7 @@ export default function Home() {
       localStorage.setItem("sakuna-refresh", payload.refresh_token);
       setToken(payload.access_token);
     } catch (reason) { setAuthError(reason instanceof Error ? reason.message : "Sign in failed"); }
+    finally { setAuthBusy(false); }
   }
   async function submit(path: string, body: Row, options: RequestInit = {}) {
     await call(path, token, { ...json(body), ...options });
@@ -309,15 +312,45 @@ export default function Home() {
     catch (reason) { setError(reason instanceof Error ? reason.message : "Could not resolve approval"); }
   }
 
-  if (!token) return <main className="auth"><div className="auth-theme"><ThemeToggle compact/></div><form className="auth-card" onSubmit={authenticate}>
-    <BrandMark/><p className="eyebrow">PERSONAL LIFE OPERATING SYSTEM</p><h1>{authMode === "login" ? "Welcome back" : "Create your space"}</h1><p className="muted">A calmer place to organize what matters.</p>
-    {authMode === "register" && <input required placeholder="Your name" value={fullName} onChange={event => setFullName(event.target.value)} />}
-    <input required type="email" placeholder="Email address" value={email} onChange={event => setEmail(event.target.value)} />
-    <input required type="password" minLength={8} placeholder="Password" value={password} onChange={event => setPassword(event.target.value)} />
-    <button className="primary">{authMode === "login" ? "Sign in" : "Create account"}</button>
-    {authError && <p className="inline-error">{authError}</p>}
-    <button type="button" className="link" onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); }}>{authMode === "login" ? "New to Sakuna? Create an account" : "Already have an account? Sign in"}</button>
-  </form></main>;
+  if (!token) return <main className="auth">
+    <div className="auth-theme"><ThemeToggle compact/></div>
+    <div className="auth-split">
+      <section className="auth-hero" aria-hidden="true">
+        <div className="auth-hero-brand"><BrandMark/><span className="auth-hero-name">Sakuna<span className="brand-ai"> AI</span></span></div>
+        <h2>Your whole day,<br/>in one calm place.</h2>
+        <p className="auth-hero-sub">Routines, focus, exams, money and news, with an AI team that knows your day and never acts without you.</p>
+        <ul className="auth-features">
+          <li><span>☀️</span><div><b>Routines and day plan</b><small>Morning to night, the short version on busy days</small></div></li>
+          <li><span>🎯</span><div><b>One hour, one task</b><small>Focus blocks with distractions blocked</small></div></li>
+          <li><span>🎓</span><div><b>IELTS and German coach</b><small>A plan that adjusts and keeps you honest</small></div></li>
+          <li><span>✨</span><div><b>Your AI team</b><small>Morning coach, study coach, night reviewer</small></div></li>
+          <li><span>📈</span><div><b>CSE portfolio and news</b><small>Signals from your own rules, never advice</small></div></li>
+        </ul>
+        <p className="auth-private">🔐 Private: your data stays in your own account.</p>
+      </section>
+      <form className="auth-card auth-card-v2" onSubmit={authenticate}>
+        <div className="auth-mobile-brand"><BrandMark/><span className="auth-hero-name">Sakuna<span className="brand-ai"> AI</span></span></div>
+        <div className="auth-tabs" role="tablist">
+          <button type="button" role="tab" aria-selected={authMode === "login"} className={authMode === "login" ? "on" : ""} onClick={() => { setAuthMode("login"); setAuthError(""); }}>Sign in</button>
+          <button type="button" role="tab" aria-selected={authMode === "register"} className={authMode === "register" ? "on" : ""} onClick={() => { setAuthMode("register"); setAuthError(""); }}>Create account</button>
+        </div>
+        <h1>{authMode === "login" ? "Welcome back" : "Create your space"}</h1>
+        <p className="muted">{authMode === "login" ? "Pick up right where you left off." : "Takes a minute. Everything stays private."}</p>
+        {authMode === "register" && <label className="auth-field"><span>Your name</span><input required autoComplete="name" placeholder="e.g. Sakuna" value={fullName} onChange={event => setFullName(event.target.value)} /></label>}
+        <label className="auth-field"><span>Email</span><input required type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={event => setEmail(event.target.value)} /></label>
+        <label className="auth-field"><span>Password</span>
+          <div className="auth-password">
+            <input required type={showPassword ? "text" : "password"} minLength={8} autoComplete={authMode === "login" ? "current-password" : "new-password"}
+              placeholder="At least 8 characters" value={password} onChange={event => setPassword(event.target.value)} />
+            <button type="button" className="auth-eye" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? "Hide" : "Show"}</button>
+          </div>
+        </label>
+        <button className="primary auth-submit" disabled={authBusy}>{authBusy ? "Please wait…" : authMode === "login" ? "Sign in" : "Create account"}</button>
+        {authError && <p className="inline-error">{authError}</p>}
+        <p className="auth-stay">You stay signed in on this device until you sign out.</p>
+      </form>
+    </div>
+  </main>;
 
   const user = (me.user || data.user || {}) as Row;
   const dashboard = data.dashboard || {};

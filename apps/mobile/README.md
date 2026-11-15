@@ -39,7 +39,7 @@ The APK is `android/app/build/outputs/apk/debug/app-debug.apk`. Install it on th
 
 Mi Fitness does not necessarily export every metric: Xiaomi/Google documentation currently lists heart rate during exercise, total steps, and sleep as shareable metrics; all-day heart-rate readings may not be available through this route. If Sakuna shows no data, open Mi Fitness and sync the band first, then check Health Connect → App permissions to confirm Mi Fitness is writing the data and Sakuna has read permission. Health Connect requires Android 9+; on Android 13 and below install Health Connect from Play Store. iOS has no Health Connect integration.
 
-The access token is held in memory and clears when the app restarts. Sign in again to resume. The backend receives health records only after the explicit sync button is tapped. Use HTTPS for a deployed backend; the LAN HTTP address is for local development only.
+You stay signed in until you tap Sign out: the refresh token is kept in the phone's encrypted secure storage, the 15-minute access token is renewed automatically, and the server's sliding window is 90 days (open the app at least once in 90 days). The backend receives health records only after the explicit sync button is tapped. Use HTTPS for a deployed backend; the LAN HTTP address is for local development only.
 
 ## Sakuna Shield (Android APK only)
 

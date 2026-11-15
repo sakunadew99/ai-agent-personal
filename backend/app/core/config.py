@@ -14,7 +14,9 @@ class Settings(BaseSettings):
     jwt_secret: str = "dev-only-change-me"
     jwt_algorithm: str = "HS256"
     access_token_minutes: int = 15
-    refresh_token_days: int = 14
+    # Sliding sign-in: every refresh issues a new token with a fresh expiry, so you stay signed in while you keep using
+    # the app and only need to sign in again after this many days without opening it (or after signing out).
+    refresh_token_days: int = 90
     openai_api_key: str = ""
     # Any OpenAI-compatible provider: OpenAI (default), Google Gemini
     # (https://generativelanguage.googleapis.com/v1beta/openai), Groq (https://api.groq.com/openai/v1),

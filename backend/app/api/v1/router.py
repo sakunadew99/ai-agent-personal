@@ -95,7 +95,7 @@ def register(data: dto.RegisterIn, db: Session = Depends(get_db)):
     db.flush()
     seed_user_defaults(db, user)
     token = new_refresh_token()
-    db.add(RefreshToken(user_id=user.id, token_hash=hash_token(token), expires_at=now_utc() + timedelta(days=14)))
+    db.add(RefreshToken(user_id=user.id, token_hash=hash_token(token), expires_at=now_utc() + timedelta(days=settings.refresh_token_days)))
     db.commit()
     db.refresh(user)
     return dto.TokenPair(access_token=create_access_token(user.id), refresh_token=token, user=user)
@@ -107,7 +107,7 @@ def login(data: dto.LoginIn, db: Session = Depends(get_db)):
     if not user or not verify_password(data.password, user.password_hash):
         raise HTTPException(401, "Invalid email or password")
     refresh = new_refresh_token()
-    db.add(RefreshToken(user_id=user.id, token_hash=hash_token(refresh), expires_at=now_utc() + timedelta(days=14)))
+    db.add(RefreshToken(user_id=user.id, token_hash=hash_token(refresh), expires_at=now_utc() + timedelta(days=settings.refresh_token_days)))
     db.commit()
     return dto.TokenPair(access_token=create_access_token(user.id), refresh_token=refresh, user=user)
 
@@ -122,7 +122,7 @@ def refresh_token(data: dto.RefreshIn, db: Session = Depends(get_db)):
         raise HTTPException(401, "Invalid refresh token")
     row.revoked_at = now_utc()
     replacement = new_refresh_token()
-    new_row = RefreshToken(user_id=user.id, token_hash=hash_token(replacement), expires_at=now_utc() + timedelta(days=14))
+    new_row = RefreshToken(user_id=user.id, token_hash=hash_token(replacement), expires_at=now_utc() + timedelta(days=settings.refresh_token_days))
     db.add(new_row)
     db.flush()
     row.replaced_by = new_row.id
