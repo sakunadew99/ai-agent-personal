@@ -118,7 +118,7 @@ function BalancePane({ token, cur, say, fail }: PaneProps) {
 
 function WishPane({ token, cur, say, fail }: PaneProps) {
   const [rows, setRows] = useState<Row[]>([]);
-  const [form, setForm] = useState({ name: "", price: "", currency: cur, priority: "2", cooling_days: "7", link: "" });
+  const [form, setForm] = useState({ name: "", price: "", currency: cur, priority: "2", cooling_days: "7", link: "", target_date: "" });
   const [check, setCheck] = useState<Row | null>(null);
   const [showClosed, setShowClosed] = useState(false);
   const load = useCallback(() => { apiRequest<Row[]>(`/money/wishlist${showClosed ? "?include_closed=true" : ""}`, token).then(setRows).catch(fail); }, [token, showClosed, fail]);
@@ -127,8 +127,8 @@ function WishPane({ token, cur, say, fail }: PaneProps) {
   function add(event: FormEvent) {
     event.preventDefault();
     const body = { name: form.name, currency: form.currency, priority: Number(form.priority), cooling_days: Number(form.cooling_days),
-      ...(form.price ? { price: form.price.replace(/,/g, "") } : {}), ...(form.link.trim() ? { link: form.link.trim() } : {}) };
-    void run(apiRequest("/money/wishlist", token, postJson(body)).then(() => setForm({ ...form, name: "", price: "", link: "" })), `Added. It can be marked ready after ${form.cooling_days} day(s).`);
+      ...(form.price ? { price: form.price.replace(/,/g, "") } : {}), ...(form.link.trim() ? { link: form.link.trim() } : {}), ...(form.target_date ? { target_date: form.target_date } : {}) };
+    void run(apiRequest("/money/wishlist", token, postJson(body)).then(() => setForm({ ...form, name: "", price: "", link: "", target_date: "" })), `Added. It can be marked ready after ${form.cooling_days} day(s).`);
   }
   async function affordability(row: Row) { try { setCheck(await apiRequest<Row>(`/money/wishlist/${row.id}/affordability`, token)); } catch (reason) { fail(reason); } }
   function bought(row: Row) {
@@ -146,6 +146,7 @@ function WishPane({ token, cur, say, fail }: PaneProps) {
       <select value={form.priority} onChange={e => setForm({ ...form, priority: e.target.value })} aria-label="Priority"><option value="1">Must</option><option value="2">Nice</option><option value="3">Someday</option></select>
       <select value={form.cooling_days} onChange={e => setForm({ ...form, cooling_days: e.target.value })} aria-label="Cooling-off"><option value="0">No wait</option><option value="7">Wait 7 days</option><option value="14">Wait 14 days</option><option value="30">Wait 30 days (big)</option></select>
       <input value={form.link} onChange={e => setForm({ ...form, link: e.target.value })} placeholder="Link (optional)" maxLength={500}/>
+      <label className="inline-check" title="When you'd like it by (optional)">🎯 by <input type="date" value={form.target_date} onChange={e => setForm({ ...form, target_date: e.target.value })}/></label>
       <button className="primary" disabled={!form.name.trim()}>Add wish</button>
     </form>
     <label className="inline-check"><input type="checkbox" checked={showClosed} onChange={e => setShowClosed(e.target.checked)}/> Show bought and skipped</label>
@@ -155,10 +156,11 @@ function WishPane({ token, cur, say, fail }: PaneProps) {
     <div className="card-list">{rows.map(row => <div className={`wish-row state-${row.state}`} key={row.id}>
       <div><b>{row.name}</b>{row.price != null && <span> · {fmt(row.price, row.currency)}</span>}
         <small className="muted">{row.state === "waiting" ? `⏳ cooling off · ${row.days_left} day(s) left` : row.state === "ready" ? "✓ ready, if you still want it" : row.state}
-          {" · "}{["", "must", "nice", "someday"][row.priority]}{row.link && /^https?:\/\//i.test(row.link) ? <> · <a href={row.link} target="_blank" rel="noopener noreferrer">link ↗</a></> : null}</small></div>
+          {" · "}{["", "must", "nice", "someday"][row.priority]}{row.target_date ? ` · 🎯 by ${new Date(`${row.target_date}T12:00:00`).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })}` : ""}{row.link && /^https?:\/\//i.test(row.link) ? <> · <a href={row.link} target="_blank" rel="noopener noreferrer">link ↗</a></> : null}</small></div>
       <div className="row-actions">{row.status === "active" ? <>
         {row.price != null && <button className="text-button" onClick={() => void affordability(row)}>Afford?</button>}
         <button className="text-button" onClick={() => { const p = window.prompt("New price", row.price ?? ""); if (p) void run(apiRequest(`/money/wishlist/${row.id}`, token, patchJson({ price: p.replace(/,/g, "") })), "Price noted."); }}>Price</button>
+        <button className="text-button" onClick={() => { const d = window.prompt("Target date (YYYY-MM-DD), empty to clear", row.target_date || ""); if (d !== null && (d === "" || /^\d{4}-\d{2}-\d{2}$/.test(d))) void run(apiRequest(`/money/wishlist/${row.id}`, token, patchJson({ target_date: d || null })), "Date saved."); }}>Date</button>
         <button className="text-button" onClick={() => bought(row)}>Bought</button>
         <button className="text-button" onClick={() => void run(apiRequest(`/money/wishlist/${row.id}/decide`, token, postJson({ action: "skipped" })), "Skipped. You won't be reminded again.")}>Skip</button>
       </> : <button className="text-button" onClick={() => void run(apiRequest(`/money/wishlist/${row.id}/decide`, token, postJson({ action: "reopen" })), "Reopened.")}>Reopen</button>}
@@ -170,7 +172,7 @@ function WishPane({ token, cur, say, fail }: PaneProps) {
 
 function BuyPane({ token, cur, say, fail }: PaneProps) {
   const [rows, setRows] = useState<Row[]>([]);
-  const [form, setForm] = useState({ name: "", qty: "1", unit: "", est_price: "", list_name: "groceries", staple: false });
+  const [form, setForm] = useState({ name: "", qty: "1", unit: "", est_price: "", list_name: "groceries", staple: false, need_by: "" });
   const [selected, setSelected] = useState<string[]>([]);
   const load = useCallback(() => { apiRequest<Row[]>("/money/buy-list", token).then(setRows).catch(fail); }, [token, fail]);
   useEffect(() => { load(); }, [load]);
@@ -178,8 +180,8 @@ function BuyPane({ token, cur, say, fail }: PaneProps) {
   function add(event: FormEvent) {
     event.preventDefault();
     const body = { name: form.name, qty: form.qty || "1", list_name: form.list_name || "groceries", currency: cur, staple: form.staple,
-      ...(form.unit ? { unit: form.unit } : {}), ...(form.est_price ? { est_price: form.est_price.replace(/,/g, "") } : {}) };
-    void run(apiRequest("/money/buy-list", token, postJson(body)).then(() => setForm({ ...form, name: "", qty: "1", unit: "", est_price: "", staple: false })), "Added to the buy list.");
+      ...(form.unit ? { unit: form.unit } : {}), ...(form.est_price ? { est_price: form.est_price.replace(/,/g, "") } : {}), ...(form.need_by ? { need_by: form.need_by } : {}) };
+    void run(apiRequest("/money/buy-list", token, postJson(body)).then(() => setForm({ ...form, name: "", qty: "1", unit: "", est_price: "", staple: false, need_by: "" })), "Added to the buy list.");
   }
   function checkout() {
     const items = rows.filter(r => selected.includes(r.id));
@@ -203,6 +205,7 @@ function BuyPane({ token, cur, say, fail }: PaneProps) {
       <input value={form.list_name} onChange={e => setForm({ ...form, list_name: e.target.value })} placeholder="List" maxLength={32} list="buy-lists"/>
       <datalist id="buy-lists">{["groceries", "household", "pharmacy", "market"].map(l => <option key={l} value={l}/>)}</datalist>
       <label className="inline-check"><input type="checkbox" checked={form.staple} onChange={e => setForm({ ...form, staple: e.target.checked })}/> staple</label>
+      <label className="inline-check" title="Need it by (optional)">📅 by <input type="date" value={form.need_by} onChange={e => setForm({ ...form, need_by: e.target.value })}/></label>
       <button className="primary" disabled={!form.name.trim()}>Add</button>
     </form>
     <div className="buy-bar"><span>{open.length} to buy · est. {fmt(total, cur)}</span>
@@ -211,7 +214,7 @@ function BuyPane({ token, cur, say, fail }: PaneProps) {
     {lists.map(list => <div key={list}><h3 className="list-title">{list}</h3>
       {open.filter(r => r.list_name === list).map(row => <label className="buy-row" key={row.id}>
         <input type="checkbox" checked={selected.includes(row.id)} onChange={e => setSelected(s => e.target.checked ? [...s, row.id] : s.filter(id => id !== row.id))}/>
-        <span><b>{row.name}</b> <small className="muted">{Number(row.qty) !== 1 || row.unit ? `${Number(row.qty)} ${row.unit || ""}` : ""}{row.staple ? " · staple" : ""}</small></span>
+        <span><b>{row.name}</b> <small className="muted">{Number(row.qty) !== 1 || row.unit ? `${Number(row.qty)} ${row.unit || ""}` : ""}{row.staple ? " · staple" : ""}{row.need_by ? ` · 📅 by ${new Date(`${row.need_by}T12:00:00`).toLocaleDateString([], { day: "numeric", month: "short" })}` : ""}</small></span>
         <span className="muted">{row.est_price != null ? fmt(row.est_price, row.currency) : ""}</span>
         <button type="button" className="danger-link" aria-label={`Delete ${row.name}`} onClick={() => void run(apiRequest(`/money/buy-list/${row.id}`, token, { method: "DELETE" }), "Removed.")}>×</button>
       </label>)}</div>)}

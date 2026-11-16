@@ -34,6 +34,7 @@ import "./polish.css";
 import "./dash.css";
 import { FinanceDashboard, HealthDashboard, LifeDashboard } from "@/components/Dashboards";
 import { AboutYouPage, AiTeamPage, ExamsPage, InvestPage, JournalPage, MyDayPage, NewsPage } from "@/components/LifeOsPages";
+import { HabitManager, InboxPage, JobFinder, LearnRadar, PlannerBoard, RewardsGame, SubscriptionsPanel } from "@/components/LifeOsPages2";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "";
 type Row = JsonRecord;
@@ -405,11 +406,11 @@ export default function Home() {
       case "Weekly review": return <WeeklyReview tasks={toList(data.tasks)} sessions={toList(data.sessions)} dashboard={data.dashboard || {}} reviews={toList(data.reviews)} save={async content => { await submit("/memories", { content, category: "decision" }); }} />;
       case "My life": return <MyLife tasks={tasks} goals={goals} habits={toList(data.habits)} token={token} refresh={() => fetchPage()} submit={submit} />;
       case "Assistant": return <ChatPage token={token} conversations={toList(data.conversations)} onChanged={() => { call<Row[]>("/conversations", token).then(rows => setData(current => ({ ...current, conversations: rows }))).catch(() => undefined); }} />;
-      case "Capture inbox": return <Capture captures={toList(data.captures)} submit={submit} />;
-      case "Planner": return <Planner plan={data.plan || {}} week={toList(data.week)} submit={submit} token={token} />;
+      case "Capture inbox": return <InboxPage token={token} />;
+      case "Planner": return <><PlannerBoard token={token} /><Planner plan={data.plan || {}} week={toList(data.week)} submit={submit} token={token} /></>;
       case "Finance": return <Finance summary={data.summary || {}} month={month} setMonth={setMonth} submit={submit} token={token} />;
-      case "Career": return <Career profile={data.profile || {}} projects={toList(data.projects)} submit={submit} token={token} />;
-      case "Learning": return <LearningPage token={token} />;
+      case "Career": return <><JobFinder token={token} /><Career profile={data.profile || {}} projects={toList(data.projects)} submit={submit} token={token} /></>;
+      case "Learning": return <><LearnRadar token={token} /><LearningPage token={token} /></>;
       case "My day": return <MyDayPage token={token} />;
       case "AI team": return <AiTeamPage token={token} />;
       case "Invest": return <InvestPage token={token} />;
@@ -417,9 +418,9 @@ export default function Home() {
       case "News": return <NewsPage token={token} />;
       case "Journal": return <JournalPage token={token} />;
       case "About you": return <AboutYouPage token={token} />;
-      case "Rewards": return <RewardsPage token={token} />;
+      case "Rewards": return <><RewardsGame token={token} /><RewardsPage token={token} /></>;
       case "Study abroad": return <StudyPage token={token} />;
-      case "Documents": return <VaultPage token={token} />;
+      case "Documents": return <><SubscriptionsPanel token={token} /><VaultPage token={token} /></>;
       case "Life balance": return <BalancePage token={token} />;
       case "Health": return <Health records={toList(data.records)} workouts={toList(data.workouts)} sleep={toList(data.sleep)} submit={submit} token={token} />;
       case "Focus": return <FocusPage sessions={toList(data.sessions)} tasks={toList(data.tasks)} />;
@@ -491,7 +492,7 @@ function MyLife({ tasks, goals, habits, token, refresh, submit }: { tasks: Row[]
   return <><LifeDashboard token={token} version={version} onChanged={refresh}/><div className="tab-bar">{["Tasks", "Goals", "Habits"].map(item => <button className={tab === item ? "selected" : ""} onClick={() => setTab(item)} key={item}>{item}</button>)}</div>
     {tab === "Tasks" && <div className="grid main-grid"><Panel><SectionHeading eyebrow="CAPTURE YOUR NEXT STEP" title="Add a task"/><Form compact fields={[{ name: "title", label: "Task", required: true, placeholder: "What needs doing?" }, { name: "priority", label: "Priority", options: ["low", "medium", "high"] }, { name: "category", label: "Category", options: ["personal", "work", "learning", "health", "business"] }, { name: "due_at", label: "Due date and time", type: "datetime-local" }, { name: "duration_minutes", label: "Minutes", type: "number" }, { name: "repeat", label: "Repeat", options: Object.keys(REPEAT_RULES) }]} submit={({ repeat, ...body }) => submit("/tasks", { priority: "medium", category: "personal", duration_minutes: 30, ...body, ...(repeat ? { recurrence: REPEAT_RULES[String(repeat)] } : {}) })}/><p className="muted small-copy">Repeating tasks: when you finish one, the next is created automatically at the same local time.</p></Panel><Panel><SectionHeading eyebrow="MAKE IT HAPPEN" title={`${tasks.length} open tasks`}/>{tasks.length ? <div className="task-list">{tasks.map(task => <div className="task" key={task.id}><button className="check" aria-label={`Complete ${task.title}`} onClick={() => void complete(task.id)}>✓</button><div className="task-copy"><b>{task.title}</b><small>{task.priority} · {niceDate(task.due_at)}{task.recurrence ? ` · ${repeatLabel(task.recurrence)}` : ""}</small></div><TaskCalendarButton token={token} task={task} canAdd={canAddEvents} onDone={note => { setCalendarNote(note); refresh(); }}/><button className="danger-link" aria-label={`Delete ${task.title}`} onClick={() => void removeTask(task.id)}>Delete</button></div>)}</div> : <Empty>All clear. Add a task when something comes to mind.</Empty>}{calendarNote && <p className="muted small-copy">{calendarNote}</p>}</Panel></div>}
     {tab === "Goals" && <div className="grid main-grid"><Panel><SectionHeading eyebrow="CHOOSE YOUR DIRECTION" title="Create a goal"/><Form fields={[{ name: "title", label: "Goal name", required: true }, { name: "category", label: "Area", options: ["personal", "career", "finance", "health", "learning"] }, { name: "target_value", label: "Target value", type: "number" }, { name: "current_value", label: "Current progress", type: "number" }, { name: "unit", label: "Unit", placeholder: "hours, books, USD…" }, { name: "due_date", label: "Target date", type: "date" }, { name: "metric", label: "Progress comes from", options: ["manual", "savings_balance", "all_accounts", "income_since_start", "focus_hours", "tasks_done", "milestones_done"] }, { name: "metric_currency", label: "Currency (money goals)", placeholder: "LKR" }, { name: "description", label: "Notes", type: "textarea" }]} submit={body => submit("/goals", body)}/><p className="muted small-copy">Automatic sources update themselves from your accounts, income, focus time, linked tasks or milestones. Set floor / realistic / stretch levels on the goal card.</p></Panel><Panel><SectionHeading eyebrow="YOUR LONGER VIEW" title="Goals"/>{goals.length ? goals.map(goal => <GoalCard key={goal.id} goal={goal} extra={<><GoalForecast token={token} goalId={goal.id}/><Milestones token={token} goalId={goal.id}/></>} actions={<><button className="text-button" onClick={() => void goalProgress(goal)}>Progress +1</button><button className="danger-link" onClick={() => void removeGoal(goal.id)}>Delete</button></>}/>) : <Empty>Your active goals will appear here.</Empty>}</Panel></div>}
-    {tab === "Habits" && <div className="grid main-grid"><Panel><SectionHeading eyebrow="BUILD A ROUTINE" title="Create a habit"/><Form fields={[{ name: "name", label: "Habit", required: true }, { name: "schedule", label: "Schedule", options: ["daily", "weekdays", "weekly", "custom"] }]} submit={body => submit("/habits", body)}/></Panel><Panel><SectionHeading eyebrow="SHOW UP FOR YOURSELF" title="Habits"/>{habits.length ? habits.map(habit => <div className="habit-row" key={habit.id}><div><b>{habit.name}</b><small>{habit.schedule}</small></div><button className="outline" onClick={() => void logHabit(habit.id)}>Log today ✓</button></div>) : <Empty>Create a habit to start tracking your consistency.</Empty>}</Panel></div>}
+    {tab === "Habits" && <HabitManager token={token} onChanged={refresh}/>}
   </>;
 }
 function GoalCard({ goal, actions, extra }: { goal: Row; actions?: ReactNode; extra?: ReactNode }) { const pct = goal.target_value ? Math.min(100, Number(goal.current_value || 0) / Number(goal.target_value) * 100) : 0; return <div className="goal"><div className="goal-title"><b>{goal.title}</b><span>{goal.status}</span></div><p className="muted small-copy">{goal.description || `${goal.current_value || 0} / ${goal.target_value ?? "—"} ${goal.unit || ""}`}</p><div className="progress"><span style={{ width: `${pct}%` }}/></div>{extra}{actions && <div className="goal-actions">{actions}</div>}</div>; }
