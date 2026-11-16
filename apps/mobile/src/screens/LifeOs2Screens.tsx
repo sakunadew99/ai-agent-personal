@@ -5,6 +5,8 @@ import type { ApiRecord as Row } from "../api";
 import { Bars, Hero, Meter, PALETTE, Ring, Segments, SplitBar, StatTile, TileRow } from "../charts";
 import { DateField, isoDate, TimeField } from "../pickers";
 import { Badge, Btn, C, Card, Empty, Field, H2, Kicker, Muted, Row as Line, Screen } from "../ui";
+import { syncHabitReminders } from "../notify";
+import { LinkedInCard } from "./LifeOs3Screens";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 type Props = { api: Api; onError: (m: string) => void; onNotice: (m: string) => void };
@@ -99,7 +101,7 @@ export function HabitsPanel({ api, onError, onNotice }: Props) {
   async function save() {
     if (!edit?.name?.trim()) return;
     const body = { name: edit.name.trim(), kind: edit.kind || "build", icon: edit.icon || null, reminder_time: edit.reminder_time ? hhmm(edit.reminder_time) : null, target_per_week: edit.target_per_week || null };
-    try { await api(edit.id ? `/habits/${edit.id}` : "/habits", edit.id ? "PATCH" : "POST", body); onNotice(edit.id ? "Habit updated" : "Habit created"); setEdit(null); load(); } catch (e) { onError(msg(e)); }
+    try { await api(edit.id ? `/habits/${edit.id}` : "/habits", edit.id ? "PATCH" : "POST", body); onNotice(edit.id ? "Habit updated" : "Habit created"); setEdit(null); load(); void syncHabitReminders(api); } catch (e) { onError(msg(e)); }
   }
   const remove = (h: Row) => Alert.alert("Delete habit?", `“${h.name}” leaves your list; its history stays in reports.`, [{ text: "Cancel", style: "cancel" },
     { text: "Delete", style: "destructive", onPress: () => void api(`/habits/${h.id}`, "DELETE").then(load).catch(e => onError(msg(e))) }]);
@@ -275,6 +277,7 @@ export function JobFinderScreen({ api, onError, onNotice }: Props) {
       <Btn title={busy ? "Searching…" : "Find jobs"} onPress={() => void search()} busy={busy} disabled={q.trim().length < 2}/>
     </Hero>
     {res && <>
+      <LinkedInCard api={api} q={q}/>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>{(res.links as Row[]).map(l => <TouchableOpacity key={l.name} style={chip(false)} onPress={() => open(l.url)}><Text style={{ color: C.text, fontWeight: "700" }}>{`${l.name} ↗`}</Text></TouchableOpacity>)}</ScrollView>
       <TileRow><StatTile label="Jobs" tone="green" value={`${s.total}`}/><StatTile label="Remote" tone="blue" value={`${s.remote}`}/><StatTile label="Germany" tone="amber" value={`${s.germany}`}/></TileRow>
       {(s.skills as [string, number][]).length > 0 && <Card><Kicker>SKILLS IN DEMAND</Kicker><Bars data={(s.skills as [string, number][]).slice(0, 8).map(([k, c]) => ({ label: k.slice(0, 6), value: c }))} height={110}/>

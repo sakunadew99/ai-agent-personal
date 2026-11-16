@@ -602,6 +602,41 @@ def career_find(q: str = Query(min_length=2, max_length=200), location: str = Qu
     return out
 
 
+@router.get("/brain")
+def brain(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Brain gym: BrainGymmer games by skill, today's 5-game workout, and your brain-games streak."""
+    from app.services import brain_videos
+    return brain_videos.brain_view(db, user.id, datetime.now(zone(profile_for(db, user).timezone)).date())
+
+
+@router.post("/brain/played")
+def brain_played(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """'I played today': logs your Brain games habit (streak + points)."""
+    from app.services import brain_videos
+    out = brain_videos.played(db, user.id, datetime.now(zone(profile_for(db, user).timezone)).date()); db.commit(); return out
+
+
+@router.get("/watch")
+def watch(channels: str = Query(default="", max_length=600), shorts: bool = False, user: User = Depends(get_current_user)):
+    """Latest videos from technology, AI and motivation channels (+ your own), with this week's must-watch picks."""
+    from app.services import brain_videos
+    return brain_videos.watch([c.strip() for c in channels.split(",") if c.strip()], skip_shorts=not shorts)
+
+
+@router.get("/watch/channel")
+def watch_channel(q: str = Query(min_length=2, max_length=200), user: User = Depends(get_current_user)):
+    """Find a YouTube channel id from a link or @handle (to add it to your Watch shelf)."""
+    from app.services import brain_videos
+    return brain_videos.resolve_channel(q)
+
+
+@router.get("/career/linkedin")
+def career_linkedin(q: str = Query(min_length=2, max_length=200), user: User = Depends(get_current_user)):
+    """Ready-made LinkedIn searches (posts, hiring posts, jobs from the last 24 h). LinkedIn doesn't allow scraping."""
+    from app.services import brain_videos
+    return {"links": brain_videos.linkedin_links(q)}
+
+
 @router.get("/learning/radar")
 def learning_radar(topics: str = Query(default="python,ai,web development", max_length=300), user: User = Depends(get_current_user)):
     """What's new to learn in your topics (Hacker News, dev.to, GitHub), a Wikipedia 'learn today', and free learning tracks."""

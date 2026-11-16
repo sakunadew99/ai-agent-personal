@@ -110,3 +110,34 @@ export async function scheduleFocusEnd(seconds: number) {
 export async function cancelFocusEnd() {
   try { await cancelWhere(id => id === FOCUS_ID); } catch { /* best-effort */ }
 }
+
+const HABIT_PREFIX = "habit-";
+
+/** Habit reminders at each habit's reminder time for the next 7 days (skips today once it's done). Replaced on every sync. */
+export async function syncHabitReminders(api: Api): Promise<number> {
+  try {
+    if (!(await ready())) return -1;
+    const [habits, overview] = await Promise.all([api<Row[]>("/habits"), api<Row>("/life/overview").catch(() => ({} as Row))]);
+    const doneToday = new Set(((overview.habits || []) as Row[]).filter(h => h.done_today).map(h => String(h.id)));
+    await cancelWhere(id => id.startsWith(HABIT_PREFIX));
+    let count = 0;
+    const today = new Date();
+    for (const h of habits.filter(x => x.reminder_time)) {
+      const [hh, mm] = String(h.reminder_time).split(":").map(Number);
+      for (let n = 0; n < 7 && count < MAX_SCHEDULED; n++) {
+        if (n === 0 && doneToday.has(String(h.id))) continue;
+        const at = new Date(today.getFullYear(), today.getMonth(), today.getDate() + n, hh, mm);
+        if (at.getTime() <= Date.now() + 5000) continue;
+        await Notifications.scheduleNotificationAsync({
+          identifier: `${HABIT_PREFIX}${h.id}-${n}`,
+          content: { title: `${h.icon || "🔁"} ${h.name}`, body: h.kind === "avoid" ? "Stay strong today. Open Sakuna to log a clean day." : "Time for your habit. Tap ✓ in Sakuna when it's done.", data: { habitId: h.id } },
+          trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at, channelId: CHANNEL },
+        });
+        count++;
+      }
+    }
+    return count;
+  } catch {
+    return 0; // best-effort
+  }
+}

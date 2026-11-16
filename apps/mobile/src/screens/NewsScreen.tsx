@@ -3,6 +3,7 @@ import { Linking, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } 
 
 import { peek, type ApiRecord as Row } from "../api";
 import { Badge, Btn, C, Card, Empty, Kicker, Muted, Row as Line, Screen } from "../ui";
+import { Hero, Ring, SplitBar } from "../charts";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 const msg = (r: unknown) => (r instanceof Error ? r.message : "Something went wrong");
@@ -18,6 +19,7 @@ export function NewsScreen({ api, onError, onNotice }: { api: Api; onError: (m: 
   const [interest, setInterest] = useState("");
   const [feed, setFeed] = useState({ name: "", url: "", topic: "tech" as (typeof TOPICS)[number] });
   const [showFeeds, setShowFeeds] = useState(false);
+  const [find, setFind] = useState("");
   const load = useCallback(() => { api<Row>("/news").then(setV).catch(r => onError(msg(r))); }, [api, onError]);
   useEffect(() => { load(); }, [load]);
   if (!v) return <Screen><Empty>Loading your news…</Empty></Screen>;
@@ -34,10 +36,13 @@ export function NewsScreen({ api, onError, onNotice }: { api: Api; onError: (m: 
   const setInterests = (list: string[]) => api<Row>("/news/interests", "PUT", { interests: list }).then(() => load()).catch(e => onError(msg(e)));
 
   return <Screen onRefresh={load}>
-    <Card accent>
-      <Line><Kicker>{`TODAY'S DIGEST${d ? ` · ${new Date(`${d.date}T12:00:00`).toLocaleDateString([], { weekday: "long" })}` : ""}`}</Kicker><View style={{ flex: 1 }}/>
-        {d?.used_ai ? <Badge>✨ AI</Badge> : <Badge tone="muted">rules</Badge>}</Line>
-      <Text style={s.intro}>{d?.intro || "No digest yet."}</Text>
+    <Hero kicker={`TODAY'S DIGEST${d ? ` · ${new Date(`${d.date}T12:00:00`).toLocaleDateString([], { weekday: "long" }).toUpperCase()}` : ""}${d?.used_ai ? " · ✨ AI" : ""}`}
+      title="News that" accent="matters to you" sub={d?.intro || "No digest yet. Tap Refresh."}
+      right={<Ring value={Math.min(100, ((v.items as Row[]).length / 60) * 100)} size={86} label={`${(v.items as Row[]).length}`} sub="STORIES"/>}/>
+    {(v.items as Row[]).length > 0 && <Card><Kicker>WHERE TODAY'S STORIES COME FROM</Kicker>
+      <SplitBar parts={Object.entries((v.items as Row[]).reduce((acc: Record<string, number>, i) => { const k = i.source || "other"; acc[k] = (acc[k] || 0) + 1; return acc; }, {}))
+        .sort((a, b) => b[1] - a[1]).slice(0, 6).map(([label, value]) => ({ label, value }))} format={n => `${n}`}/></Card>}
+    <Card>
       {v.refreshing && <Muted small>Fetching fresh stories in the background… pull down in a minute.</Muted>}
       <Btn title={busy ? "Refreshing feeds…" : "↻ Refresh now"} onPress={() => void refresh()} busy={busy}/>
     </Card>
@@ -61,7 +66,8 @@ export function NewsScreen({ api, onError, onNotice }: { api: Api; onError: (m: 
 
     <Card>
       <Kicker>MORE STORIES (RANKED FOR YOU)</Kicker>
-      {(v.items as Row[]).filter(i => !(d?.items as Row[] || []).some(e => e.id === i.id)).slice(0, 15).map(i => <View key={i.id} style={s.row}>
+      <TextInput style={s.input} value={find} onChangeText={setFind} placeholder="🔎 Search stories" placeholderTextColor={C.muted}/>
+      {(v.items as Row[]).filter(i => !(d?.items as Row[] || []).some(e => e.id === i.id)).filter(i => !find.trim() || `${i.title} ${i.source}`.toLowerCase().includes(find.trim().toLowerCase())).slice(0, find.trim() ? 40 : 15).map(i => <View key={i.id} style={s.row}>
         <TouchableOpacity style={{ flex: 1 }} onPress={() => open(i.url)}><Text style={s.rowTitle} numberOfLines={2}>{i.title}</Text>
           <Muted small>{`${i.source || ""} · ${ago(i.published_at)}${i.status === "saved" ? " · saved" : ""}`}</Muted></TouchableOpacity>
         <TouchableOpacity onPress={() => void act(i.id, "save")}><Text style={s.icon}>🧠</Text></TouchableOpacity>

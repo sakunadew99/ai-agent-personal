@@ -23,6 +23,9 @@ def _no_real_news_downloads(monkeypatch):
     jobs_finder.clear_cache(); learn_radar.clear_cache()
     monkeypatch.setattr(jobs_finder, "_fetch", blocked)
     monkeypatch.setattr(learn_radar, "_fetch", blocked)
+    from app.services import brain_videos
+    brain_videos.clear_cache()
+    monkeypatch.setattr(brain_videos, "_fetch", blocked)
 
 
 @pytest.fixture(autouse=True)

@@ -16,7 +16,7 @@ import { RewardsScreen } from "./src/screens/RewardsScreen";
 import { AiScreen, CommandCard } from "./src/screens/CommandAiScreens";
 import { CoachCardMobile, StudyScreen } from "./src/screens/StudyCoachScreens";
 import { BalanceScreen, VaultScreen } from "./src/screens/BalanceVaultScreens";
-import { syncReminders } from "./src/notify";
+import { syncHabitReminders, syncReminders } from "./src/notify";
 import { FocusEngine } from "./src/screens/FocusEngine";
 import { ExamScreen } from "./src/screens/ExamScreens";
 import { AiTeamScreen, TeamTodayCard } from "./src/screens/AiTeamScreens";
@@ -27,11 +27,12 @@ import { LifeCompass } from "./src/screens/LifeCompass";
 import { JournalScreen } from "./src/screens/JournalScreen";
 import { MonthRoutines, NowRoutineCard, PlanSwitch, TodayRoutines, WeekPlan, type PlanView } from "./src/screens/MyDayScreens";
 import { InboxScreen, JobFinderScreen, PlanBoard, RadarScreen, RewardsGameScreen, SubscriptionsScreen, Switcher } from "./src/screens/LifeOs2Screens";
+import { BrainGymScreen, WatchScreen } from "./src/screens/LifeOs3Screens";
 import { appendSpeech, MicButton } from "./src/voice";
 import { Hero, Ring, StatTile, TileRow, WeekDots } from "./src/charts";
 
 type Tab = "Home" | "Plan" | "Capture" | "Focus" | "More";
-const SUB_TITLES: Record<MoreTarget, string> = { Assistant: "Assistant", Journal: "Journal", Invest: "Invest (CSE)", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
+const SUB_TITLES: Record<MoreTarget, string> = { Brain: "Brain gym", Assistant: "Assistant", Journal: "Journal", Invest: "Invest (CSE)", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
 
 export default function App() {
   const [booting, setBooting] = useState(true);       // restoring the saved session
@@ -80,7 +81,7 @@ export default function App() {
   useEffect(() => { if (token) void loadTab(tab); }, [token, tab, loadTab]);
 
   // Phone reminders for tasks due in the next 7 days (local notifications, quiet hours applied by the API).
-  useEffect(() => { if (token) void syncReminders(api); }, [token, api]);
+  useEffect(() => { if (token) { void syncReminders(api); void syncHabitReminders(api); } }, [token, api]);
 
   // Stay signed in: restore the saved session on start; renew the access token whenever it expires.
   const restore = useCallback(async () => {
@@ -187,7 +188,8 @@ export default function App() {
       {tab === "More" && sub === "Vault" && <Switcher options={["renewals", "docs"] as const} labels={{ renewals: "💳 Renewals", docs: "🪪 Documents" }} render={v => v === "renewals" ? <SubscriptionsScreen api={api} onError={showError} onNotice={showNotice}/> : <VaultScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
       {tab === "More" && sub === "Journal" && <JournalScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Invest" && <InvestScreen api={api} upload={(path, file) => apiUpload<Row>(path, token, file)} onError={showError} onNotice={showNotice}/>}
-      {tab === "More" && sub === "News" && <NewsScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "News" && <Switcher options={["news", "watch"] as const} labels={{ news: "📰 News", watch: "▶ Watch" }} render={v => v === "news" ? <NewsScreen api={api} onError={showError} onNotice={showNotice}/> : <WatchScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
+      {tab === "More" && sub === "Brain" && <BrainGymScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "You" && <AboutYouScreen api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/>}
       {tab === "More" && sub === "Team" && <AiTeamScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Exams" && <ExamScreen api={api} onError={showError} onNotice={showNotice}/>}

@@ -170,22 +170,23 @@ export function ReviewScreen({ api, onError, onNotice }: { api: Api; onError: (m
   </Screen>;
 }
 
-export type MoreTarget = "Assistant" | "Journal" | "Invest" | "News" | "You" | "Team" | "Exams" | "Life" | "Learning" | "Jobs" | "Money" | "Rewards" | "AI" | "Study" | "Balance" | "Vault" | "Finance" | "Health" | "Memory" | "Review" | "Approvals" | "Profile";
+export type MoreTarget = "Brain" | "Assistant" | "Journal" | "Invest" | "News" | "You" | "Team" | "Exams" | "Life" | "Learning" | "Jobs" | "Money" | "Rewards" | "AI" | "Study" | "Balance" | "Vault" | "Finance" | "Health" | "Memory" | "Review" | "Approvals" | "Profile";
 const MENU: { key: MoreTarget; icon: string; title: string; hint: string }[] = [
   { key: "Assistant", icon: "✳", title: "Assistant", hint: "Chat with Sakuna" },
   { key: "Journal", icon: "✍️", title: "Journal", hint: "Day, gratitude, lessons" },
   { key: "Invest", icon: "📈", title: "Invest (CSE)", hint: "Portfolio, rules, alerts" },
-  { key: "News", icon: "📰", title: "News", hint: "AI, tech, Sri Lanka & CSE" },
+  { key: "News", icon: "📰", title: "News & videos", hint: "Digest + must-watch videos" },
+  { key: "Brain", icon: "🧠", title: "Brain gym", hint: "Daily brain games workout" },
   { key: "You", icon: "🪞", title: "About you", hint: "Your patterns & one change" },
   { key: "Team", icon: "✨", title: "AI team", hint: "Coach, focus guard, reviewer" },
   { key: "Exams", icon: "🎓", title: "Exam coach", hint: "IELTS & Goethe plan" },
   { key: "Life", icon: "◫", title: "My life", hint: "Tasks, goals, habits" },
-  { key: "Learning", icon: "✎", title: "Learning", hint: "Flashcards & mistakes" },
-  { key: "Jobs", icon: "▣", title: "Job tracker", hint: "Applications & follow-ups" },
-  { key: "Rewards", icon: "★", title: "Rewards", hint: "Points, streak, treats" },
+  { key: "Learning", icon: "✎", title: "Learning", hint: "Radar, flashcards & mistakes" },
+  { key: "Jobs", icon: "▣", title: "Jobs", hint: "Find jobs, LinkedIn, tracker" },
+  { key: "Rewards", icon: "🎮", title: "Rewards game", hint: "Level, badges, missions" },
   { key: "Study", icon: "✈", title: "Study abroad", hint: "Programs, checklist" },
   { key: "Balance", icon: "☀", title: "Life balance", hint: "Areas: target vs actual" },
-  { key: "Vault", icon: "▤", title: "Documents", hint: "Passport, visa, expiry" },
+  { key: "Vault", icon: "▤", title: "Documents & renewals", hint: "Subscriptions, bills, expiry" },
   { key: "Money", icon: "◎", title: "Money hub", hint: "Balance, wishes, buy list" },
   { key: "Finance", icon: "$", title: "Finance", hint: "Spending & income" },
   { key: "Health", icon: "♡", title: "Health & Mi Band", hint: "Steps, sleep, heart rate" },

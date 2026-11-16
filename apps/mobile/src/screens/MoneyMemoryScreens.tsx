@@ -20,10 +20,11 @@ export function FinanceScreen({ api, onError, onNotice }: { api: Api; onError: (
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [trends, setTrends] = useState<Row | null>(() => peek<Row>("/finance/trends"));
+  const [subs, setSubs] = useState<Row | null>(null);
   const month = new Date().toISOString().slice(0, 7);
 
   const load = useCallback(async () => {
-    try { const [sum, tr] = await Promise.all([api<Row>(`/finance/summary?month=${month}`), api<Row>("/finance/trends")]); setSummary(sum); setTrends(tr); } catch (reason) { onError(reason instanceof Error ? reason.message : "Could not load"); }
+    try { const [sum, tr] = await Promise.all([api<Row>(`/finance/summary?month=${month}`), api<Row>("/finance/trends")]); setSummary(sum); setTrends(tr); api<Row>("/subscriptions").then(setSubs).catch(() => undefined); } catch (reason) { onError(reason instanceof Error ? reason.message : "Could not load"); }
   }, [api, onError, month]);
   useEffect(() => { void load(); }, [load]);
 
@@ -58,6 +59,10 @@ export function FinanceScreen({ api, onError, onNotice }: { api: Api; onError: (
       <StatTile label="Per day" tone="amber" value={short(Number(tm.avg_per_day || 0))} hint={`on track for ${short(Number(tm.projected_spend || 0))} this month`}/>
       <StatTile label="Net worth" tone="blue" value={short(Number(summary.net_worth || 0))} hint={summary.target_progress_percent ? `${summary.target_progress_percent}% of target` : cur}/>
     </TileRow>
+    {subs && (subs.items as Row[]).length > 0 && <TileRow>
+      <StatTile label="Subscriptions" icon="💳" tone="violet" value={Object.entries(subs.per_month as Record<string, number>).map(([c, x]) => `${c} ${short(Number(x))}`).join(" · ")} hint="per month, all bills & renewals"/>
+      <StatTile label="Due soon" icon="⏰" tone={subs.due_soon + subs.overdue ? "amber" : "plain"} value={`${subs.due_soon + subs.overdue}`} hint="see Documents & renewals"/>
+    </TileRow>}
 
     {months.length > 0 && <Card><Kicker>INCOME VS SPENDING · 6 MONTHS</Kicker>
       <LineChart series={[{ values: months.map(m => Number(m.income)), color: C.green, name: "Income" }, { values: months.map(m => Number(m.expenses)), color: C.red, name: "Spent" }]}

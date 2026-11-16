@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest as call, patchJson, postJson, type JsonRecord as Row } from "@/lib/api";
 import { Bars, Card, Donut, Hero, Meter, Ring, SERIES, short, Stat } from "./Charts";
+import { LinkedInLinks } from "./LifeOsPages3";
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong");
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -360,6 +361,7 @@ export function JobFinder({ token }: { token: string }) {
       {res && <div className="d-chips" style={{ marginTop: 10 }}>{(res.links as Row[]).map(l => <a key={l.name} className="d-chip" href={l.url} target="_blank" rel="noreferrer">{l.name} ↗</a>)}</div>}
     </Hero>
     {n.view}
+    {res && <LinkedInLinks token={token} q={q}/>}
     {res && <>
       {(res.errors as string[]).length > 0 && <p className="d-warn">{(res.errors as string[]).join(" · ")}</p>}
       <div className="d-stats">

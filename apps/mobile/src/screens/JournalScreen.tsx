@@ -4,6 +4,7 @@ import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "reac
 import { peek, type ApiRecord as Row } from "../api";
 import { DateField, isoDate, prettyDate } from "../pickers";
 import { Btn, C, Empty, Muted, Row as Line, Screen } from "../ui";
+import { Bars, Ring } from "../charts";
 import { appendSpeech, MicButton } from "../voice";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
@@ -58,7 +59,7 @@ export function JournalScreen({ api, onError, onNotice }: { api: Api; onError: (
           <Text style={s.kicker}>✍️ JOURNAL</Text>
           <Text style={s.heroTitle}>{isToday ? "Today's page" : prettyDate(day)}</Text>
         </View>
-        <View style={s.stat}><Text style={s.statValue}>{v.streak}🔥</Text><Text style={s.statLabel}>streak</Text></View>
+        <Ring value={Math.min(100, (v.entries_30_days / 30) * 100)} size={70} label={`${v.streak}🔥`} sub="STREAK"/>
         <View style={s.stat}><Text style={s.statValue}>{v.entries_30_days}</Text><Text style={s.statLabel}>pages / 30d</Text></View>
         <View style={s.stat}><Text style={s.statValue}>{v.gratitude_30_days}</Text><Text style={s.statLabel}>thanks</Text></View>
       </Line>
@@ -111,7 +112,12 @@ export function JournalScreen({ api, onError, onNotice }: { api: Api; onError: (
     </View>}
 
     <View style={s.card}>
-      <Text style={s.section}>Mood this month</Text>
+      <Text style={s.section}>Moods this month</Text>
+      <Bars data={MOODS.map(([n, face]) => ({ label: face, value: Object.values(month.moods as Record<string, number>).filter(x => x === n).length, color: ["#ff7a8a", "#f5b65b", "#8a9b92", "#5aa8ff", "#3ee08f"][n - 1] }))} height={90}/>
+    </View>
+
+    <View style={s.card}>
+      <Text style={s.section}>Mood calendar</Text>
       <View style={s.cal}>{[...Array((month.first_weekday as number) - 1).fill(null), ...Array.from({ length: month.days as number }, (_, i) => i + 1)].map((n, i) => {
         if (n == null) return <View key={`e${i}`} style={s.calCell}/>;
         const key = `${String(month.first).slice(0, 8)}${String(n).padStart(2, "0")}`;

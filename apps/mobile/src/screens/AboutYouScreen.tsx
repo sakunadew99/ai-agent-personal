@@ -3,6 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import { peek, type ApiRecord as Row } from "../api";
 import { Badge, Btn, C, Card, Empty, H2, Kicker, Muted, Progress, Row as Line, Screen } from "../ui";
+import { Bars, Hero, Meter, PALETTE, Ring, StatTile, TileRow } from "../charts";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 const msg = (r: unknown) => (r instanceof Error ? r.message : "Something went wrong");
@@ -34,11 +35,13 @@ export function AboutYouScreen({ api, onError, onNotice, onOpen }: { api: Api; o
   const weekdayMax = Math.max(30, ...Object.values(p.focus.by_weekday as Record<string, number>));
 
   return <Screen onRefresh={load}>
-    <Card accent>
-      <Kicker>ABOUT YOU · LAST 28 DAYS</Kicker>
-      <H2>{p.data_days ? `${p.data_days} days of your own data` : "Just getting started"}</H2>
-      <Muted small>Sakuna learns from your routines, focus, sleep, check-ins, study and your 👍/👎. Patterns only appear when there's enough evidence. It doesn't retrain an AI on your life (fine-tuning): this updates every day, stays in your account, and you can read all of it.</Muted>
-    </Card>
+    <Hero kicker="ABOUT YOU · LAST 28 DAYS" title={p.data_days ? `${p.data_days} days` : "Just getting"} accent={p.data_days ? "of you" : "started"}
+      sub="Patterns from your own routines, focus, sleep, check-ins and study. Nothing is retrained on your life; it all stays in your account."
+      right={<Ring value={Math.min(100, (p.data_days / 28) * 100)} size={96} label={`${p.data_days}`} sub="OF 28"/>}/>
+    <TileRow>
+      <StatTile label="Patterns" icon="🔍" tone="green" value={`${(v.findings as Row[]).length}`} hint="with evidence"/>
+      <StatTile label="Best focus" icon="⏱" tone="blue" value={p.focus.best_hours ? `${p.focus.best_hours.from}` : "—"} hint={p.focus.best_hours ? `until ${p.focus.best_hours.to}` : "log focus sessions"}/>
+    </TileRow>
 
     {change && <Card style={{ borderColor: C.green }}>
       <Kicker>ONE CHANGE FOR NEXT WEEK</Kicker>
@@ -58,7 +61,8 @@ export function AboutYouScreen({ api, onError, onNotice, onOpen }: { api: Api; o
 
     <Card>
       <Kicker>FOCUS BY WEEKDAY (AVG MIN)</Kicker>
-      <View style={s.chart}>{Object.entries(p.focus.by_weekday as Record<string, number>).map(([day, m]) => <View key={day} style={s.col}>
+      <Bars data={Object.entries(p.focus.by_weekday as Record<string, number>).map(([day, m]) => ({ label: short(day), value: Number(m) }))} height={120} format={n => `${Math.round(n)}m`}/>
+      <View style={[s.chart, { display: "none" }]}>{Object.entries(p.focus.by_weekday as Record<string, number>).map(([day, m]) => <View key={day} style={s.col}>
         <Text style={s.colVal}>{m || ""}</Text>
         <View style={s.track}><View style={[s.bar, { height: `${Math.max(m ? 6 : 0, (m / weekdayMax) * 100)}%` }]}/></View>
         <Text style={s.colLabel}>{short(day)}</Text></View>)}</View>
@@ -68,8 +72,7 @@ export function AboutYouScreen({ api, onError, onNotice, onOpen }: { api: Api; o
     {(p.routines as Row[]).length > 0 && <Card>
       <Kicker>ROUTINES (DONE / DUE)</Kicker>
       {(p.routines as Row[]).map(r => <View key={r.name} style={{ gap: 3 }}>
-        <Line><Text style={[s.body, { flex: 1 }]}>{r.icon} {r.name}</Text><Muted small>{`${r.done}/${r.due} · ${Math.round(r.rate * 100)}%`}</Muted></Line>
-        <Progress value={r.rate * 100}/></View>)}
+        <Meter label={`${r.icon} ${r.name}`} value={r.rate * 100} right={`${r.done}/${r.due}`} color={PALETTE[(p.routines as Row[]).indexOf(r) % PALETTE.length]}/></View>)}
       {Object.keys(p.routine_by_weekday).length > 0 && <Muted small>{"By weekday: " + Object.entries(p.routine_by_weekday as Record<string, number>).map(([d, x]) => `${short(d)} ${Math.round(x * 100)}%`).join(" · ")}</Muted>}
       {p.short_version_used > 0 && <Muted small>{`Short version saved the day ${p.short_version_used} time${p.short_version_used === 1 ? "" : "s"} 💪`}</Muted>}
     </Card>}
