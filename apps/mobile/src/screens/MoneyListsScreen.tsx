@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import type { ApiRecord as Row } from "../api";
+import { DateField } from "../pickers";
 import { Hero, Meter, PALETTE, Ring, Segments, SplitBar, StatTile, TileRow } from "../charts";
 import { Badge, Btn, C, Card, Chips, Empty, Field, H2, Kicker, Muted, Progress, Row as Line, Screen } from "../ui";
 
@@ -89,6 +90,7 @@ function Wishes({ api, onError, onNotice }: Props) {
   const [rows, setRows] = useState<Row[]>([]);
   const [name, setName] = useState(""); const [price, setPrice] = useState(""); const [cur, setCur] = useState("LKR");
   const [wait, setWait] = useState<"0" | "7" | "14" | "30">("7");
+  const [by, setBy] = useState<string | null>(null);
   const [check, setCheck] = useState<Row | null>(null);
   const load = useCallback(() => { api<Row[]>("/money/wishlist").then(setRows).catch(r => onError(msg(r))); }, [api, onError]);
   useEffect(() => { load(); }, [load]);
@@ -100,14 +102,16 @@ function Wishes({ api, onError, onNotice }: Props) {
       <Line><View style={{ flex: 2 }}><Field value={price} onChangeText={setPrice} placeholder="Price" keyboardType="decimal-pad"/></View>
         <View style={{ flex: 1 }}><Field value={cur} onChangeText={v => setCur(v.toUpperCase())} maxLength={3} autoCapitalize="characters"/></View></Line>
       <Chips options={["0", "7", "14", "30"] as const} value={wait} onChange={setWait} labels={{ "0": "no wait", "7": "7 days", "14": "14 days", "30": "30 days" }}/>
-      <Btn title="Add wish" disabled={!name.trim()} onPress={() => { run(api("/money/wishlist", "POST", { name, currency: cur, cooling_days: Number(wait), ...(clean(price) ? { price: clean(price) } : {}) }), "Added. A short wait helps decide."); setName(""); setPrice(""); }}/>
+      <DateField label="Want it by (optional)" value={by} allowClear onChange={setBy}/>
+      <Btn title="Add wish" disabled={!name.trim()} onPress={() => { run(api("/money/wishlist", "POST", { name, currency: cur, cooling_days: Number(wait), ...(clean(price) ? { price: clean(price) } : {}), ...(by ? { target_date: by } : {}) }), "Added. A short wait helps decide."); setName(""); setPrice(""); setBy(null); }}/>
     </Card>
     {check && <Card accent><Kicker>CAN I AFFORD IT?</Kicker>{(check.lines as string[]).map((l, i) => <Text key={i} style={{ color: C.text }}>{l}</Text>)}
       <Muted small>Your numbers; the decision is yours.</Muted><Btn kind="link" title="Close" onPress={() => setCheck(null)}/></Card>}
     <Card><Kicker>{`${rows.length} WISHES`}</Kicker>
       {rows.length ? rows.map(w => <View key={w.id} style={{ gap: 4, paddingVertical: 8, borderTopColor: C.line, borderTopWidth: 1 }}>
         <Line><Text style={{ color: C.text, fontWeight: "700", flex: 1 }}>{w.name}</Text>{w.price != null && <Text style={{ color: C.text }}>{fmt(w.price, w.currency)}</Text>}</Line>
-        <Line>{w.state === "ready" ? <Badge>ready to decide</Badge> : <Badge tone="amber">{`cooling off · ${w.days_left}d left`}</Badge>}</Line>
+        <Line>{w.state === "ready" ? <Badge>ready to decide</Badge> : <Badge tone="amber">{`cooling off · ${w.days_left}d left`}</Badge>}
+          {!!w.target_date && <Badge tone="muted">{`🎯 by ${new Date(`${w.target_date}T12:00:00`).toLocaleDateString([], { day: "numeric", month: "short" })}`}</Badge>}</Line>
         {w.state !== "ready" && w.cooling_days > 0 && <Meter value={100 - (Number(w.days_left) / Number(w.cooling_days)) * 100} color={C.amber} height={6}/>}
         <Line style={{ flexWrap: "wrap" }}>
           {w.price != null && <Btn kind="link" title="Afford?" onPress={() => void api<Row>(`/money/wishlist/${w.id}/affordability`).then(setCheck).catch(r => onError(msg(r)))}/>}
@@ -126,6 +130,7 @@ function Wishes({ api, onError, onNotice }: Props) {
 function Buy({ api, onError, onNotice }: Props) {
   const [rows, setRows] = useState<Row[]>([]);
   const [name, setName] = useState(""); const [est, setEst] = useState(""); const [staple, setStaple] = useState<"no" | "staple">("no");
+  const [needBy, setNeedBy] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [paid, setPaid] = useState("");
   const load = useCallback(() => { api<Row[]>("/money/buy-list?include_checked=false").then(setRows).catch(r => onError(msg(r))); }, [api, onError]);
@@ -138,7 +143,8 @@ function Buy({ api, onError, onNotice }: Props) {
       <Field voice value={name} onChangeText={setName} placeholder="e.g. rice 5kg" maxLength={200}/>
       <Line><View style={{ flex: 1 }}><Field value={est} onChangeText={setEst} placeholder="Est. price (LKR)" keyboardType="decimal-pad"/></View></Line>
       <Chips options={["no", "staple"] as const} value={staple} onChange={setStaple} labels={{ no: "one-off", staple: "staple (rebuy)" }}/>
-      <Btn title="Add" disabled={!name.trim()} onPress={() => { run(api("/money/buy-list", "POST", { name, currency: "LKR", staple: staple === "staple", ...(clean(est) ? { est_price: clean(est) } : {}) }), "Added."); setName(""); setEst(""); }}/>
+      <DateField label="Need it by (optional)" value={needBy} allowClear onChange={setNeedBy}/>
+      <Btn title="Add" disabled={!name.trim()} onPress={() => { run(api("/money/buy-list", "POST", { name, currency: "LKR", staple: staple === "staple", ...(clean(est) ? { est_price: clean(est) } : {}), ...(needBy ? { need_by: needBy } : {}) }), "Added."); setName(""); setEst(""); setNeedBy(null); }}/>
     </Card>
     <View style={{ borderRadius: 24, padding: 18, backgroundColor: "#123a6b", borderWidth: 1, borderColor: "#2d64a8", overflow: "hidden", gap: 4 }}>
       <View style={{ position: "absolute", width: 180, height: 180, borderRadius: 90, right: -60, top: -70, backgroundColor: "#5aa8ff", opacity: 0.2 }}/>
@@ -150,7 +156,7 @@ function Buy({ api, onError, onNotice }: Props) {
       {rows.length ? rows.map(r => { const on = selected.includes(r.id); return <TouchableOpacity key={r.id} onPress={() => setSelected(s => on ? s.filter(x => x !== r.id) : [...s, r.id])}>
         <Line style={{ paddingVertical: 6 }}>
           <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 1, borderColor: on ? C.green : C.line, backgroundColor: on ? C.green : "transparent" }}/>
-          <Text style={{ color: C.text, flex: 1 }}>{r.name}{r.staple ? "  ↻" : ""}</Text>
+          <Text style={{ color: C.text, flex: 1 }}>{r.name}{r.staple ? "  ↻" : ""}{r.need_by ? `  · 📅 ${new Date(`${r.need_by}T12:00:00`).toLocaleDateString([], { day: "numeric", month: "short" })}` : ""}</Text>
           {r.est_price != null && <Muted small>{fmt(r.est_price)}</Muted>}
         </Line></TouchableOpacity>; }) : <Empty>Nothing to buy.</Empty>}
       {selected.length > 0 && <><Field value={paid} onChangeText={setPaid} placeholder="Total paid (blank = estimate)" keyboardType="decimal-pad"/>

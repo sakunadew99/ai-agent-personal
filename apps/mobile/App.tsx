@@ -25,7 +25,8 @@ import { NewsScreen } from "./src/screens/NewsScreen";
 import { InvestScreen } from "./src/screens/InvestScreen";
 import { LifeCompass } from "./src/screens/LifeCompass";
 import { JournalScreen } from "./src/screens/JournalScreen";
-import { MonthRoutines, NowRoutineCard, PlanSwitch, TodayRoutines, WeekPlan } from "./src/screens/MyDayScreens";
+import { MonthRoutines, NowRoutineCard, PlanSwitch, TodayRoutines, WeekPlan, type PlanView } from "./src/screens/MyDayScreens";
+import { InboxScreen, JobFinderScreen, PlanBoard, RadarScreen, RewardsGameScreen, SubscriptionsScreen, Switcher } from "./src/screens/LifeOs2Screens";
 import { appendSpeech, MicButton } from "./src/voice";
 import { Hero, Ring, StatTile, TileRow, WeekDots } from "./src/charts";
 
@@ -39,7 +40,7 @@ export default function App() {
   const [token, setToken] = useState("");
   const [user, setUser] = useState<Row>({});
   const [tab, setTab] = useState<Tab>("Home");
-  const [planView, setPlanView] = useState<"day" | "week" | "month">("day");
+  const [planView, setPlanView] = useState<PlanView>("day");
   const [dashboard, setDashboard] = useState<Row>(() => peek("/dashboard") || {});
   const [plan, setPlan] = useState<Row>(() => peek("/planner/daily") || {});
   const [captures, setCaptures] = useState<Row[]>([]);
@@ -169,8 +170,9 @@ export default function App() {
         top={<><PlanSwitch value={planView} onChange={setPlanView}/><TodayRoutines api={api} onError={showError} onNotice={showNotice}/><Text style={styles.sectionTitle}>Time plan</Text></>}
         extra={<TimeCard api={api}/>}/>}
       {tab === "Plan" && planView === "week" && <ScrollView contentContainerStyle={styles.scroll}><PlanSwitch value={planView} onChange={setPlanView}/><WeekPlan api={api} onError={showError} onNotice={showNotice}/></ScrollView>}
+      {tab === "Plan" && planView === "board" && <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled"><PlanSwitch value={planView} onChange={setPlanView}/><PlanBoard api={api} onError={showError} onNotice={showNotice}/></ScrollView>}
       {tab === "Plan" && planView === "month" && <ScrollView contentContainerStyle={styles.scroll}><PlanSwitch value={planView} onChange={setPlanView}/><MonthRoutines api={api} onError={showError}/><Text style={styles.sectionTitle}>Tasks and deadlines</Text><MonthAgenda api={api}/></ScrollView>}
-      {tab === "Capture" && <CaptureScreen captures={captures} text={captureText} setText={setCaptureText} save={saveCapture} confirm={confirmCapture} busy={busy} top={<CommandCard api={api} onError={showError}/>}/>}
+      {tab === "Capture" && <InboxScreen api={api} onError={showError} onNotice={showNotice} top={<CommandCard api={api} onError={showError}/>}/>}
       {tab === "Focus" && <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <FocusEngine api={api} onError={showError} onNotice={showNotice}/>
         <View style={{ height: 14 }}/><ShieldPanel/>
@@ -178,11 +180,11 @@ export default function App() {
       </ScrollView>}
       {tab === "More" && !sub && <MoreScreen open={target => { setError(""); setNotice(""); setSub(target); }}/>}
       {tab === "More" && sub === "Assistant" && <ChatScreen api={api}/>}
-      {tab === "More" && sub === "Life" && <LifeScreen api={api} onError={showError}/>}
-      {tab === "More" && sub === "Learning" && <LearningScreen api={api} onError={showError} onNotice={showNotice}/>}
-      {tab === "More" && sub === "Jobs" && <JobsScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "Life" && <LifeScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "Learning" && <Switcher options={["radar", "study"] as const} labels={{ radar: "📡 Radar", study: "🎓 Study" }} render={v => v === "radar" ? <RadarScreen api={api} onError={showError} onNotice={showNotice}/> : <LearningScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
+      {tab === "More" && sub === "Jobs" && <Switcher options={["find", "track"] as const} labels={{ find: "🔎 Find jobs", track: "📋 My tracker" }} render={v => v === "find" ? <JobFinderScreen api={api} onError={showError} onNotice={showNotice}/> : <JobsScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
       {tab === "More" && sub === "Balance" && <BalanceScreen api={api} onError={showError} onNotice={showNotice}/>}
-      {tab === "More" && sub === "Vault" && <VaultScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "Vault" && <Switcher options={["renewals", "docs"] as const} labels={{ renewals: "💳 Renewals", docs: "🪪 Documents" }} render={v => v === "renewals" ? <SubscriptionsScreen api={api} onError={showError} onNotice={showNotice}/> : <VaultScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
       {tab === "More" && sub === "Journal" && <JournalScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Invest" && <InvestScreen api={api} upload={(path, file) => apiUpload<Row>(path, token, file)} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "News" && <NewsScreen api={api} onError={showError} onNotice={showNotice}/>}
@@ -191,7 +193,7 @@ export default function App() {
       {tab === "More" && sub === "Exams" && <ExamScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Study" && <StudyScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "AI" && <AiScreen api={api} onError={showError}/>}
-      {tab === "More" && sub === "Rewards" && <RewardsScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "Rewards" && <Switcher options={["game", "manage"] as const} labels={{ game: "🎮 Game", manage: "⚙️ Manage" }} render={v => v === "game" ? <RewardsGameScreen api={api}/> : <RewardsScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
       {tab === "More" && sub === "Money" && <MoneyListsScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Finance" && <FinanceScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Health" && <HealthScreen api={api} onError={showError} onNotice={showNotice}/>}

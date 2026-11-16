@@ -5,6 +5,7 @@ import { Bars, Hero, Meter, PALETTE, Ring, Section, Segments, StatTile, TileRow,
 import { Badge, Btn, C, Card, Chips, Empty, Field, H2, Kicker, Muted, niceDate, Progress, Row as Line, Screen } from "../ui";
 import { syncReminders } from "../notify";
 import { GoalMilestones } from "./PlanExtras";
+import { HabitsPanel } from "./LifeOs2Screens";
 import { GoalStatusLine } from "./RewardsScreen";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
@@ -29,7 +30,7 @@ function dueIso(when: (typeof WHEN)[number], hhmm: string): string | undefined {
 }
 
 /** Tasks, goals and habits (same data as the web "My life" page). */
-export function LifeScreen({ api, onError }: { api: Api; onError: (m: string) => void }) {
+export function LifeScreen({ api, onError, onNotice = () => undefined }: { api: Api; onError: (m: string) => void; onNotice?: (m: string) => void }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("tasks");
   const [tasks, setTasks] = useState<Row[]>([]);
   const [goals, setGoals] = useState<Row[]>([]);
@@ -140,10 +141,6 @@ export function LifeScreen({ api, onError }: { api: Api; onError: (m: string) =>
             <Btn kind="link" title="Delete" onPress={() => confirmDelete(g.title, () => api(`/goals/${g.id}`, "DELETE"))}/></Line>
         </View>; }) : <Empty>Create a goal to track progress.</Empty>}</Card>}
 
-    {tab === "habits" && <Card><Kicker>HABITS</Kicker>
-      {habits.length ? habits.map(h => <Line key={h.id} style={{ paddingVertical: 6 }}>
-        <View style={{ flex: 1 }}><Text style={{ color: C.text, fontWeight: "600" }}>{h.name}</Text><Muted small>{h.schedule}</Muted></View>
-        <Btn kind="outline" title="Done today ✓" onPress={() => void run(() => api(`/habits/${h.id}/logs`, "POST", { completed: true }))}/>
-      </Line>) : <Empty>Create a habit to start a streak.</Empty>}</Card>}
+    {tab === "habits" && <HabitsPanel api={api} onError={onError} onNotice={onNotice}/>}
   </Screen>;
 }
