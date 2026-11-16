@@ -330,6 +330,77 @@ def capture(data: dto.CaptureIn, db: Session = Depends(get_db), user: User = Dep
     db.add(row); db.commit(); db.refresh(row); return row
 
 
+@router.post("/capture/{capture_id}/move")
+def capture_move(capture_id: uuid.UUID, data: dto.CaptureMoveIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Inbox: send an item to tasks, goals, habits, wish list, buy list or memory (you choose; nothing moves by itself)."""
+    from app.services import subscriptions as subs
+    row = owned(db, CaptureItem, user.id, capture_id)
+    created = subs.move_capture(db, user, row, data)
+    db.commit(); return {"id": row.id, "status": row.status, "moved_to": created}
+
+
+@router.delete("/capture/{capture_id}", status_code=204)
+def capture_delete(capture_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    db.delete(owned(db, CaptureItem, user.id, capture_id)); db.commit()
+
+
+# ---------- Subscriptions and renewals: reminders only, never payments ----------
+
+@router.get("/subscriptions")
+def subscriptions_list(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services import subscriptions as subs
+    return subs.overview(db, user.id)
+
+
+@router.post("/subscriptions", status_code=201)
+def subscription_create(data: dto.SubscriptionIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import Subscription
+    from app.services import subscriptions as subs
+    row = Subscription(user_id=user.id, **{**data.model_dump(), "name": data.name.strip(), "currency": data.currency.upper()})
+    db.add(row); db.commit(); db.refresh(row); return subs.sub_out(row, subs.today_for(db, user.id))
+
+
+@router.patch("/subscriptions/{sub_id}")
+def subscription_update(sub_id: uuid.UUID, data: dto.SubscriptionUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import Subscription
+    from app.services import subscriptions as subs
+    row = owned(db, Subscription, user.id, sub_id)
+    for key, value in data.model_dump(exclude_unset=True).items():
+        if key in ("name", "next_due", "cycle", "category", "currency", "remind_days", "auto_renews", "active") and value is None:
+            continue
+        setattr(row, key, value.upper() if key == "currency" else value)
+    row.updated_at = now_utc(); db.commit(); db.refresh(row); return subs.sub_out(row, subs.today_for(db, user.id))
+
+
+@router.delete("/subscriptions/{sub_id}", status_code=204)
+def subscription_delete(sub_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import Subscription
+    db.delete(owned(db, Subscription, user.id, sub_id)); db.commit()
+
+
+@router.post("/subscriptions/{sub_id}/paid")
+def subscription_paid(sub_id: uuid.UUID, data: dto.SubscriptionPaidIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """You paid it yourself: move the due date one cycle forward, and log the expense if you ask."""
+    from app.models.entities import Subscription
+    from app.services import subscriptions as subs
+    out = subs.mark_paid(db, user.id, owned(db, Subscription, user.id, sub_id), data.record_expense, data.amount)
+    db.commit(); return out
+
+
+@router.post("/subscriptions/{sub_id}/remind", status_code=201)
+def subscription_remind(sub_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Add a task before the due date (shows on your plan and as a phone reminder)."""
+    from datetime import timedelta as _td
+    from app.models.entities import Subscription
+    from app.services.actions import combine_local, create_task
+    row = owned(db, Subscription, user.id, sub_id)
+    day = max(row.next_due - _td(days=row.remind_days), datetime.now(zone(profile_for(db, user).timezone)).date())
+    amount = f" ({row.currency} {row.amount:,})" if row.amount is not None else ""
+    task = create_task(db, user.id, dto.TaskIn(title=f"Pay / renew {row.name}{amount}"[:200], category="personal", priority="medium",
+                                               due_at=combine_local(db, user.id, day, "09:00"), duration_minutes=10, notes=row.link or None))
+    db.commit(); return {"task_id": task.id, "due_at": task.due_at}
+
+
 @router.get("/capture", response_model=list[dto.CaptureOut])
 def capture_list(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     return list(db.scalars(query_user(db, CaptureItem, user.id).order_by(CaptureItem.created_at.desc())).all())
@@ -1367,6 +1438,24 @@ def habits_list(db: Session = Depends(get_db), user: User = Depends(get_current_
 @router.post("/habits", status_code=201)
 def habit_create(data: dto.HabitIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     row = Habit(user_id=user.id, **data.model_dump()); db.add(row); db.commit(); db.refresh(row); return row
+
+
+@router.patch("/habits/{habit_id}")
+def habit_update(habit_id: uuid.UUID, data: dto.HabitUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, Habit, user.id, habit_id)
+    for key, value in data.model_dump(exclude_unset=True).items():
+        if key == "name" and value:
+            value = value.strip()
+        setattr(row, key, value)
+    db.commit(); db.refresh(row); return row
+
+
+@router.delete("/habits/{habit_id}", status_code=204)
+def habit_delete(habit_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Archives the habit: it leaves your lists, but its history stays for your streaks and reports."""
+    row = owned(db, Habit, user.id, habit_id)
+    row.active = False
+    db.commit()
 
 
 @router.post("/habits/{habit_id}/logs", status_code=201)

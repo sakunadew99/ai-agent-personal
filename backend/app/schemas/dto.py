@@ -649,6 +649,18 @@ class HabitIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     schedule: str = Field(default="daily", max_length=32)
     kind: Literal["build", "avoid"] = "build"
+    icon: str | None = Field(default=None, max_length=8)
+    reminder_time: time | None = None
+    target_per_week: int | None = Field(default=None, ge=1, le=7)
+
+
+class HabitUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    schedule: str | None = Field(default=None, max_length=32)
+    kind: Literal["build", "avoid"] | None = None
+    icon: str | None = Field(default=None, max_length=8)
+    reminder_time: time | None = None
+    target_per_week: int | None = Field(default=None, ge=1, le=7)
 
 
 class HabitLogIn(BaseModel):
@@ -825,6 +837,7 @@ class BuyItemIn(BaseModel):
     est_price: Money | None = None
     currency: Currency = "LKR"
     staple: bool = False
+    need_by: date | None = None
 
 
 class BuyItemUpdate(BaseModel):
@@ -836,6 +849,7 @@ class BuyItemUpdate(BaseModel):
     est_price: Money | None = None
     staple: bool | None = None
     checked: bool | None = None
+    need_by: date | None = None
 
 
 class BuyItemOut(ORMModel):
@@ -848,6 +862,7 @@ class BuyItemOut(ORMModel):
     est_price: Decimal | None
     currency: str
     staple: bool
+    need_by: date | None = None
     checked_at: datetime | None
     expense_id: uuid.UUID | None
     created_at: datetime
@@ -1339,3 +1354,54 @@ class JournalIn(BaseModel):
     lesson: str | None = Field(default=None, max_length=1000)
     notes: str | None = Field(default=None, max_length=8000)
     tags: list[Annotated[str, Field(max_length=30)]] | None = Field(default=None, max_length=10)
+
+
+class SubscriptionIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    category: Literal["subscription", "bill", "insurance", "loan", "rent", "membership", "other"] = "subscription"
+    amount: Money | None = None
+    currency: Currency = "LKR"
+    cycle: Literal["weekly", "monthly", "quarterly", "yearly"] = "monthly"
+    next_due: date
+    remind_days: int = Field(default=3, ge=0, le=60)
+    auto_renews: bool = True
+    link: str | None = Field(default=None, max_length=500)
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class SubscriptionUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    category: Literal["subscription", "bill", "insurance", "loan", "rent", "membership", "other"] | None = None
+    amount: Money | None = None
+    currency: Currency | None = None
+    cycle: Literal["weekly", "monthly", "quarterly", "yearly"] | None = None
+    next_due: date | None = None
+    remind_days: int | None = Field(default=None, ge=0, le=60)
+    auto_renews: bool | None = None
+    active: bool | None = None
+    link: str | None = Field(default=None, max_length=500)
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class SubscriptionPaidIn(BaseModel):
+    record_expense: bool = False
+    amount: Money | None = None
+
+
+class CaptureMoveIn(BaseModel):
+    """Where an inbox item goes. Only `target` is required; the rest fill in the new record."""
+    target: Literal["task", "goal", "habit", "wish", "buy", "memory"]
+    title: str | None = Field(default=None, max_length=200)
+    category: str | None = Field(default=None, max_length=32)
+    priority: Priority | None = None
+    due_at: datetime | None = None
+    due_date: date | None = None
+    duration_minutes: int | None = Field(default=None, ge=5, le=1440)
+    recurrence: Recurrence = None
+    target_value: Decimal | None = None
+    unit: str | None = Field(default=None, max_length=32)
+    price: Money | None = None
+    currency: Currency | None = None
+    list_name: str | None = Field(default=None, max_length=32)
+    icon: str | None = Field(default=None, max_length=8)
+    reminder_time: time | None = None

@@ -427,6 +427,7 @@ class BuyListItem(Base):
     est_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)  # estimated line total
     currency: Mapped[str] = mapped_column(String(3))
     staple: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    need_by: Mapped[date | None] = mapped_column(Date, nullable=True)
     checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expense_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("expenses.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -569,6 +570,9 @@ class Habit(Base):
     # "build" = do it (log = done); "avoid" = stay away from it (log completed = clean day, not completed = slipped).
     kind: Mapped[str] = mapped_column(String(8), default="build", server_default="build")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    icon: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    reminder_time: Mapped[time | None] = mapped_column(Time, nullable=True)   # local time for a phone reminder
+    target_per_week: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -1498,5 +1502,32 @@ class JournalEntry(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     tags: Mapped[list] = mapped_column(JsonDict, default=list)
     ai_reflection: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Subscription(Base):
+    """Recurring payments and renewals (streaming, phone, insurance, rent, gym...). Sakuna reminds; it never pays."""
+    __tablename__ = "subscriptions"
+    __table_args__ = (
+        CheckConstraint("cycle IN ('weekly','monthly','quarterly','yearly')", name="ck_subscriptions_cycle"),
+        CheckConstraint("category IN ('subscription','bill','insurance','loan','rent','membership','other')", name="ck_subscriptions_category"),
+        CheckConstraint("remind_days BETWEEN 0 AND 60", name="ck_subscriptions_remind_days"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    name: Mapped[str] = mapped_column(String(120))
+    category: Mapped[str] = mapped_column(String(16), default="subscription")
+    amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    currency: Mapped[str] = mapped_column(String(3), default="LKR")
+    cycle: Mapped[str] = mapped_column(String(10), default="monthly")
+    next_due: Mapped[date] = mapped_column(Date)
+    remind_days: Mapped[int] = mapped_column(Integer, default=3)
+    auto_renews: Mapped[bool] = mapped_column(Boolean, default=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    link: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_paid_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
