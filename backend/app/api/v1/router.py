@@ -588,6 +588,27 @@ def jobs_list(db: Session = Depends(get_db), user: User = Depends(get_current_us
     return list(db.scalars(query_user(db, JobApplication, user.id).order_by(JobApplication.created_at.desc())).all())
 
 
+@router.get("/career/find")
+def career_find(q: str = Query(min_length=2, max_length=200), location: str = Query(default="", max_length=80), remote: bool = False,
+                db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Search free public job feeds for your keywords; summary, skills in demand, and links to LinkedIn and others."""
+    from app.models.entities import CareerProfile
+    from app.services import jobs_finder
+    prof = db.scalar(select(CareerProfile).where(CareerProfile.user_id == user.id))
+    out = jobs_finder.search([k for k in q.replace(";", ",").split(",")], location.strip(), remote, list(prof.skills or []) if prof else [])
+    saved = {u for u in db.scalars(select(JobApplication.url).where(JobApplication.user_id == user.id, JobApplication.url.is_not(None))).all()}
+    for j in out["jobs"]:
+        j["saved"] = j["url"] in saved
+    return out
+
+
+@router.get("/learning/radar")
+def learning_radar(topics: str = Query(default="python,ai,web development", max_length=300), user: User = Depends(get_current_user)):
+    """What's new to learn in your topics (Hacker News, dev.to, GitHub), a Wikipedia 'learn today', and free learning tracks."""
+    from app.services import learn_radar
+    return learn_radar.radar([t for t in topics.replace(";", ",").split(",")])
+
+
 @router.get("/career/jobs/summary")
 def jobs_summary(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     return job_summary(db, user.id)

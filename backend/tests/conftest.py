@@ -19,6 +19,10 @@ def _no_real_news_downloads(monkeypatch):
     from app.services import daad
     daad.clear_cache()
     monkeypatch.setattr(daad, "_fetch", lambda url, params=None: blocked(url))
+    from app.services import jobs_finder, learn_radar
+    jobs_finder.clear_cache(); learn_radar.clear_cache()
+    monkeypatch.setattr(jobs_finder, "_fetch", blocked)
+    monkeypatch.setattr(learn_radar, "_fetch", blocked)
 
 
 @pytest.fixture(autouse=True)
