@@ -63,7 +63,16 @@ export function WatchPage({ token }: { token: string }) {
   }
   const later = (v: Row) => call("/tasks", token, postJson({ title: `Watch: ${v.title}`.slice(0, 200), category: "learning", priority: "low", duration_minutes: 20, notes: v.url })).then(() => setNote("Added to your tasks ✓")).catch(e => setNote(errText(e)));
   const shelves: Row[] = res?.shelves || [];
+  const [playing, setPlaying] = useState<Row | null>(null);
+  const play = (v: Row) => (e: React.MouseEvent) => { e.preventDefault(); setPlaying(v); };
   return <div className="d-dash">
+    {playing && <div role="dialog" onClick={() => setPlaying(null)} style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,.8)", display: "grid", placeItems: "center", padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "min(1000px, 100%)", display: "grid", gap: 10 }}>
+        <div className="d-row" style={{ justifyContent: "space-between" }}><b style={{ color: "#fff" }}>{playing.title}</b>
+          <span className="d-row"><button className="d-btn ghost" style={{ color: "#fff" }} onClick={() => void later(playing)}>⏰ Later</button><button className="d-btn" onClick={() => setPlaying(null)}>✕ Close</button></span></div>
+        <iframe title={playing.title} src={`https://www.youtube-nocookie.com/embed/${playing.id}?autoplay=1&rel=0`} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen
+          style={{ width: "100%", aspectRatio: "16/9", border: 0, borderRadius: 16, background: "#000" }}/>
+      </div></div>}
     <Hero kicker="Watch · worth your time" title="Learn, grow," accent="get inspired" sub="New videos from technology, AI and motivation channels, plus your own. Shorts are hidden; the must-watch picks are this week's most-viewed.">
       <div className="d-row" style={{ marginTop: 12 }}><input className="d-input" value={add} onChange={e => setAdd(e.target.value)} onKeyDown={e => { if (e.key === "Enter") void addChannel(); }} placeholder="Add a channel: @handle or YouTube link"/>
         <button className="d-btn ghost" disabled={add.trim().length < 2} onClick={() => void addChannel()}>Add channel</button><button className="d-btn" disabled={busy} onClick={() => void load(mine)}>{busy ? "Loading…" : "↻ Refresh"}</button></div>
@@ -71,15 +80,15 @@ export function WatchPage({ token }: { token: string }) {
     </Hero>
     {(res?.must_watch || []).length > 0 && <Card kicker="🔥 Must watch this week" title="">
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>{(res!.must_watch as Row[]).map(v => <article key={v.id} style={{ display: "grid", gap: 6 }}>
-        <a href={v.url} target="_blank" rel="noreferrer"><img src={v.thumb} alt="" style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", borderRadius: 16, background: "var(--d-card2)" }}/></a>
+        <a href={v.url} onClick={play(v)}><img src={v.thumb} alt="" style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", borderRadius: 16, background: "var(--d-card2)" }}/></a>
         <b style={{ color: "var(--d-text)" }}>{v.title}</b><small className="d-note">{v.channel} · {Number(v.views).toLocaleString()} views · {v.published}</small>
-        <div className="d-row"><a className="d-btn" href={v.url} target="_blank" rel="noreferrer">▶ Watch</a><button className="text-button" onClick={() => void later(v)}>⏰ Later</button></div></article>)}</div>
+        <div className="d-row"><a className="d-btn" href={v.url} onClick={play(v)}>▶ Watch</a><button className="text-button" onClick={() => void later(v)}>⏰ Later</button></div></article>)}</div>
     </Card>}
     <div className="d-chips">{[{ key: "all", title: "All" }, ...shelves].map(s => <button key={s.key} className={`d-chip ${shelf === s.key ? "on" : ""}`} onClick={() => setShelf(s.key)}>{s.title}</button>)}</div>
     {(res?.errors || []).length > 0 && <p className="d-note">{(res!.errors as string[]).join(" ")}</p>}
     {shelves.filter(s => shelf === "all" || s.key === shelf).map((s, k) => <Card key={s.key} kicker={s.title} title="" action={<div className="d-chips">{(s.channels as Row[]).map(c => <a key={c.channel_id} className="d-chip" href={c.url} target="_blank" rel="noreferrer" style={{ borderColor: SERIES[k % SERIES.length], color: "var(--d-text)" }}>▶ {c.name}</a>)}</div>}>
       {(s.videos as Row[]).length ? <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>{(s.videos as Row[]).slice(0, 12).map(v => <article key={v.id} style={{ display: "grid", gap: 4 }}>
-        <a href={v.url} target="_blank" rel="noreferrer"><img src={v.thumb} alt="" loading="lazy" style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", borderRadius: 12, background: "var(--d-card2)" }}/></a>
+        <a href={v.url} onClick={play(v)}><img src={v.thumb} alt="" loading="lazy" style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", borderRadius: 12, background: "var(--d-card2)" }}/></a>
         <b style={{ color: "var(--d-text)", fontSize: 13.5 }}>{v.title}</b><small className="d-note">{v.channel} · {v.published}</small>
         <button className="text-button" style={{ justifySelf: "start" }} onClick={() => void later(v)}>⏰ Watch later</button></article>)}</div>
         : <p className="d-note">No new videos loaded right now. Open the channels above.</p>}

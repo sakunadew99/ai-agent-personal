@@ -36,6 +36,7 @@ import { FinanceDashboard, HealthDashboard, LifeDashboard } from "@/components/D
 import { AboutYouPage, AiTeamPage, ExamsPage, InvestPage, JournalPage, MyDayPage, NewsPage } from "@/components/LifeOsPages";
 import { HabitManager, InboxPage, JobFinder, LearnRadar, PlannerBoard, RewardsGame, SubscriptionsPanel } from "@/components/LifeOsPages2";
 import { BrainGymPage, NewsAndWatch } from "@/components/LifeOsPages3";
+import { DayPage, GymPage, LanguagesPage, ProgressPage } from "@/components/LifeOsPages4";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "";
 type Row = JsonRecord;
@@ -46,6 +47,7 @@ const navigation = [
   { label: "Focus", icon: "timer", hint: "30 / 60-minute blocks with a break" },
   { label: "Planner", icon: "calendar", hint: "Time blocks for today and the week" },
   { label: "My day", icon: "sun", hint: "Routines, food diary, week and month view" },
+  { label: "Day tracker", icon: "timer", hint: "Hour by hour, phone time and end-of-day report" },
   { label: "Capture inbox", icon: "inbox", hint: "Thoughts waiting to be sorted" },
   { label: "Assistant", icon: "sparkle", hint: "Ask about your plans, goals and records" },
   { label: "AI team", icon: "bolt", hint: "Daily notes from your helpers and their schedule" },
@@ -56,6 +58,9 @@ const navigation = [
   { label: "Career", icon: "briefcase", hint: "Skills, job tracker, freelance work" },
   { label: "Learning", icon: "book", hint: "Flashcards, German & English, mistake notebook" },
   { label: "Exam coach", icon: "check", hint: "IELTS and Goethe German plans and feedback" },
+  { label: "Languages", icon: "book", hint: "Today's German & English plan and new words" },
+  { label: "Progress", icon: "chart", hint: "Courses, LeetCode, HackerRank, GitHub" },
+  { label: "Gym", icon: "heart", hint: "Workouts, sets, kg × reps, records" },
   { label: "News", icon: "bell", hint: "Daily digest and must-watch videos" },
   { label: "Brain gym", icon: "brain", hint: "Daily brain games workout" },
   { label: "Rewards", icon: "flame", hint: "Points, streak, quests and treats" },
@@ -419,6 +424,10 @@ export default function Home() {
       case "Exam coach": return <ExamsPage token={token} />;
       case "News": return <NewsAndWatch token={token} news={<NewsPage token={token} />} />;
       case "Brain gym": return <BrainGymPage token={token} />;
+      case "Day tracker": return <DayPage token={token} />;
+      case "Languages": return <LanguagesPage token={token} />;
+      case "Progress": return <ProgressPage token={token} />;
+      case "Gym": return <GymPage token={token} />;
       case "Journal": return <JournalPage token={token} />;
       case "About you": return <AboutYouPage token={token} />;
       case "Rewards": return <><RewardsGame token={token} /><RewardsPage token={token} /></>;

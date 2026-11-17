@@ -6,6 +6,7 @@ import { Bars, Hero, Meter, PALETTE, Ring, Segments, SplitBar, StatTile, TileRow
 import { DateField, isoDate, TimeField } from "../pickers";
 import { Badge, Btn, C, Card, Empty, Field, H2, Kicker, Muted, Row as Line, Screen } from "../ui";
 import { syncHabitReminders } from "../notify";
+import { openInApp, type Track } from "../browser";
 import { LinkedInCard } from "./LifeOs3Screens";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
@@ -13,7 +14,7 @@ type Props = { api: Api; onError: (m: string) => void; onNotice: (m: string) => 
 const msg = (r: unknown) => (r instanceof Error ? r.message : "Something went wrong");
 const hhmm = (t?: string | null) => (t ? String(t).slice(0, 5) : "");
 const short = (n: number) => Math.abs(n) >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : Math.abs(n) >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(Math.round(n));
-const open = (url?: string) => { if (url && /^https?:\/\//.test(url)) void Linking.openURL(url); };
+const open = (url?: string, title?: string, track?: Track) => openInApp(url, title, track);
 const chip = (on: boolean, color = C.green) => ({ borderColor: on ? color : C.line, borderWidth: 1, borderRadius: 99, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: on ? `${color}33` : "transparent" });
 
 /** Two views of one screen (e.g. "Find jobs | My tracker"). */
@@ -258,34 +259,47 @@ export function SubscriptionsScreen({ api, onError, onNotice }: Props) {
 // JOB FINDER
 // =====================================================================================================================
 
+const JOB_ROLES = ["Software Engineer", "Associate Software Engineer", "Intern - Software Engineering", "Python Developer", "Full Stack Developer", "Frontend Developer (React)",
+  "Backend Developer", "Mobile Developer (Flutter / React Native)", "QA Engineer", "DevOps Engineer", "Cloud Engineer", "Data Analyst", "Data Engineer", "Data Scientist",
+  "Machine Learning Engineer", "AI Engineer", "Business Analyst", "Project Manager", "UI/UX Designer", "Cyber Security Analyst", "Network Engineer", "IT Support", "Database Administrator"];
+const JOB_LOCATIONS = ["Sri Lanka", "Colombo", "Remote", "Worldwide", "Germany", "Berlin", "Munich", "Europe", "Singapore", "UAE", "Australia", "UK", ""];
+
 export function JobFinderScreen({ api, onError, onNotice }: Props) {
   const [q, setQ] = useState("Python developer"); const [loc, setLoc] = useState("Germany"); const [remote, setRemote] = useState(false);
   const [res, setRes] = useState<Row | null>(null); const [busy, setBusy] = useState(false); const [shown, setShown] = useState(10);
-  useEffect(() => { void SecureStore.getItemAsync("sakuna.jobSearch").then(v => { if (v) { const x = JSON.parse(v); setQ(x.q); setLoc(x.loc); } }).catch(() => undefined); }, []);
-  async function search() {
-    setBusy(true); setShown(10); void SecureStore.setItemAsync("sakuna.jobSearch", JSON.stringify({ q, loc })).catch(() => undefined);
-    try { setRes(await api<Row>(`/career/find?q=${encodeURIComponent(q)}&location=${encodeURIComponent(loc)}&remote=${remote}`)); } catch (e) { onError(msg(e)); } finally { setBusy(false); }
+  const [pick, setPick] = useState<"role" | "loc" | null>(null);
+  useEffect(() => { void SecureStore.getItemAsync("sakuna.jobSearch").then(v => { const x = v ? JSON.parse(v) : { q: "Software Engineer", loc: "Sri Lanka" }; setQ(x.q); setLoc(x.loc); void search(x.q, x.loc); }).catch(() => undefined); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  async function search(qq = q, ll = loc) {
+    setBusy(true); setShown(10); setPick(null); void SecureStore.setItemAsync("sakuna.jobSearch", JSON.stringify({ q: qq, loc: ll })).catch(() => undefined);
+    try { setRes(await api<Row>(`/career/find?q=${encodeURIComponent(qq)}&location=${encodeURIComponent(ll)}&remote=${remote}`)); } catch (e) { onError(msg(e)); } finally { setBusy(false); }
   }
   const save = (j: Row) => void api("/career/jobs", "POST", { company: String(j.company).slice(0, 200), role: String(j.title).slice(0, 200), url: j.url, status: "draft", notes: `${j.source} · ${j.location}` })
     .then(() => { onNotice("Saved to your job tracker"); setRes(r => r && ({ ...r, jobs: (r.jobs as Row[]).map(x => x.id === j.id ? { ...x, saved: true } : x) })); }).catch(e => onError(msg(e)));
   const s: Row = res?.summary || {};
   return <Screen>
     <Hero kicker="JOB FINDER" title="Find your" accent="next role" sub="Arbeitnow (Germany & EU), Remotive, Remote OK and Jobicy, summed up. LinkedIn, XING, StepStone and others open as searches.">
-      <Field value={q} onChangeText={setQ} placeholder="Python developer, data engineer"/>
-      <Field value={loc} onChangeText={setLoc} placeholder="Location (optional)"/>
+      <TouchableOpacity onPress={() => setPick(pick === "role" ? null : "role")} style={{ borderWidth: 1, borderColor: C.green, borderRadius: 14, padding: 12, flexDirection: "row" }}>
+        <Text style={{ color: C.muted, width: 70 }}>Role</Text><Text style={{ color: C.text, fontWeight: "800", flex: 1 }}>{q}</Text><Text style={{ color: C.green }}>▾</Text></TouchableOpacity>
+      {pick === "role" && <View style={{ maxHeight: 260, borderWidth: 1, borderColor: C.line, borderRadius: 14 }}><ScrollView nestedScrollEnabled>{JOB_ROLES.map(r => <TouchableOpacity key={r} onPress={() => { setQ(r); void search(r, loc); }}
+        style={{ padding: 11, borderBottomColor: C.line, borderBottomWidth: 1 }}><Text style={{ color: r === q ? C.green : C.text }}>{r}</Text></TouchableOpacity>)}</ScrollView></View>}
+      <TouchableOpacity onPress={() => setPick(pick === "loc" ? null : "loc")} style={{ borderWidth: 1, borderColor: C.line, borderRadius: 14, padding: 12, flexDirection: "row" }}>
+        <Text style={{ color: C.muted, width: 70 }}>Where</Text><Text style={{ color: C.text, fontWeight: "800", flex: 1 }}>{loc || "Anywhere"}</Text><Text style={{ color: C.green }}>▾</Text></TouchableOpacity>
+      {pick === "loc" && <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{JOB_LOCATIONS.map(l => <TouchableOpacity key={l} style={chip(l === loc)} onPress={() => { setLoc(l); void search(q, l); }}>
+        <Text style={{ color: C.text }}>{l}</Text></TouchableOpacity>)}</View>}
+      <Field value={q} onChangeText={setQ} placeholder="…or type any role / keywords"/>
       <TouchableOpacity onPress={() => setRemote(v => !v)}><Line><View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: remote ? C.green : C.line, backgroundColor: remote ? C.green : "transparent" }}/><Text style={{ color: C.text }}>Remote only</Text></Line></TouchableOpacity>
       <Btn title={busy ? "Searching…" : "Find jobs"} onPress={() => void search()} busy={busy} disabled={q.trim().length < 2}/>
     </Hero>
     {res && <>
       <LinkedInCard api={api} q={q}/>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>{(res.links as Row[]).map(l => <TouchableOpacity key={l.name} style={chip(false)} onPress={() => open(l.url)}><Text style={{ color: C.text, fontWeight: "700" }}>{`${l.name} ↗`}</Text></TouchableOpacity>)}</ScrollView>
-      <TileRow><StatTile label="Jobs" tone="green" value={`${s.total}`}/><StatTile label="Remote" tone="blue" value={`${s.remote}`}/><StatTile label="Germany" tone="amber" value={`${s.germany}`}/></TileRow>
+      <TileRow><StatTile label="Jobs" tone="green" value={`${s.total}`}/><StatTile label="Sri Lanka" tone="violet" value={`${s.sri_lanka ?? 0}`}/><StatTile label="Remote" tone="blue" value={`${s.remote}`}/><StatTile label="Germany" tone="amber" value={`${s.germany}`}/></TileRow>
       {(s.skills as [string, number][]).length > 0 && <Card><Kicker>SKILLS IN DEMAND</Kicker><Bars data={(s.skills as [string, number][]).slice(0, 8).map(([k, c]) => ({ label: k.slice(0, 6), value: c }))} height={110}/>
         {(s.skills_to_learn as string[]).length > 0 && <Muted small>{`To learn next: ${(s.skills_to_learn as string[]).join(", ")}`}</Muted>}</Card>}
       {(res.jobs as Row[]).slice(0, shown).map(j => <Card key={j.id}>
         <Text style={{ color: C.text, fontWeight: "800", fontSize: 15 }}>{j.title}</Text><Muted small>{`${j.company} · ${j.location}`}</Muted>
         <Line style={{ flexWrap: "wrap" }}>{j.remote && <Badge>remote</Badge>}<Badge tone="muted">{j.source}</Badge>{!!j.posted && <Badge tone="muted">{j.posted}</Badge>}{!!j.salary && <Badge tone="amber">{j.salary}</Badge>}</Line>
-        <Line>{j.saved ? <Badge>✓ in tracker</Badge> : <Btn title="Save" onPress={() => save(j)}/>}<Btn kind="link" title="Open & apply ↗" onPress={() => open(j.url)}/></Line>
+        <Line>{j.saved ? <Badge>✓ in tracker</Badge> : <Btn title="Save" onPress={() => save(j)}/>}<Btn kind="link" title="Open & apply ↗" onPress={() => open(j.url, j.title)}/></Line>
       </Card>)}
       {shown < (res.jobs as Row[]).length && <Btn kind="outline" title="Show more" onPress={() => setShown(x => x + 10)}/>}
       <Muted small>{res.source_note}</Muted>
@@ -321,7 +335,7 @@ export function RadarScreen({ api, onError, onNotice }: Props) {
       <Bars data={(res.summary.hot_tags as [string, number][]).slice(0, 8).map(([k, c]) => ({ label: k.slice(0, 6), value: c }))} height={100}/></Card>}
     {res && (res.items as Row[]).slice(0, 25).map(i => <Card key={i.url}>
       <Line><Badge tone="muted">{`${i.source} · ${i.kind}`}</Badge><View style={{ flex: 1 }}/><Badge tone="amber">{`${i.source === "GitHub" ? "★" : "▲"} ${i.score}`}</Badge></Line>
-      <TouchableOpacity onPress={() => open(i.url)}><Text style={{ color: C.text, fontWeight: "700", fontSize: 15 }}>{i.title}</Text></TouchableOpacity>
+      <TouchableOpacity onPress={() => open(i.url, i.title, { category: "study", note: `Learning: ${i.title}` })}><Text style={{ color: C.text, fontWeight: "700", fontSize: 15 }}>{i.title}</Text></TouchableOpacity>
       {!!i.summary && <Muted small>{String(i.summary).slice(0, 160)}</Muted>}
       <Line><Btn kind="link" title="📚 Learn later" onPress={() => void api("/tasks", "POST", { title: `Learn: ${i.title}`.slice(0, 200), category: "learning", priority: "medium", duration_minutes: 30, notes: i.url }).then(() => onNotice("Added as a learning task")).catch(e => onError(msg(e)))}/>
         <Btn kind="link" title="🧠 Save" onPress={() => void api("/memories", "POST", { content: `${i.title} — ${i.url}`.slice(0, 2000), category: "note" }).then(() => onNotice("Saved to memory")).catch(e => onError(msg(e)))}/></Line>

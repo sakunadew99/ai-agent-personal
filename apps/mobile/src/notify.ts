@@ -141,3 +141,38 @@ export async function syncHabitReminders(api: Api): Promise<number> {
     return 0; // best-effort
   }
 }
+
+const CHECKIN_PREFIX = "checkin-";
+export const CHECKIN_CATEGORY = "hour-checkin";
+export const CHECKIN_ACTIONS: [string, string][] = [["work", "💼 Work"], ["study", "📚 Study"], ["wasted", "📱 Wasted"]];
+
+/** Hourly "what did you do?" reminders (8:00-21:00, every day) and the 21:30 day report. Answer from the notification. */
+export async function scheduleHourlyCheckins(on: boolean): Promise<number> {
+  try {
+    if (!(await ready())) return -1;
+    await cancelWhere(id => id.startsWith(CHECKIN_PREFIX));
+    if (!on) return 0;
+    await Notifications.setNotificationCategoryAsync(CHECKIN_CATEGORY, [
+      ...CHECKIN_ACTIONS.map(([id, title]) => ({ identifier: id, buttonTitle: title, options: { opensAppToForeground: false } })),
+      { identifier: "open", buttonTitle: "Other…", options: { opensAppToForeground: true } },
+    ]);
+    let count = 0;
+    for (let h = 9; h <= 21; h++) {
+      await Notifications.scheduleNotificationAsync({
+        identifier: `${CHECKIN_PREFIX}${h}`,
+        content: { title: `⏱ ${String(h - 1).padStart(2, "0")}:00–${String(h).padStart(2, "0")}:00`, body: "What did you do this hour? Tap a button, or open Sakuna for more.",
+          categoryIdentifier: CHECKIN_CATEGORY, data: { kind: "checkin", hour: h - 1 } },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: h, minute: 0, channelId: CHANNEL },
+      });
+      count++;
+    }
+    await Notifications.scheduleNotificationAsync({
+      identifier: `${CHECKIN_PREFIX}report`,
+      content: { title: "📋 Your day report is ready", body: "See where the time went, and what to change tomorrow.", data: { kind: "report" } },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 21, minute: 30, channelId: CHANNEL },
+    });
+    return count + 1;
+  } catch {
+    return 0;
+  }
+}

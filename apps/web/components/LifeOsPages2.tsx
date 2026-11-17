@@ -332,19 +332,25 @@ export function SubscriptionsPanel({ token }: { token: string }) {
 // JOB FINDER
 // =====================================================================================================================
 
+const JOB_ROLES = ["Software Engineer", "Associate Software Engineer", "Intern - Software Engineering", "Python Developer", "Full Stack Developer", "Frontend Developer (React)",
+  "Backend Developer", "Mobile Developer (Flutter / React Native)", "QA Engineer", "DevOps Engineer", "Cloud Engineer", "Data Analyst", "Data Engineer", "Data Scientist",
+  "Machine Learning Engineer", "AI Engineer", "Business Analyst", "Project Manager", "UI/UX Designer", "Cyber Security Analyst", "Network Engineer", "IT Support", "Database Administrator"];
+const JOB_LOCATIONS = ["Sri Lanka", "Colombo", "Remote", "Worldwide", "Germany", "Berlin", "Munich", "Europe", "Singapore", "UAE", "Australia", "UK", ""];
+
 export function JobFinder({ token }: { token: string }) {
-  const [q, setQ] = useState(() => { try { return localStorage.getItem("sakuna.jobQuery") || "Python developer"; } catch { return "Python developer"; } });
-  const [loc, setLoc] = useState(() => { try { return localStorage.getItem("sakuna.jobLoc") || "Germany"; } catch { return "Germany"; } });
+  const [q, setQ] = useState(() => { try { return localStorage.getItem("sakuna.jobQuery") || "Software Engineer"; } catch { return "Software Engineer"; } });
+  const [loc, setLoc] = useState(() => { try { return localStorage.getItem("sakuna.jobLoc") || "Sri Lanka"; } catch { return "Sri Lanka"; } });
   const [remote, setRemote] = useState(false);
   const [res, setRes] = useState<Row | null>(null);
   const [busy, setBusy] = useState(false);
   const [shown, setShown] = useState(15);
   const n = useNote();
-  async function search() {
+  async function search(qq = q, ll = loc) {
     setBusy(true); setShown(15);
-    try { localStorage.setItem("sakuna.jobQuery", q); localStorage.setItem("sakuna.jobLoc", loc); } catch { /* private window */ }
-    try { setRes(await call<Row>(`/career/find?q=${encodeURIComponent(q)}&location=${encodeURIComponent(loc)}&remote=${remote}`, token)); } catch (e) { n.fail(e); } finally { setBusy(false); }
+    try { localStorage.setItem("sakuna.jobQuery", qq); localStorage.setItem("sakuna.jobLoc", ll); } catch { /* private window */ }
+    try { setRes(await call<Row>(`/career/find?q=${encodeURIComponent(qq)}&location=${encodeURIComponent(ll)}&remote=${remote}`, token)); } catch (e) { n.fail(e); } finally { setBusy(false); }
   }
+  useEffect(() => { void search(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   async function save(j: Row) {
     try { await call("/career/jobs", token, postJson({ company: j.company.slice(0, 200), role: j.title.slice(0, 200), url: j.url, status: "draft", notes: `${j.source} · ${j.location}${j.salary ? ` · ${j.salary}` : ""}` }));
       setRes(r => r && ({ ...r, jobs: (r.jobs as Row[]).map(x => x.id === j.id ? { ...x, saved: true } : x) })); n.ok("Saved to your job tracker"); } catch (e) { n.fail(e); }
@@ -353,8 +359,11 @@ export function JobFinder({ token }: { token: string }) {
   return <div className="d-dash">
     <Hero kicker="Job finder · public job boards" title="Find your" accent="next role" sub="Searches Arbeitnow (Germany & EU), Remotive, Remote OK and Jobicy, then sums it up: skills in demand, companies, remote and Germany jobs. LinkedIn, XING, StepStone and others open as ready-made searches.">
       <div className="d-row" style={{ marginTop: 12 }}>
-        <input className="d-input" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === "Enter") void search(); }} placeholder="Keywords, comma separated: Python developer, data engineer"/>
-        <input className="d-input" style={{ maxWidth: 200 }} value={loc} onChange={e => setLoc(e.target.value)} placeholder="Location (optional)"/>
+        <select className="d-input" style={{ maxWidth: 280 }} value={JOB_ROLES.includes(q) ? q : ""} onChange={e => { if (e.target.value) { setQ(e.target.value); void search(e.target.value, loc); } }}>
+          <option value="">Pick a role…</option>{JOB_ROLES.map(r => <option key={r}>{r}</option>)}</select>
+        <select className="d-input" style={{ maxWidth: 180 }} value={loc} onChange={e => { setLoc(e.target.value); void search(q, e.target.value); }}>
+          {JOB_LOCATIONS.map(l => <option key={l} value={l}>{l || "Anywhere"}</option>)}</select>
+        <input className="d-input" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === "Enter") void search(); }} placeholder="…or type any keywords"/>
         <label className="d-row" style={{ color: "var(--d-text)" }}><input type="checkbox" checked={remote} onChange={e => setRemote(e.target.checked)}/> Remote only</label>
         <button className="d-btn" disabled={busy || q.trim().length < 2} onClick={() => void search()}>{busy ? "Searching…" : "Find jobs"}</button>
       </div>
@@ -367,7 +376,7 @@ export function JobFinder({ token }: { token: string }) {
       <div className="d-stats">
         <Stat label="Matching jobs" icon="💼" value={s.total} tone="solid"/>
         <Stat label="Remote" icon="🌍" value={s.remote} tone="blue"/>
-        <Stat label="In Germany" icon="🇩🇪" value={s.germany} tone="amber"/>
+        <Stat label="Sri Lanka / Germany" icon="🇱🇰" value={`${s.sri_lanka ?? 0} / ${s.germany}`} tone="amber"/>
         <Stat label="Visa / relocation" icon="✈️" value={s.visa_or_relocation} tone="violet" hint="mentioned in the post"/>
       </div>
       <div className="d-grid-3">

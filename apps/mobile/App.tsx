@@ -28,11 +28,15 @@ import { JournalScreen } from "./src/screens/JournalScreen";
 import { MonthRoutines, NowRoutineCard, PlanSwitch, TodayRoutines, WeekPlan, type PlanView } from "./src/screens/MyDayScreens";
 import { InboxScreen, JobFinderScreen, PlanBoard, RadarScreen, RewardsGameScreen, SubscriptionsScreen, Switcher } from "./src/screens/LifeOs2Screens";
 import { BrainGymScreen, WatchScreen } from "./src/screens/LifeOs3Screens";
+import { DayTrackerScreen, GymScreen, LanguageScreen, ProgressScreen, uploadUsage } from "./src/screens/LifeOs4Screens";
+import { BrowserHost } from "./src/browser";
+import * as Notifications from "expo-notifications";
+import { CHECKIN_ACTIONS } from "./src/notify";
 import { appendSpeech, MicButton } from "./src/voice";
 import { Hero, Ring, StatTile, TileRow, WeekDots } from "./src/charts";
 
 type Tab = "Home" | "Plan" | "Capture" | "Focus" | "More";
-const SUB_TITLES: Record<MoreTarget, string> = { Brain: "Brain gym", Assistant: "Assistant", Journal: "Journal", Invest: "Invest (CSE)", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
+const SUB_TITLES: Record<MoreTarget, string> = { Day: "Day tracker", Gym: "Gym", Brain: "Brain gym", Assistant: "Assistant", Journal: "Journal", Invest: "Invest (CSE)", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
 
 export default function App() {
   const [booting, setBooting] = useState(true);       // restoring the saved session
@@ -53,6 +57,7 @@ export default function App() {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [sub, setSub] = useState<MoreTarget | null>(null);
+  const [checkinHour, setCheckinHour] = useState<number | null>(null);
   // One API helper for all screens (adds the signed-in token).
   const api = useCallback(<T = Row,>(path: string, method = "GET", body?: unknown) => request<T>(path, token, method, body), [token]);
   const showError = useCallback((message: string) => { setNotice(""); setError(message); }, []);
@@ -80,8 +85,29 @@ export default function App() {
 
   useEffect(() => { if (token) void loadTab(tab); }, [token, tab, loadTab]);
 
+  // Hourly check-in answers (from the notification buttons) and taps on the day report open the Day tracker.
+  useEffect(() => {
+    if (!token) return;
+    const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+    const sub = Notifications.addNotificationResponseReceivedListener(resp => {
+      const data = (resp.notification.request.content.data || {}) as Row;
+      if (data.kind === "checkin") {
+        const h = Number(data.hour), action = resp.actionIdentifier;
+        if (CHECKIN_ACTIONS.some(([id]) => id === action)) {
+          void api("/day/entries", "POST", { local_date: today(), start_time: `${String(h).padStart(2, "0")}:00`, end_time: `${String(h).padStart(2, "0")}:59`, category: action, source: "prompt" })
+            .then(() => showNotice(`Logged ${String(h).padStart(2, "0")}:00 as ${action}`)).catch(() => undefined);
+        } else { setCheckinHour(h); setTab("More"); setSub("Day"); }
+      } else if (data.kind === "report") { setCheckinHour(null); setTab("More"); setSub("Day"); void uploadUsage(api); }
+    });
+    return () => sub.remove();
+  }, [token, api, showNotice]);
+
   // Phone reminders for tasks due in the next 7 days (local notifications, quiet hours applied by the API).
-  useEffect(() => { if (token) { void syncReminders(api); void syncHabitReminders(api); } }, [token, api]);
+  useEffect(() => {
+    if (!token) return;
+    void syncReminders(api); void syncHabitReminders(api);
+    void uploadUsage(api); void uploadUsage(api, new Date(Date.now() - 86400000));   // phone screen time for today and yesterday's report
+  }, [token, api]);
 
   // Stay signed in: restore the saved session on start; renew the access token whenever it expires.
   const restore = useCallback(async () => {
@@ -144,7 +170,7 @@ export default function App() {
   function openTarget(target: string) {
     if (target === "Plan") { setPlanView("day"); setTab("Plan"); setSub(null); }
     else if (target === "Focus") { setTab("Focus"); setSub(null); }
-    else if (["Exams", "You", "Team", "News", "Invest", "Money", "Life", "Balance", "Journal"].includes(target)) { setTab("More"); setSub(target as MoreTarget); }
+    else if (["Exams", "You", "Team", "News", "Invest", "Money", "Life", "Balance", "Journal", "Day", "Gym", "Brain"].includes(target)) { setTab("More"); setSub(target as MoreTarget); }
     else setTab("Home");
   }
   async function signOut() {
@@ -182,7 +208,7 @@ export default function App() {
       {tab === "More" && !sub && <MoreScreen open={target => { setError(""); setNotice(""); setSub(target); }}/>}
       {tab === "More" && sub === "Assistant" && <ChatScreen api={api}/>}
       {tab === "More" && sub === "Life" && <LifeScreen api={api} onError={showError} onNotice={showNotice}/>}
-      {tab === "More" && sub === "Learning" && <Switcher options={["radar", "study"] as const} labels={{ radar: "📡 Radar", study: "🎓 Study" }} render={v => v === "radar" ? <RadarScreen api={api} onError={showError} onNotice={showNotice}/> : <LearningScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
+      {tab === "More" && sub === "Learning" && <Switcher options={["lang", "radar", "progress", "study"] as const} labels={{ lang: "🗣 Lang", radar: "📡 Radar", progress: "📈 Track", study: "🎓 Cards" }} render={v => v === "radar" ? <RadarScreen api={api} onError={showError} onNotice={showNotice}/> : v === "lang" ? <LanguageScreen api={api} onError={showError} onNotice={showNotice}/> : v === "progress" ? <ProgressScreen api={api} onError={showError} onNotice={showNotice}/> : <LearningScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
       {tab === "More" && sub === "Jobs" && <Switcher options={["find", "track"] as const} labels={{ find: "🔎 Find jobs", track: "📋 My tracker" }} render={v => v === "find" ? <JobFinderScreen api={api} onError={showError} onNotice={showNotice}/> : <JobsScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
       {tab === "More" && sub === "Balance" && <BalanceScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Vault" && <Switcher options={["renewals", "docs"] as const} labels={{ renewals: "💳 Renewals", docs: "🪪 Documents" }} render={v => v === "renewals" ? <SubscriptionsScreen api={api} onError={showError} onNotice={showNotice}/> : <VaultScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
@@ -190,6 +216,8 @@ export default function App() {
       {tab === "More" && sub === "Invest" && <InvestScreen api={api} upload={(path, file) => apiUpload<Row>(path, token, file)} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "News" && <Switcher options={["news", "watch"] as const} labels={{ news: "📰 News", watch: "▶ Watch" }} render={v => v === "news" ? <NewsScreen api={api} onError={showError} onNotice={showNotice}/> : <WatchScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
       {tab === "More" && sub === "Brain" && <BrainGymScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "Day" && <DayTrackerScreen key={`day-${checkinHour ?? "x"}`} api={api} onError={showError} onNotice={showNotice} initialHour={checkinHour}/>}
+      {tab === "More" && sub === "Gym" && <GymScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "You" && <AboutYouScreen api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/>}
       {tab === "More" && sub === "Team" && <AiTeamScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Exams" && <ExamScreen api={api} onError={showError} onNotice={showNotice}/>}
@@ -204,6 +232,7 @@ export default function App() {
       {tab === "More" && sub === "Approvals" && <ApprovalsScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Profile" && <ProfileScreen user={user} signOut={() => void signOut()} onHealth={() => setSub("Health")}/>}
     </View>
+    <BrowserHost api={api} onNotice={showNotice}/>
     <View style={styles.tabbarWrap}><View style={styles.tabbar}>{(["Home", "Plan", "Capture", "Focus", "More"] as Tab[]).map(item => item === "Capture"
       ? <TouchableOpacity key={item} style={styles.tab} onPress={() => { setTab(item); setSub(null); setNotice(""); setError(""); }} accessibilityLabel="Capture"><View style={[styles.fab, tab === item && styles.fabOn]}><Text style={styles.fabIcon}>＋</Text></View></TouchableOpacity>
       : <TouchableOpacity key={item} style={styles.tab} onPress={() => { setTab(item); setSub(null); setNotice(""); setError(""); }}><View style={[styles.tabPill, tab === item && styles.tabPillOn]}><Text style={[styles.tabIcon, tab === item && styles.tabIconActive]}>{({ Home: "⌂", Plan: "▦", Capture: "＋", Focus: "◷", More: "☰" } as Record<Tab, string>)[item]}</Text></View><Text style={[styles.tabText, tab === item && styles.tabTextActive]}>{item}</Text></TouchableOpacity>)}</View></View>

@@ -2,13 +2,14 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Image, Linking, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import type { ApiRecord as Row } from "../api";
+import { openInApp, type Track } from "../browser";
 import { Hero, PALETTE, Ring, Segments, WeekDots } from "../charts";
 import { Badge, Btn, C, Card, Empty, Field, H2, Kicker, Muted, Row as Line, Screen } from "../ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 type Props = { api: Api; onError: (m: string) => void; onNotice: (m: string) => void };
 const msg = (r: unknown) => (r instanceof Error ? r.message : "Something went wrong");
-const open = (url?: string) => { if (url && /^https?:\/\//.test(url)) void Linking.openURL(url); };
+const open = (url?: string, title?: string, track?: Track) => openInApp(url, title, track);
 const SKILL_COLOR: Record<string, string> = { Memory: "#f5b65b", Concentration: "#5aa8ff", Logic: "#ff7a8a", Speed: "#3ee08f", Perception: "#b48cff" };
 
 /** Brain gym: today's 5-game workout (one per skill), all 33 BrainGymmer games by skill, and a streak. */
@@ -32,7 +33,7 @@ export function BrainGymScreen({ api, onError, onNotice }: Props) {
       {v.played_today ? <Badge>✓ workout done today</Badge> : <Btn title="✓ I played today" onPress={played}/>}
     </View>
     <Card accent><Kicker>TODAY'S WORKOUT · 5 GAMES</Kicker>
-      {(v.workout as Row[]).map(g => <TouchableOpacity key={g.slug} onPress={() => open(g.url)}>
+      {(v.workout as Row[]).map(g => <TouchableOpacity key={g.slug} onPress={() => open(g.url, g.name, { category: "study", note: `Brain game: ${g.name}`, brain: true })}>
         <Line style={{ paddingVertical: 6 }}><View style={{ width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: `${SKILL_COLOR[g.skill]}33` }}><Text style={{ fontSize: 22 }}>{g.icon}</Text></View>
           <View style={{ flex: 1 }}><Text style={{ color: C.text, fontWeight: "800", fontSize: 15 }}>{g.name}</Text><Muted small>{g.skill}</Muted></View><Text style={{ color: SKILL_COLOR[g.skill], fontWeight: "800" }}>Play ▶</Text></Line>
       </TouchableOpacity>)}
@@ -40,7 +41,7 @@ export function BrainGymScreen({ api, onError, onNotice }: Props) {
     </Card>
     <Segments options={Object.keys(SKILL_COLOR)} value={skill} onChange={setSkill} labels={{ Memory: "🧠", Concentration: "🎯", Logic: "🧩", Speed: "⚡", Perception: "👁" }}/>
     {group && <Card style={{ borderTopWidth: 3, borderTopColor: SKILL_COLOR[skill] }}><Kicker>{`${skill.toUpperCase()} · ${(group.games as Row[]).length} GAMES`}</Kicker><Muted small>{group.why}</Muted>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>{(group.games as Row[]).map(g => <TouchableOpacity key={g.slug} onPress={() => open(g.url)}
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>{(group.games as Row[]).map(g => <TouchableOpacity key={g.slug} onPress={() => open(g.url, g.name, { category: "study", note: `Brain game: ${g.name}`, brain: true })}
         style={{ width: "47%", padding: 12, borderRadius: 16, borderWidth: 1, borderColor: C.line, backgroundColor: C.panel2 }}>
         <Text style={{ fontSize: 20 }}>{g.icon}</Text><Text style={{ color: C.text, fontWeight: "800" }}>{g.name}</Text><Text style={{ color: SKILL_COLOR[skill], fontSize: 12 }}>Play ▶</Text></TouchableOpacity>)}</View>
     </Card>}
@@ -74,7 +75,7 @@ export function WatchScreen({ api, onError, onNotice }: Props) {
       {busy && <Muted small>Loading videos…</Muted>}
     </Hero>
     {(res?.must_watch || []).length > 0 && <><H2>🔥 Must watch this week</H2>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>{(res!.must_watch as Row[]).map(v => <TouchableOpacity key={v.id} onPress={() => open(v.url)} style={{ width: 240 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>{(res!.must_watch as Row[]).map(v => <TouchableOpacity key={v.id} onPress={() => open(v.url, v.title, { category: "study", note: `Video: ${v.title}` })} style={{ width: 240 }}>
         <Image source={{ uri: v.thumb }} style={{ width: 240, height: 135, borderRadius: 16, backgroundColor: C.panel2 }}/>
         <Text style={{ color: C.text, fontWeight: "800", marginTop: 6 }} numberOfLines={2}>{v.title}</Text><Muted small>{`${v.channel} · ${Number(v.views).toLocaleString()} views`}</Muted></TouchableOpacity>)}</ScrollView></>}
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>{[{ key: "all", title: "All" }, ...shelves].map(s => <TouchableOpacity key={s.key} onPress={() => setShelf(s.key)}
@@ -84,7 +85,7 @@ export function WatchScreen({ api, onError, onNotice }: Props) {
     {shown.map((s, k) => <View key={s.key} style={{ gap: 10 }}>
       <Text style={{ color: C.text, fontSize: 17, fontWeight: "800" }}>{s.title}</Text>
       {(s.videos as Row[]).slice(0, 8).map(v => <Card key={v.id} style={{ padding: 10 }}>
-        <TouchableOpacity onPress={() => open(v.url)}><Line style={{ alignItems: "flex-start" }}>
+        <TouchableOpacity onPress={() => open(v.url, v.title, { category: s.key === "motivation" ? "rest" : "study", note: `Video: ${v.title}` })}><Line style={{ alignItems: "flex-start" }}>
           <Image source={{ uri: v.thumb }} style={{ width: 128, height: 72, borderRadius: 10, backgroundColor: C.panel2 }}/>
           <View style={{ flex: 1, gap: 2 }}><Text style={{ color: C.text, fontWeight: "700" }} numberOfLines={3}>{v.title}</Text><Muted small>{`${v.channel} · ${v.published}`}</Muted></View></Line></TouchableOpacity>
         <Btn kind="link" title="⏰ Watch later" onPress={() => later(v)}/>
