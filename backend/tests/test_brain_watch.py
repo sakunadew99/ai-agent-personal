@@ -86,4 +86,5 @@ def test_watch_and_channels(client):
 
 def test_linkedin_links(client):
     links = _user(client)("GET", "/career/linkedin?q=python%20developer", expect=200).json()["links"]
-    assert links[0]["url"].startswith("https://www.linkedin.com/search/results/content/?keywords=python+developer")
+    assert links[0]["url"].startswith("https://www.linkedin.com/jobs/search/?keywords=python+developer&location=Sri%20Lanka")
+    assert any(link["url"].startswith("https://www.linkedin.com/search/results/content/?keywords=python+developer") for link in links)

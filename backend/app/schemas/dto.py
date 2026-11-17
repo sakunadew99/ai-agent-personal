@@ -1405,3 +1405,79 @@ class CaptureMoveIn(BaseModel):
     list_name: str | None = Field(default=None, max_length=32)
     icon: str | None = Field(default=None, max_length=8)
     reminder_time: time | None = None
+
+
+class SetIn(BaseModel):
+    exercise: str = Field(min_length=1, max_length=80)
+    weight_kg: Decimal | None = Field(default=None, ge=0, le=1000, max_digits=6, decimal_places=2)
+    reps: int | None = Field(default=None, ge=0, le=1000)
+    seconds: int | None = Field(default=None, ge=0, le=36000)
+
+
+class GymWorkoutIn(BaseModel):
+    title: str | None = Field(default=None, max_length=100)
+    started_at: datetime | None = None
+    duration_minutes: int | None = Field(default=None, ge=1, le=600)
+    calories: Decimal | None = Field(default=None, ge=0, le=10000)
+    notes: str | None = Field(default=None, max_length=2000)
+    sets: list[SetIn] = Field(default_factory=list, max_length=120)
+
+
+class CourseIn(BaseModel):
+    platform: str = Field(default="Coursera", min_length=1, max_length=40)
+    title: str = Field(min_length=1, max_length=200)
+    url: str | None = Field(default=None, max_length=500)
+    status: Literal["planned", "active", "paused", "done"] = "active"
+    progress_pct: int = Field(default=0, ge=0, le=100)
+    hours_spent: Decimal = Field(default=Decimal("0"), ge=0, le=10000)
+    target_date: date | None = None
+    certificate_url: str | None = Field(default=None, max_length=500)
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class CourseUpdate(BaseModel):
+    platform: str | None = Field(default=None, min_length=1, max_length=40)
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    url: str | None = Field(default=None, max_length=500)
+    status: Literal["planned", "active", "paused", "done"] | None = None
+    progress_pct: int | None = Field(default=None, ge=0, le=100)
+    hours_spent: Decimal | None = Field(default=None, ge=0, le=10000)
+    add_hours: Decimal | None = Field(default=None, gt=0, le=24)
+    target_date: date | None = None
+    certificate_url: str | None = Field(default=None, max_length=500)
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class CodingProfileIn(BaseModel):
+    platform: Literal["leetcode", "hackerrank", "github", "codeforces"]
+    username: str = Field(min_length=1, max_length=60, pattern=r"^[A-Za-z0-9_.-]+$")
+
+
+TimeCategory = Literal["work", "deep_work", "meeting", "study", "exercise", "commute", "chores", "family", "social", "rest", "entertainment", "wasted", "sleep", "other"]
+
+
+class TimeEntryIn(BaseModel):
+    local_date: date
+    start_time: time
+    end_time: time
+    category: TimeCategory
+    note: str | None = Field(default=None, max_length=300)
+    source: Literal["manual", "prompt", "focus", "routine"] = "manual"
+
+
+class UsageApp(BaseModel):
+    package: str = Field(max_length=200)
+    label: str = Field(max_length=120)
+    category: str = Field(default="other", max_length=32)
+    mark: Literal["distracting", "neutral", "productive"] = "neutral"
+    minutes: int = Field(ge=0, le=1440)
+
+
+class DeviceUsageIn(BaseModel):
+    local_date: date
+    total_minutes: int = Field(ge=0, le=1440)
+    distracting_minutes: int = Field(default=0, ge=0, le=1440)
+    productive_minutes: int = Field(default=0, ge=0, le=1440)
+    pickups: int = Field(default=0, ge=0, le=5000)
+    apps: list[UsageApp] = Field(default_factory=list, max_length=40)
+    hourly: list[int] = Field(default_factory=list, max_length=24)

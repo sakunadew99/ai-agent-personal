@@ -596,10 +596,164 @@ def career_find(q: str = Query(min_length=2, max_length=200), location: str = Qu
     from app.services import jobs_finder
     prof = db.scalar(select(CareerProfile).where(CareerProfile.user_id == user.id))
     out = jobs_finder.search([k for k in q.replace(";", ",").split(",")], location.strip(), remote, list(prof.skills or []) if prof else [])
+    out["roles"], out["locations"] = jobs_finder.ROLES, jobs_finder.LOCATIONS
     saved = {u for u in db.scalars(select(JobApplication.url).where(JobApplication.user_id == user.id, JobApplication.url.is_not(None))).all()}
     for j in out["jobs"]:
         j["saved"] = j["url"] in saved
     return out
+
+
+# ---------- Gym log ----------
+
+@router.get("/gym")
+def gym_overview(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Exercises, templates, recent workouts with sets, weekly time and volume, personal records, last numbers per exercise."""
+    from app.services import gym
+    return gym.overview(db, user.id)
+
+
+@router.post("/gym/workouts", status_code=201)
+def gym_log(data: dto.GymWorkoutIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services import gym
+    w = gym.log_workout(db, user.id, data)
+    game.on_workout(db, w); db.commit()
+    return gym.overview(db, user.id)
+
+
+@router.delete("/gym/workouts/{workout_id}", status_code=204)
+def gym_delete(workout_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    db.delete(owned(db, Workout, user.id, workout_id)); db.commit()
+
+
+# ---------- Courses and coding profiles ----------
+
+@router.get("/learning/tracker")
+def learning_tracker(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Your courses (Coursera, Udemy, …) and LeetCode / HackerRank / GitHub / Codeforces stats."""
+    from app.models.entities import CodingProfile, Course
+    from app.services import tracking
+    courses = db.scalars(select(Course).where(Course.user_id == user.id).order_by(Course.status, Course.updated_at.desc())).all()
+    profiles = db.scalars(select(CodingProfile).where(CodingProfile.user_id == user.id).order_by(CodingProfile.platform)).all()
+    return {"courses": [{c.name: getattr(row, c.name) for c in row.__table__.columns} for row in courses],
+            "profiles": [tracking.profile_out(p) for p in profiles],
+            "hours_total": float(sum(c.hours_spent for c in courses)), "done": sum(1 for c in courses if c.status == "done"),
+            "active": sum(1 for c in courses if c.status == "active")}
+
+
+@router.post("/learning/courses", status_code=201)
+def course_create(data: dto.CourseIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import Course
+    row = Course(user_id=user.id, **{**data.model_dump(), "title": data.title.strip(), "updated_at": now_utc()})
+    if row.progress_pct >= 100: row.status = "done"
+    db.add(row); db.commit(); db.refresh(row); return {c.name: getattr(row, c.name) for c in row.__table__.columns}
+
+
+@router.patch("/learning/courses/{course_id}")
+def course_update(course_id: uuid.UUID, data: dto.CourseUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import Course
+    row = owned(db, Course, user.id, course_id)
+    changes = data.model_dump(exclude_unset=True)
+    add = changes.pop("add_hours", None)
+    for key, value in changes.items():
+        if key in ("platform", "title", "status", "progress_pct", "hours_spent") and value is None: continue
+        setattr(row, key, value)
+    if add: row.hours_spent = (row.hours_spent or 0) + add
+    if row.progress_pct >= 100: row.status = "done"
+    row.updated_at = now_utc(); db.commit(); db.refresh(row); return {c.name: getattr(row, c.name) for c in row.__table__.columns}
+
+
+@router.delete("/learning/courses/{course_id}", status_code=204)
+def course_delete(course_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import Course
+    db.delete(owned(db, Course, user.id, course_id)); db.commit()
+
+
+@router.put("/learning/profiles")
+def coding_profile_set(data: dto.CodingProfileIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Link a public username; its stats are read from the site's public data right away."""
+    from app.models.entities import CodingProfile
+    from app.services import tracking
+    row = db.scalar(select(CodingProfile).where(CodingProfile.user_id == user.id, CodingProfile.platform == data.platform))
+    if row is None:
+        row = CodingProfile(user_id=user.id, platform=data.platform, username=data.username, stats={}, history=[]); db.add(row)
+    elif row.username.lower() != data.username.lower():
+        row.username, row.history = data.username, []
+    tracking.refresh_profile(row, datetime.now(zone(profile_for(db, user).timezone)).date(), force=True)
+    db.commit(); db.refresh(row); return tracking.profile_out(row)
+
+
+@router.post("/learning/profiles/refresh")
+def coding_profiles_refresh(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import CodingProfile
+    from app.services import tracking
+    today = datetime.now(zone(profile_for(db, user).timezone)).date()
+    out, errors = [], []
+    for row in db.scalars(select(CodingProfile).where(CodingProfile.user_id == user.id)).all():
+        try: tracking.refresh_profile(row, today)
+        except HTTPException as exc: errors.append(str(exc.detail))
+        out.append(tracking.profile_out(row))
+    db.commit(); return {"profiles": out, "errors": errors}
+
+
+@router.delete("/learning/profiles/{profile_id}", status_code=204)
+def coding_profile_delete(profile_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import CodingProfile
+    db.delete(owned(db, CodingProfile, user.id, profile_id)); db.commit()
+
+
+# ---------- German & English: daily cards and today's plan ----------
+
+@router.post("/language/daily-cards")
+def language_daily_cards(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Add today's 5 new German and 5 new English words to your flashcards (once a day; never repeats a word)."""
+    from app.services import language
+    today = datetime.now(zone(profile_for(db, user).timezone)).date()
+    out = [language.add_daily_cards(db, user.id, lang, today) for lang in ("german", "english")]
+    db.commit(); return {"decks": out}
+
+
+@router.get("/language/today")
+def language_today(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """What to do today for German and English, with minutes: cards to review, a video topic, and exam-coach blocks."""
+    from app.services import language
+    out = language.today_plan(db, user.id, datetime.now(zone(profile_for(db, user).timezone)).date()); db.commit(); return out
+
+
+# ---------- Day tracker: hour by hour, phone usage, end-of-day report ----------
+
+@router.get("/day/report")
+def day_report(day: date | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Hour-by-hour view of a day: what you logged, focus, phone usage, tasks/habits/gym, time wasted, and tomorrow's tips."""
+    from app.services import tracking
+    return tracking.day_report(db, user.id, day or datetime.now(zone(profile_for(db, user).timezone)).date())
+
+
+@router.post("/day/report/explain")
+def day_report_explain(day: date | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services import tracking
+    rep = tracking.day_report(db, user.id, day or datetime.now(zone(profile_for(db, user).timezone)).date())
+    text = tracking.explain_day(db, user.id, rep); db.commit(); return {"text": text}
+
+
+@router.post("/day/entries", status_code=201)
+def day_entry_create(data: dto.TimeEntryIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services import tracking
+    row = tracking.add_entry(db, user.id, data); db.commit(); db.refresh(row)
+    return {"id": row.id, "local_date": row.local_date, "start": row.start_time.strftime("%H:%M"), "end": row.end_time.strftime("%H:%M"), "category": row.category, "note": row.note}
+
+
+@router.delete("/day/entries/{entry_id}", status_code=204)
+def day_entry_delete(entry_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import TimeEntry
+    db.delete(owned(db, TimeEntry, user.id, entry_id)); db.commit()
+
+
+@router.put("/day/usage")
+def day_usage(data: dto.DeviceUsageIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """The phone sends one day of screen time (totals and top apps). Replaces that day's numbers."""
+    from app.services import tracking
+    row = tracking.save_usage(db, user.id, data); db.commit()
+    return {"local_date": row.local_date, "total_minutes": row.total_minutes, "distracting_minutes": row.distracting_minutes}
 
 
 @router.get("/brain")

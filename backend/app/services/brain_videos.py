@@ -233,7 +233,11 @@ def watch(my_channels: list[str], skip_shorts: bool = True) -> dict:
 def linkedin_links(keywords: str) -> list[dict]:
     from urllib.parse import quote_plus
     k = quote_plus(keywords)
+    sl = "&geoId=100446352"     # LinkedIn's location id for Sri Lanka
     return [
+        {"name": "🇱🇰 LinkedIn jobs · Sri Lanka (24 h)", "url": f"https://www.linkedin.com/jobs/search/?keywords={k}&location=Sri%20Lanka{sl}&f_TPR=r86400"},
+        {"name": "🇱🇰 LinkedIn posts · Sri Lanka", "url": f"https://www.linkedin.com/search/results/content/?keywords={quote_plus(keywords + ' Sri Lanka')}&sortBy=%22date_posted%22"},
+        {"name": "🌍 LinkedIn remote jobs (worldwide)", "url": f"https://www.linkedin.com/jobs/search/?keywords={k}&f_WT=2&f_TPR=r604800"},
         {"name": "LinkedIn posts", "url": f"https://www.linkedin.com/search/results/content/?keywords={k}&sortBy=%22date_posted%22"},
         {"name": "LinkedIn jobs (last 24 h)", "url": f"https://www.linkedin.com/jobs/search/?keywords={k}&f_TPR=r86400"},
         {"name": "LinkedIn hiring posts", "url": f"https://www.linkedin.com/search/results/content/?keywords={quote_plus(keywords + ' hiring')}&sortBy=%22date_posted%22"},

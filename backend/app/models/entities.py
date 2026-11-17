@@ -1531,3 +1531,96 @@ class Subscription(Base):
     last_paid_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# ---------- Gym log, course/coding trackers, hour-by-hour day tracking, phone usage (migration 0022) ----------
+
+class WorkoutSet(Base):
+    """One set of an exercise inside a workout: weight x reps (or a timed hold)."""
+    __tablename__ = "workout_sets"
+    __table_args__ = (CheckConstraint("reps IS NULL OR reps BETWEEN 0 AND 1000", name="ck_workout_sets_reps"),
+                      CheckConstraint("weight_kg IS NULL OR weight_kg BETWEEN 0 AND 1000", name="ck_workout_sets_weight"))
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    workout_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workouts.id", ondelete="CASCADE"), index=True)
+    exercise: Mapped[str] = mapped_column(String(80))
+    set_no: Mapped[int] = mapped_column(Integer, default=1)
+    weight_kg: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
+    reps: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Course(Base):
+    """A course you follow anywhere (Coursera, Udemy, YouTube playlist, university...), with your own progress."""
+    __tablename__ = "courses"
+    __table_args__ = (CheckConstraint("status IN ('planned','active','paused','done')", name="ck_courses_status"),
+                      CheckConstraint("progress_pct BETWEEN 0 AND 100", name="ck_courses_progress"))
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    platform: Mapped[str] = mapped_column(String(40), default="Coursera")
+    title: Mapped[str] = mapped_column(String(200))
+    url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    status: Mapped[str] = mapped_column(String(10), default="active")
+    progress_pct: Mapped[int] = mapped_column(Integer, default=0)
+    hours_spent: Mapped[Decimal] = mapped_column(Numeric(7, 1), default=Decimal("0"))
+    target_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    certificate_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CodingProfile(Base):
+    """Your public LeetCode / HackerRank / GitHub / Codeforces username; stats are read from their public pages."""
+    __tablename__ = "coding_profiles"
+    __table_args__ = (UniqueConstraint("user_id", "platform", name="uq_coding_profiles_user_platform"),
+                      CheckConstraint("platform IN ('leetcode','hackerrank','github','codeforces')", name="ck_coding_profiles_platform"))
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    platform: Mapped[str] = mapped_column(String(16))
+    username: Mapped[str] = mapped_column(String(60))
+    stats: Mapped[dict] = mapped_column(JsonDict, default=dict)
+    history: Mapped[list] = mapped_column(JsonDict, default=list)     # [{date, solved}] one point per day, for the trend
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class TimeEntry(Base):
+    """What you did in a block of time (you log it, answer an hourly prompt, or it comes from a focus session)."""
+    __tablename__ = "time_entries"
+    __table_args__ = (CheckConstraint(
+        "category IN ('work','deep_work','meeting','study','exercise','commute','chores','family','social','rest','entertainment','wasted','sleep','other')",
+        name="ck_time_entries_category"),
+        CheckConstraint("source IN ('manual','prompt','focus','routine')", name="ck_time_entries_source"))
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    local_date: Mapped[date] = mapped_column(Date, index=True)
+    start_time: Mapped[time] = mapped_column(Time)
+    end_time: Mapped[time] = mapped_column(Time)
+    category: Mapped[str] = mapped_column(String(16))
+    note: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    source: Mapped[str] = mapped_column(String(10), default="manual")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class DeviceUsage(Base):
+    """One day of phone screen time sent by the Sakuna app (Android usage access). Only totals and top apps."""
+    __tablename__ = "device_usage"
+    __table_args__ = (UniqueConstraint("user_id", "local_date", name="uq_device_usage_user_date"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    local_date: Mapped[date] = mapped_column(Date)
+    total_minutes: Mapped[int] = mapped_column(Integer, default=0)
+    distracting_minutes: Mapped[int] = mapped_column(Integer, default=0)
+    productive_minutes: Mapped[int] = mapped_column(Integer, default=0)
+    pickups: Mapped[int] = mapped_column(Integer, default=0)
+    apps: Mapped[list] = mapped_column(JsonDict, default=list)       # [{package, label, category, mark, minutes}] top 20
+    hourly: Mapped[list] = mapped_column(JsonDict, default=list)     # 24 values, minutes per hour
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

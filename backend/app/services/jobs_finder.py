@@ -111,7 +111,23 @@ def _jobicy(q: str) -> list[dict]:
     return out
 
 
-SOURCES = {"Arbeitnow": _arbeitnow, "Remotive": _remotive, "Remote OK": _remoteok, "Jobicy": _jobicy}
+def _topjobs(_q: str) -> list[dict]:
+    """topjobs.lk home page lists today's Sri Lankan vacancies (title + company + link to the advert)."""
+    page = _fetch("https://www.topjobs.lk/")
+    out = []
+    for jc, title, company in re.findall(r"JobAdvertismentServlet\?ac=[A-Z]+&ec=[A-Z]+&jc=(\d+)[^>]*>\s*([^<]{3,160})<h5>([^<]{0,160})</h5>", page):
+        out.append(_job("topjobs.lk", jc, title, company, "Sri Lanka", False, [], f"https://www.topjobs.lk/employer/JobAdvertismentServlet?ac=DEFZZZ&ec=DEFZZZ&jc={jc}",
+                        None, title))
+    return out
+
+
+SOURCES = {"Arbeitnow": _arbeitnow, "Remotive": _remotive, "Remote OK": _remoteok, "Jobicy": _jobicy, "topjobs.lk": _topjobs}
+
+ROLES = ["Software Engineer", "Associate Software Engineer", "Python Developer", "Full Stack Developer", "Frontend Developer (React)", "Backend Developer",
+         "Mobile Developer (Flutter / React Native)", "QA Engineer", "DevOps Engineer", "Cloud Engineer", "Data Analyst", "Data Engineer", "Data Scientist",
+         "Machine Learning Engineer", "AI Engineer", "Business Analyst", "Project Manager", "UI/UX Designer", "Cyber Security Analyst",
+         "Network Engineer", "IT Support", "Database Administrator", "Technical Writer", "Intern - Software Engineering"]
+LOCATIONS = ["Sri Lanka", "Colombo", "Germany", "Berlin", "Munich", "Europe", "Remote", "Worldwide", "Singapore", "UAE", "Australia", "UK"]
 
 SKILLS = ["python", "javascript", "typescript", "react", "node", "java", "kotlin", "go", "rust", "c#", ".net", "php", "laravel", "django", "fastapi",
           "flask", "spring", "sql", "postgresql", "mongodb", "aws", "azure", "gcp", "docker", "kubernetes", "terraform", "linux", "git", "ci/cd",
@@ -131,6 +147,8 @@ def links(keywords: str, location: str) -> list[dict]:
         {"name": "Bundesagentur Jobsuche", "url": f"https://www.arbeitsagentur.de/jobsuche/suche?was={k}&wo={loc}"},
         {"name": "Make it in Germany", "url": "https://www.make-it-in-germany.com/en/working-in-germany/job-listings"},
         {"name": "topjobs.lk (Sri Lanka)", "url": "https://www.topjobs.lk/"},
+        {"name": "XpressJobs (Sri Lanka)", "url": f"https://xpress.jobs/jobs?keyword={k}"},
+        {"name": "ikman jobs (Sri Lanka)", "url": f"https://ikman.lk/en/ads/sri-lanka/jobs?query={k}"},
         {"name": "Wellfound (startups)", "url": f"https://wellfound.com/jobs?keywords={k}"},
     ]
 
@@ -186,11 +204,12 @@ def search(keywords: list[str], location: str = "", remote_only: bool = False, m
     mine = {s.lower().strip() for s in (my_skills or [])}
     gaps = [s for s, _ in skill_counts.most_common(15) if s not in mine][:6]
     germany = sum(1 for j in jobs if re.search(r"germany|deutschland|berlin|munich|münchen|hamburg|frankfurt|cologne|köln|stuttgart", j["location"].lower()))
+    sri_lanka = sum(1 for j in jobs if re.search(r"sri lanka|colombo|kandy|galle", j["location"].lower()))
     visa = sum(1 for t in corpus if re.search(r"visa sponsorship|relocation|sponsor", t))
     return {
         "keywords": keywords, "location": location, "remote_only": remote_only, "jobs": jobs,
         "summary": {
-            "total": len(jobs), "remote": sum(1 for j in jobs if j["remote"]), "germany": germany, "visa_or_relocation": visa,
+            "total": len(jobs), "remote": sum(1 for j in jobs if j["remote"]), "germany": germany, "sri_lanka": sri_lanka, "visa_or_relocation": visa,
             "by_source": Counter(j["source"] for j in jobs).most_common(),
             "companies": Counter(j["company"] for j in jobs if j["company"] != "—").most_common(8),
             "locations": Counter(j["location"].split(",")[0].strip() for j in jobs).most_common(8),

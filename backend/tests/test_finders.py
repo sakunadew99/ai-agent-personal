@@ -33,6 +33,8 @@ def fake_jobs(url):
                                                     "tags": ["python"], "url": "https://remoteok.com/9", "epoch": 1794556821, "description": "dup"}])
     if "jobicy" in url:
         return json.dumps({"jobs": []})
+    if "topjobs" in url:
+        return "<html></html>"
     raise AssertionError(url)
 
 
@@ -98,7 +100,7 @@ def test_job_feed_down_is_reported(client, monkeypatch):
     jobs_finder.clear_cache()
     monkeypatch.setattr(jobs_finder, "_fetch", down)
     r = _user(client)("GET", "/career/find?q=python", expect=200).json()
-    assert r["jobs"] == [] and len(r["errors"]) == 4 and r["links"]
+    assert r["jobs"] == [] and len(r["errors"]) == len(jobs_finder.SOURCES) and r["links"]
 
 
 def test_learning_radar(client):
