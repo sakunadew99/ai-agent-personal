@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Alert, Text, TouchableOpacity, View } from "react-native";
 import { peek, type ApiRecord as Row } from "../api";
+import { NetWorthCard } from "./SmartCards";
 import { Bars, Hero, LineChart, Ring, Segments, SplitBar, StatTile, TileRow } from "../charts";
 import { Badge, Btn, C, Card, Chips, Empty, Field, H1, H2, Kicker, Muted, money, niceDate, Row as Line, Screen } from "../ui";
 
@@ -64,6 +65,7 @@ export function FinanceScreen({ api, onError, onNotice }: { api: Api; onError: (
       <StatTile label="Due soon" icon="⏰" tone={subs.due_soon + subs.overdue ? "amber" : "plain"} value={`${subs.due_soon + subs.overdue}`} hint="see Documents & renewals"/>
     </TileRow>}
 
+    <NetWorthCard api={api}/>
     {months.length > 0 && <Card><Kicker>INCOME VS SPENDING · 6 MONTHS</Kicker>
       <LineChart series={[{ values: months.map(m => Number(m.income)), color: C.green, name: "Income" }, { values: months.map(m => Number(m.expenses)), color: C.red, name: "Spent" }]}
         labels={months.map(m => m.label)} format={short}/>

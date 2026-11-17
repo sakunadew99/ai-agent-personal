@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiRequest as call, postJson, type JsonRecord as Row } from "@/lib/api";
 import { Bars, Card, Donut, Hero, LineChart, Meter, Ring, SERIES, short, Stat, WeekDots } from "./Charts";
+import { NetWorthCard } from "./SmartCards";
 
 const money = (v: unknown, cur = "USD") => { try { return new Intl.NumberFormat(undefined, { style: "currency", currency: cur, maximumFractionDigits: 0 }).format(Number(v || 0)); } catch { return `${cur} ${Math.round(Number(v || 0))}`; } };
 const CAT_ICON: Record<string, string> = { food: "🍛", transport: "🚌", housing: "🏠", subscriptions: "🔁", shopping: "🛍️", health: "💊", education: "🎓", business: "💼", other: "📦" };
@@ -63,6 +64,7 @@ export function FinanceDashboard({ token, version = 0 }: { token: string; versio
       <Stat label="Per day" icon="📅" value={money(tm.avg_per_day, cur)} tone="amber" hint={`on track for ${money(tm.projected_spend, cur)}`}/>
       <Stat label="Last month" icon="🗓" value={money(tm.last_month_spent, cur)} tone="blue" hint="total spent"/>
     </div>
+    <NetWorthCard token={token}/>
     <div className="d-grid-3">
       <Card kicker="Cash flow" title="Income vs spending · 6 months">
         <LineChart series={[{ name: "Income", values: (tr.months as Row[]).map(m => m.income), color: "var(--d-green)" }, { name: "Spent", values: (tr.months as Row[]).map(m => m.expenses), color: "var(--d-red)" }]}

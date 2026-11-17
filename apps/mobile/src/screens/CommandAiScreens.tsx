@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Switch, Text, View } from "react-native";
 import type { ApiRecord as Row } from "../api";
+import { PrivacyCard } from "./SmartCards";
 import { Btn, C, Card, Field, H2, Kicker, Muted, Progress, Row as Line, Screen } from "../ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
@@ -78,5 +79,6 @@ export function AiScreen({ api, onError }: { api: Api; onError: (m: string) => v
       <Muted small>{`Never sent: ${(v.never_sent as string[]).join(" · ")}`}</Muted>
       <Muted small>Set daily or monthly caps on the web (Settings › AI).</Muted>
     </Card>
+    <PrivacyCard api={api} settings={s} save={save}/>
   </Screen>;
 }

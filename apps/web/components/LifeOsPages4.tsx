@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiRequest as call, patchJson, postJson, type JsonRecord as Row } from "@/lib/api";
 import { Bars, Card, Donut, Hero, LineChart, Meter, Ring, SERIES, Stat } from "./Charts";
+import { WeekInsightsCard } from "./SmartCards";
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong");
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -133,6 +134,9 @@ export function DayPage({ token }: { token: string }) {
       <b style={{ color: "var(--d-green)" }}>Tomorrow</b><ul className="d-list">{(r.tomorrow as string[]).map((x, i) => <li key={i}>{x}</li>)}</ul>
       {r.block_suggestion && <p className="d-warn">🛡 {(r.block_suggestion.labels as string[]).join(", ")} took {r.block_suggestion.minutes_today} min. Open the Sakuna app's Day tracker to block them tomorrow ({r.block_suggestion.start}–{r.block_suggestion.end}).</p>}
     </Card>
+    {(r.auto as Row[] || []).length > 0 && <Card kicker="Filled in automatically" title="From your gym log, focus sessions and finished routines">
+      {(r.auto as Row[]).map((a, i) => <div key={i} className="d-row" style={{ color: "var(--d-text)" }}><b>{a.start}</b> · {a.minutes} min · <span style={{ color: COLOR[a.category] }}>{a.note}</span></div>)}</Card>}
+    <WeekInsightsCard token={token}/>
     {(r.entries as Row[]).length > 0 && <Card kicker="Entries" title="">{(r.entries as Row[]).map(e => <div key={e.id} className="d-row" style={{ justifyContent: "space-between", color: "var(--d-text)" }}>
       <span><b>{e.start}–{e.end}</b> {LABEL[e.category]}{e.note ? ` · ${e.note}` : ""}</span><button className="danger-link" onClick={() => void call(`/day/entries/${e.id}`, token, { method: "DELETE" }).then(() => load(day)).catch(n.fail)}>✕</button></div>)}</Card>}
   </div>;

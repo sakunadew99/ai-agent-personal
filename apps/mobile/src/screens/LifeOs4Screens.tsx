@@ -7,6 +7,7 @@ import { Bars, Hero, LineChart, Meter, PALETTE, Ring, Segments, SplitBar } from 
 import { scheduleHourlyCheckins } from "../notify";
 import { Shield, defaultMark, type BlockList, type Mark } from "../shield";
 import { Badge, Btn, C, Card, Empty, Field, H2, Kicker, Muted, Row as Line, Screen } from "../ui";
+import { WeekInsightsCard } from "./SmartCards";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 type Props = { api: Api; onError: (m: string) => void; onNotice: (m: string) => void };
@@ -283,6 +284,10 @@ export function DayTrackerScreen({ api, onError, onNotice, initialHour }: Props 
       <Line><Text style={{ color: C.text, flex: 1 }}>Strict Mode (can't undo while it runs)</Text><Switch value={strict} onValueChange={setStrict} trackColor={{ true: C.red, false: C.line }} thumbColor={C.text}/></Line>
       <Btn kind="danger" title="Block tomorrow" onPress={() => Alert.alert("Block tomorrow?", strict ? "Strict Mode: you can't turn it off while the schedule runs." : "You can change it later in Focus → Shield.", [{ text: "Cancel", style: "cancel" }, { text: "Block", style: "destructive", onPress: () => void applyBlock() }])}/>
     </Card>}
+    {(r?.auto as Row[] || []).length > 0 && <Card><Kicker>FILLED IN AUTOMATICALLY</Kicker>{(r!.auto as Row[]).map((a, i) => <Line key={i}>
+      <Text style={{ color: C.muted, width: 92 }}>{`${a.start} · ${a.minutes}m`}</Text><Text style={{ color: COLOR[a.category], flex: 1 }}>{a.note}</Text></Line>)}
+      <Muted small>From your gym log, focus sessions and finished routines. No need to log these hours.</Muted></Card>}
+    <WeekInsightsCard api={api}/>
     {r && (r.entries as Row[]).length > 0 && <Card><Kicker>ENTRIES</Kicker>{(r.entries as Row[]).map(e => <Line key={e.id}>
       <Text style={{ color: C.muted, width: 92 }}>{`${e.start}–${e.end}`}</Text><Text style={{ color: COLOR[e.category], flex: 1 }}>{`${LABEL[e.category]}${e.note ? ` · ${e.note}` : ""}`}</Text>
       <TouchableOpacity onPress={() => void api(`/day/entries/${e.id}`, "DELETE").then(() => load()).catch(x => onError(msg(x)))}><Text style={{ color: C.muted }}>✕</Text></TouchableOpacity></Line>)}</Card>}

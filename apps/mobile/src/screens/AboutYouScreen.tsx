@@ -32,7 +32,6 @@ export function AboutYouScreen({ api, onError, onNotice, onOpen }: { api: Api; o
       onNotice(`${out.saved} pattern${out.saved === 1 ? "" : "s"} saved to memory` + (out.skipped.length ? ` · ${out.skipped.length} skipped (sensitive, e.g. health); save those by hand if you want` : ""));
     } catch (e) { onError(msg(e)); }
   }
-  const weekdayMax = Math.max(30, ...Object.values(p.focus.by_weekday as Record<string, number>));
 
   return <Screen onRefresh={load}>
     <Hero kicker="ABOUT YOU · LAST 28 DAYS" title={p.data_days ? `${p.data_days} days` : "Just getting"} accent={p.data_days ? "of you" : "started"}
@@ -62,10 +61,6 @@ export function AboutYouScreen({ api, onError, onNotice, onOpen }: { api: Api; o
     <Card>
       <Kicker>FOCUS BY WEEKDAY (AVG MIN)</Kicker>
       <Bars data={Object.entries(p.focus.by_weekday as Record<string, number>).map(([day, m]) => ({ label: short(day), value: Number(m) }))} height={120} format={n => `${Math.round(n)}m`}/>
-      <View style={[s.chart, { display: "none" }]}>{Object.entries(p.focus.by_weekday as Record<string, number>).map(([day, m]) => <View key={day} style={s.col}>
-        <Text style={s.colVal}>{m || ""}</Text>
-        <View style={s.track}><View style={[s.bar, { height: `${Math.max(m ? 6 : 0, (m / weekdayMax) * 100)}%` }]}/></View>
-        <Text style={s.colLabel}>{short(day)}</Text></View>)}</View>
       {p.focus.best_hours && <Muted small>{`Best hours: ${p.focus.best_hours.from}–${p.focus.best_hours.to}`}</Muted>}
     </Card>
 

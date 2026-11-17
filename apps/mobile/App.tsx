@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { apiRequest as request, apiUpload, clearScreenCache, loadScreenCache, loadServerUrl, peek, prefetchScreens, setAccessToken, setRefresher, type ApiRecord as Row } from "./src/api";
+import { apiRequest as request, apiUpload, clearScreenCache, flushQueue, loadQueue, loadScreenCache, loadServerUrl, peek, prefetchScreens, setAccessToken, setRefresher, type ApiRecord as Row } from "./src/api";
 import { clearSession, endSession, hasSession, onSessionExpired, refreshAccess, saveSession, storedUser } from "./src/session";
 import { LoginScreen, SplashScreen } from "./src/screens/LoginScreen";
 import { ChatScreen } from "./src/screens/ChatScreen";
@@ -30,6 +30,8 @@ import { InboxScreen, JobFinderScreen, PlanBoard, RadarScreen, RewardsGameScreen
 import { BrainGymScreen, WatchScreen } from "./src/screens/LifeOs3Screens";
 import { DayTrackerScreen, GymScreen, LanguageScreen, ProgressScreen, uploadUsage } from "./src/screens/LifeOs4Screens";
 import { BrowserHost } from "./src/browser";
+import { LockGate } from "./src/lock";
+import { NudgeBanner, TodayPlanCard } from "./src/screens/SmartCards";
 import * as Notifications from "expo-notifications";
 import { CHECKIN_ACTIONS } from "./src/notify";
 import { appendSpeech, MicButton } from "./src/voice";
@@ -48,11 +50,9 @@ export default function App() {
   const [planView, setPlanView] = useState<PlanView>("day");
   const [dashboard, setDashboard] = useState<Row>(() => peek("/dashboard") || {});
   const [plan, setPlan] = useState<Row>(() => peek("/planner/daily") || {});
-  const [captures, setCaptures] = useState<Row[]>([]);
   const [finance, setFinance] = useState<Row>(() => peek("/finance/summary") || {});
   const [health, setHealth] = useState<Row>(() => peek("/health/summary") || {});
   const [life, setLife] = useState<Row>(() => peek("/life/overview") || {});
-  const [captureText, setCaptureText] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -75,8 +75,6 @@ export default function App() {
         setDashboard(dash); setFinance(money); setHealth(activity); setLife(overview);
       } else if (selected === "Plan") {
         setPlan(await request<Row>("/planner/daily", currentToken));
-      } else if (selected === "Capture") {
-        setCaptures(await request<Row[]>("/capture", currentToken));
       } else if (selected === "More") {
         const me = await request<Row>("/me", currentToken); setUser(me.user || {});
       }
@@ -105,9 +103,10 @@ export default function App() {
   // Phone reminders for tasks due in the next 7 days (local notifications, quiet hours applied by the API).
   useEffect(() => {
     if (!token) return;
+    void loadQueue().then(() => flushQueue(token)).then(n => { if (n) showNotice(`Sent ${n} item${n === 1 ? "" : "s"} saved while offline`); });
     void syncReminders(api); void syncHabitReminders(api);
     void uploadUsage(api); void uploadUsage(api, new Date(Date.now() - 86400000));   // phone screen time for today and yesterday's report
-  }, [token, api]);
+  }, [token, api, showNotice]);
 
   // Stay signed in: restore the saved session on start; renew the access token whenever it expires.
   const restore = useCallback(async () => {
@@ -138,19 +137,6 @@ export default function App() {
     setToken(pair.access_token);
   }
 
-  async function saveCapture() {
-    if (!captureText.trim()) return;
-    setBusy(true);
-    try { await request("/capture", token, "POST", { text: captureText.trim() }); setCaptureText(""); setNotice("Added to your inbox for review."); await loadTab("Capture"); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : "Capture failed"); }
-    finally { setBusy(false); }
-  }
-
-  async function confirmCapture(id: string) {
-    try { await request(`/capture/${id}/confirm`, token, "POST", {}); setNotice("Capture saved"); await loadTab("Capture"); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : "Could not process capture"); }
-  }
-
 
   async function generatePlan() {
     setBusy(true);
@@ -158,7 +144,6 @@ export default function App() {
     catch (reason) { setError(reason instanceof Error ? reason.message : "Could not generate a plan"); }
     finally { setBusy(false); }
   }
-
 
 
   async function completeTask(id: string) {
@@ -183,14 +168,14 @@ export default function App() {
     onSignInAgain={() => { void clearSession(); setBootProblem(""); setBooting(false); }}/>;
   if (!token) return <LoginScreen onSignedIn={onSignedIn} initialError={authNote}/>;
 
-  return <SafeAreaView style={styles.safe}><StatusBar barStyle="light-content"/><View style={styles.app}>
+  return <LockGate><SafeAreaView style={styles.safe}><StatusBar barStyle="light-content"/><View style={styles.app}>
     <View style={styles.topbar}>{tab === "More" && sub
       ? <TouchableOpacity onPress={() => setSub(null)}><Text style={styles.kicker}>‹ MORE</Text><Text style={styles.topTitle}>{SUB_TITLES[sub]}</Text></TouchableOpacity>
       : <View><Text style={styles.kicker}>SAKUNA AI</Text><Text style={styles.topTitle}>{tab === "Home" ? "Your day, in focus." : tab}</Text></View>}
       {!(tab === "More" && sub) && <TouchableOpacity onPress={() => void loadTab(tab)}><Text style={styles.refresh}>Refresh ↻</Text></TouchableOpacity>}</View>
     {!!error && <Text style={styles.errorBox}>{error}</Text>}{!!notice && <TouchableOpacity onPress={() => setNotice("")}><Text style={styles.notice}>{notice}  ×</Text></TouchableOpacity>}
     <View style={[styles.screen, tab === "More" && sub === "Assistant" && { marginBottom: 84 }]}>
-      {tab === "Home" && <HomeScreen name={String(user.full_name || "").split(" ")[0]} life={life} dashboard={dashboard} finance={finance} health={health} onOpen={openTarget} onComplete={completeTask} onOpenPlan={() => setTab("Plan")} top={<><LifeCompass api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/>
+      {tab === "Home" && <HomeScreen name={String(user.full_name || "").split(" ")[0]} life={life} dashboard={dashboard} finance={finance} health={health} onOpen={openTarget} onComplete={completeTask} onOpenPlan={() => setTab("Plan")} top={<><NudgeBanner api={api} onOpen={openTarget}/><TodayPlanCard api={api} onOpen={openTarget}/><LifeCompass api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/>
         <NowRoutineCard api={api} onOpen={() => { setPlanView("day"); setTab("Plan"); }}/>
         <TeamTodayCard api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/><CoachCardMobile api={api} onError={showError}/><BrainCard api={api}/></>}/>}
       {tab === "Plan" && planView === "day" && <PlanScreen plan={plan} busy={busy} generate={generatePlan}
@@ -236,7 +221,7 @@ export default function App() {
     <View style={styles.tabbarWrap}><View style={styles.tabbar}>{(["Home", "Plan", "Capture", "Focus", "More"] as Tab[]).map(item => item === "Capture"
       ? <TouchableOpacity key={item} style={styles.tab} onPress={() => { setTab(item); setSub(null); setNotice(""); setError(""); }} accessibilityLabel="Capture"><View style={[styles.fab, tab === item && styles.fabOn]}><Text style={styles.fabIcon}>＋</Text></View></TouchableOpacity>
       : <TouchableOpacity key={item} style={styles.tab} onPress={() => { setTab(item); setSub(null); setNotice(""); setError(""); }}><View style={[styles.tabPill, tab === item && styles.tabPillOn]}><Text style={[styles.tabIcon, tab === item && styles.tabIconActive]}>{({ Home: "⌂", Plan: "▦", Capture: "＋", Focus: "◷", More: "☰" } as Record<Tab, string>)[item]}</Text></View><Text style={[styles.tabText, tab === item && styles.tabTextActive]}>{item}</Text></TouchableOpacity>)}</View></View>
-  </View></SafeAreaView>;
+  </View></SafeAreaView></LockGate>;
 }
 
 function HomeScreen({ name, life, dashboard, finance, health, onComplete, onOpenPlan, onOpen, top }: { name: string; life: Row; dashboard: Row; finance: Row; health: Row; onComplete: (id: string) => void; onOpenPlan: () => void; onOpen: (target: string) => void; top?: React.ReactNode }) {
@@ -273,12 +258,6 @@ function PlanScreen({ plan, busy, generate, extra, top }: { plan: Row; busy: boo
   const items: Row[] = Array.isArray(plan.items) ? plan.items : [];
   return <ScrollView contentContainerStyle={styles.scroll}>{top}<View style={styles.card}><Text style={styles.kicker}>DAILY PLANNER</Text><Text style={styles.sectionTitle}>{plan.plan_date || "Your day"}</Text><Text style={styles.muted}>{plan.summary || "Build a plan around your routine and open tasks."}</Text><TouchableOpacity style={styles.primary} onPress={generate} disabled={busy}><Text style={styles.primaryText}>{busy ? "Planning…" : "Build today’s plan"}</Text></TouchableOpacity></View>{items.length ? items.map(item => <View key={item.id} style={styles.planItem}><Text style={styles.time}>{new Date(item.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text><View style={styles.planBlock}><Text style={styles.taskTitle}>{item.title}</Text><Text style={styles.muted}>{item.kind} · {new Date(item.ends_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text></View></View>) : <Text style={styles.empty}>Generate a plan to see today’s time blocks.</Text>}{Array.isArray(plan.unscheduled) && plan.unscheduled.length > 0 && <Text style={styles.warning}>Could not schedule: {plan.unscheduled.join(", ")}</Text>}{extra}</ScrollView>;
 }
-
-function CaptureScreen({ captures, text, setText, save, confirm, busy, top }: { captures: Row[]; text: string; setText: (value: string) => void; save: () => void; confirm: (id: string) => void; busy: boolean; top?: React.ReactNode }) {
-  return <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}><ScrollView contentContainerStyle={styles.scroll}>{top}<View style={styles.card}><Text style={styles.kicker}>QUICK CAPTURE</Text><View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}><TextInput multiline placeholder="Type or tap 🎙 and say it: “call bank tomorrow 5pm”, “spent 1500 on lunch”…" placeholderTextColor="#75877c" value={text} onChangeText={setText} style={[styles.input, styles.multiline, { flex: 1 }]}/><MicButton size={46} onText={spoken => setText(appendSpeech(text, spoken))}/></View><TouchableOpacity style={styles.primary} onPress={save} disabled={busy}><Text style={styles.primaryText}>{busy ? "Saving…" : "Add to inbox"}</Text></TouchableOpacity><Text style={styles.muted}>Items that need clarification wait for your review.</Text></View><Text style={styles.sectionTitle}>Inbox · {captures.length}</Text>{captures.map(item => <View key={item.id} style={styles.card}><Text style={styles.badge}>{String(item.classified_type).replaceAll("_", " " )} · {String(item.status).replaceAll("_", " ")}</Text><Text style={styles.taskTitle}>{item.raw_text}</Text>{["pending", "needs_confirmation"].includes(item.status) && <TouchableOpacity style={styles.outlineButton} onPress={() => confirm(item.id)}><Text style={styles.outlineText}>Review & save</Text></TouchableOpacity>}</View>)}{!captures.length && <Text style={styles.empty}>Your quick captures will show up here.</Text>}</ScrollView></KeyboardAvoidingView>;
-}
-
-
 
 
 function ProfileScreen({ user, signOut, onHealth }: { user: Row; signOut: () => void; onHealth: () => void }) {

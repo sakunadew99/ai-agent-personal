@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { apiRequest, patchJson, type JsonRecord as Row } from "@/lib/api";
+import { PrivacyPanel } from "./SmartCards";
 
 /** AI usage meter and controls (guide 27.3-27.4): off switch, caps, per-feature off, what the AI can see. */
 export function AiControls({ token }: { token: string }) {
@@ -52,6 +53,7 @@ export function AiControls({ token }: { token: string }) {
     <h4>What the AI can see</h4>
     <label className="inline-check"><input type="checkbox" checked={s.share_money} onChange={e => void save({ share_money: e.target.checked })}/> Share money totals with the AI (off = money questions answered privately by rules)</label>
     <label className="inline-check"><input type="checkbox" checked={s.share_health} onChange={e => void save({ share_health: e.target.checked })}/> Share health data with the AI</label>
+    <PrivacyPanel token={token}/>
     <ul className="ai-see">{(v.what_ai_can_see as string[]).map(line => <li key={line}>{line}</li>)}</ul>
     <small className="muted">Never sent: {(v.never_sent as string[]).join(" · ")}.</small>
     {v.last_block && v.status !== "blocked" && <small className="muted">Last time AI was skipped: {v.last_block}</small>}

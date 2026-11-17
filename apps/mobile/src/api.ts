@@ -78,6 +78,7 @@ export async function apiRequest<T = ApiRecord>(path: string, token = "", method
     } catch {
       response = null;
       if (retrySafe && attempt < 2) continue;
+      if (token && method !== "GET" && OFFLINE_OK.test(path)) { await enqueue({ path, method, body }); return { queued: true, offline: true } as T; }
       throw new ApiError(`Can't reach the server at ${baseUrl}. Check your internet connection and the server address.`, 0);
     }
     if (response.status === 204) return null as T;
@@ -92,7 +93,42 @@ export async function apiRequest<T = ApiRecord>(path: string, token = "", method
     throw new ApiError(busy ? SERVER_BUSY : String(payload.detail || `Request failed (${response.status})`), response.status);
   }
   if (method === "GET" && token && CACHEABLE.test(path)) remember(path, payload);
+  if (token && queue.length && !flushing) void flushQueue(token);
   return payload as T;
+}
+
+// ---------- Offline: save now, send when the internet is back ----------
+// Logging things (day tracker, gym, inbox, tasks, habits, journal, meals) works without internet. The request waits in a
+// small file on this phone and is sent, in order, the next time any request succeeds or the app starts.
+const OFFLINE_OK = /^\/(day\/entries|capture|gym\/workouts|tasks|habits\/[^/]+\/logs|journal\/\d{4}-\d{2}-\d{2}|meals)$/;
+type Queued = { path: string; method: string; body?: unknown; at: number };
+let queue: Queued[] = [];
+let flushing = false;
+const queueFile = () => new File(Paths.document, "sakuna-offline-queue.json");
+async function saveQueue() { try { queueFile().write(JSON.stringify(queue)); } catch { /* best effort */ } }
+async function enqueue(item: Omit<Queued, "at">) { queue.push({ ...item, at: Date.now() }); queue = queue.slice(-200); await saveQueue(); }
+export function pendingCount() { return queue.length; }
+export async function loadQueue() {
+  try { const f = queueFile(); if (f.exists) queue = JSON.parse(await f.text()) || []; } catch { queue = []; }
+}
+/** Send everything saved while offline. Stops at the first network error; drops items the server refuses (4xx). */
+export async function flushQueue(token: string): Promise<number> {
+  if (flushing || !queue.length) return 0;
+  flushing = true;
+  let sent = 0;
+  try {
+    while (queue.length) {
+      const item = queue[0];
+      try {
+        const bearer = latestAccess || token;
+        const res = await fetch(`${baseUrl}/api/v1${item.path}`, { method: item.method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${bearer}` },
+          ...(item.body === undefined ? {} : { body: JSON.stringify(item.body) }) });
+        if (res.status >= 500 || res.status === 401) break;      // try again later
+        queue.shift(); sent++;                                      // done (or refused for good: 4xx)
+      } catch { break; }
+    }
+  } finally { flushing = false; await saveQueue(); }
+  return sent;
 }
 
 // ---------- Fast screens: show the last data at once, refresh in the background ----------
