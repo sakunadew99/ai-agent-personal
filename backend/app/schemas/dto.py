@@ -963,6 +963,9 @@ class AiSettingsIn(BaseModel):
     disabled_features: list[AiGroup] | None = Field(default=None, max_length=7)
     share_money: bool | None = None
     share_health: bool | None = None
+    share_journal: bool | None = None
+    share_activity: bool | None = None
+    keep_activity_days: int | None = Field(default=None, ge=0, le=3650)   # 0 = keep forever
 
 
 # ---------- Study abroad (guide 39) and coach (guide 26) ----------

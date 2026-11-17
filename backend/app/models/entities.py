@@ -872,6 +872,9 @@ class AiSettings(Base):
     disabled_features: Mapped[list] = mapped_column(JsonDict, default=list)
     share_money: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     share_health: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    share_journal: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")     # "Reflect" may send the page to AI
+    share_activity: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")    # day-tracker coaching may use AI
+    keep_activity_days: Mapped[int | None] = mapped_column(Integer, nullable=True)               # delete time entries / phone usage after N days
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 

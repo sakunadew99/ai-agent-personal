@@ -117,6 +117,30 @@ CHANNELS = {
 }
 
 
+def _ai_words(db: Session, user_id, lang: str, have: set[str], n: int) -> list[tuple[str, str, str]]:
+    """When the built-in bank is used up: ask the AI for new words (if AI is on). Strict JSON; anything odd is dropped."""
+    import json
+    from app.services.ai_client import ai_enabled, cached_complete, model_for
+    if not ai_enabled():
+        return []
+    level = "A2-B1 German (with article for nouns)" if lang == "german" else "IELTS band 7 academic English"
+    system = (f"Give {n + 5} useful {level} vocabulary items for a Sri Lankan software engineer preparing to study in Germany. "
+              'Reply ONLY with JSON: [{"front": "...", "back": "English meaning", "example": "short sentence"}]. No markdown.')
+    known = ", ".join(sorted(have)[-150:])
+    text = cached_complete(db, user_id, "language_words", model_for("classification"),
+                           [{"role": "system", "content": system}, {"role": "user", "content": f"Already known (don't repeat): {known}"[:5000]}], 0.7, ttl_hours=20)
+    try:
+        rows = json.loads((text or "[]").strip().strip("`").removeprefix("json"))
+    except ValueError:
+        return []
+    out = []
+    for r in rows if isinstance(rows, list) else []:
+        f, b, e = str(r.get("front", "")).strip()[:120], str(r.get("back", "")).strip()[:200], str(r.get("example", "")).strip()[:300]
+        if f and b and f not in have and all(f != x[0] for x in out):
+            out.append((f, b, e))
+    return out[:n]
+
+
 def add_daily_cards(db: Session, user_id, lang: str, today: date, count: int = 5) -> dict:
     """Add today's new words (once per day). The next words are the first ones from the bank not yet in your deck."""
     from datetime import datetime, time
@@ -127,6 +151,8 @@ def add_daily_cards(db: Session, user_id, lang: str, today: date, count: int = 5
     added_today = db.scalar(select(func.count()).select_from(Flashcard).where(Flashcard.user_id == user_id, Flashcard.deck == deck,
                                                                               Flashcard.created_at >= today_start)) or 0
     fresh = [w for w in BANKS[lang] if w[0] not in have][:max(0, count - added_today)]
+    if not fresh and added_today < count:
+        fresh = _ai_words(db, user_id, lang, have, count - added_today)
     for front, back, example in fresh:
         db.add(Flashcard(user_id=user_id, deck=deck, front=front, back=back, example=example, due_at=now_utc()))
     db.flush()

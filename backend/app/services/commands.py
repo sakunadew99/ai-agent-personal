@@ -547,6 +547,29 @@ def advance(db: Session, cmd: CapturedCommand) -> CapturedCommand:
     return cmd
 
 
+def _activity_log(db: Session, user_id, text: str, profile) -> dict | None:
+    """'bench 60 kg x 8' logs a gym set; 'wasted an hour on TikTok' logs the day tracker. Your own records; Undo removes them."""
+    from app.schemas import dto
+    from app.services import gym, tracking
+    from app.services.voice_log import parse_gym, parse_time_log
+    now = datetime.now(zone(profile.timezone if profile else None))
+    g = parse_gym(text)
+    if g:
+        w = gym.log_workout(db, user_id, dto.GymWorkoutIn(title="Gym", duration_minutes=g["minutes"] or None,
+                                                          sets=[dto.SetIn(**x) for x in g["sets"]]))
+        from app.services import game
+        game.on_workout(db, w)
+        what = ", ".join(sorted({f"{x['exercise']} {x['weight_kg'] or ''}{'kg ' if x['weight_kg'] else ''}x{x['reps']}".replace("  ", " ") for x in g["sets"]})) or f"{w.duration_minutes} min workout"
+        return {"title": what[:200], "kind": "gym_log", "summary": f"💪 Logged: {what}"[:300], "workout_id": str(w.id), "defaults": []}
+    tl = parse_time_log(text, now.replace(tzinfo=None))
+    if tl:
+        row = tracking.add_entry(db, user_id, dto.TimeEntryIn(local_date=now.date(), source="manual", **tl))
+        label = tracking.LABEL[row.category]
+        return {"title": text[:200], "kind": "time_log", "summary": f"⏱ {label} {row.start_time.strftime('%H:%M')}–{row.end_time.strftime('%H:%M')} added to today",
+                "time_entry_id": str(row.id), "defaults": []}
+    return None
+
+
 def start(db: Session, user_id, text: str, source: str, key: str | None) -> CapturedCommand:
     if key:
         existing = db.scalar(select(CapturedCommand).where(CapturedCommand.user_id == user_id, CapturedCommand.idempotency_key == key))
@@ -554,6 +577,12 @@ def start(db: Session, user_id, text: str, source: str, key: str | None) -> Capt
             return existing
     profile = _profile(db, user_id)
     today = datetime.now(zone(profile.timezone if profile else None)).date()
+    logged = _activity_log(db, user_id, text, profile)
+    if logged:
+        cmd = CapturedCommand(user_id=user_id, raw_text=text[:500], source=source, parsed=logged, idempotency_key=key, status="created")
+        db.add(cmd)
+        db.flush()
+        return cmd
     listed = parse_list_command(text)
     if listed and listed["target"] in ("buy", "wish"):
         # You named the list, so add straight away (your own list; nothing is bought). Undo removes them.
@@ -659,8 +688,13 @@ def undo(db: Session, cmd: CapturedCommand) -> CapturedCommand:
                 except HTTPException:
                     pass
             db.delete(task)
-    from app.models.entities import BuyListItem, WishlistItem
+    from app.models.entities import BuyListItem, TimeEntry, WishlistItem, Workout
     p = cmd.parsed or {}
+    for model, key in ((Workout, "workout_id"), (TimeEntry, "time_entry_id")):
+        if p.get(key):
+            row = db.get(model, uuid.UUID(p[key]))
+            if row is not None and row.user_id == cmd.user_id:
+                db.delete(row)
     for model, ids in ((BuyListItem, ([p["buy_item_id"]] if p.get("buy_item_id") else []) + list(p.get("buy_item_ids") or [])),
                        (WishlistItem, list(p.get("wish_ids") or []))):
         for item_id in ids:

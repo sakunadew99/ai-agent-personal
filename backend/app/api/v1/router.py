@@ -724,14 +724,27 @@ def language_today(db: Session = Depends(get_db), user: User = Depends(get_curre
 @router.get("/day/report")
 def day_report(day: date | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Hour-by-hour view of a day: what you logged, focus, phone usage, tasks/habits/gym, time wasted, and tomorrow's tips."""
-    from app.services import tracking
-    return tracking.day_report(db, user.id, day or datetime.now(zone(profile_for(db, user).timezone)).date())
+    from app.services import smart, tracking
+    d = day or datetime.now(zone(profile_for(db, user).timezone)).date()
+    out = tracking.day_report(db, user.id, d)
+    out["auto"] = smart.auto_entries(db, user.id, d)
+    for a in out["auto"]:                     # fill empty hours with what Sakuna already knows happened
+        h = int(a["start"][:2])
+        for k in range(h, min(24, h + max(1, round(a["minutes"] / 60)))):
+            if out["hours"][k]["category"] is None:
+                out["hours"][k]["category"], out["hours"][k]["note"] = a["category"], a["note"]
+    out["gaps"] = [h["label"] for h in out["hours"] if h["category"] is None and 7 <= h["hour"] <= 21]
+    return out
 
 
 @router.post("/day/report/explain")
 def day_report_explain(day: date | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     from app.services import tracking
+    from app.services import ai_client
     rep = tracking.day_report(db, user.id, day or datetime.now(zone(profile_for(db, user).timezone)).date())
+    cfg = ai_client.settings_for(db, user.id)
+    if cfg is not None and not cfg.share_activity:
+        return {"text": rep["summary"] + "\n\nTomorrow:\n" + "\n".join(f"- {t}" for t in rep["tomorrow"]) + "\n\n(Your day data isn't shared with AI; written by Sakuna's rules.)"}
     text = tracking.explain_day(db, user.id, rep); db.commit(); return {"text": text}
 
 
@@ -754,6 +767,44 @@ def day_usage(data: dto.DeviceUsageIn, db: Session = Depends(get_db), user: User
     from app.services import tracking
     row = tracking.save_usage(db, user.id, data); db.commit()
     return {"local_date": row.local_date, "total_minutes": row.total_minutes, "distracting_minutes": row.distracting_minutes}
+
+
+# ---------- Smarter days, money overview, export ----------
+
+@router.get("/today/plan")
+def today_plan(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """One plan for today from work hours, routines, gym days, exam study, languages, timed tasks and your best focus hours."""
+    from app.core import cache
+    from app.services import smart
+    return cache.cached(user.id, "today_plan", lambda: smart.today_plan(db, user.id))
+
+
+@router.get("/insights/week")
+def insights_week(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Where the last 7 days went: productive vs wasted per day, worst hours, top time-sink apps, and patterns."""
+    from app.services import smart
+    return smart.week_insights(db, user.id)
+
+
+@router.get("/nudge")
+def nudge(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """A gentle note when today's distracting phone time is high (from the usage the phone sent). Null when all is fine."""
+    from app.services import smart
+    return {"nudge": smart.nudge(db, user.id)}
+
+
+@router.get("/finance/all")
+def finance_all(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """All-in net worth per currency: accounts, assets, debts and the CSE portfolio, plus monthly subscriptions."""
+    from app.services import smart
+    return smart.all_in_net_worth(db, user.id)
+
+
+@router.get("/me/export")
+def me_export(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Everything you've stored, as one JSON file (passwords, tokens and encrypted fields are left out)."""
+    from app.services import smart
+    audit(db, user.id, "export.all", "user", user.id, {}); out = smart.export_all(db, user.id); db.commit(); return out
 
 
 @router.get("/brain")
@@ -1161,7 +1212,8 @@ def _ai_view(db: Session, user: User) -> dict:
         "ai_off": bool(cfg and cfg.ai_off), "daily_token_cap": cfg.daily_token_cap if cfg else None,
         "monthly_token_cap": cfg.monthly_token_cap if cfg else None, "monthly_cost_cap_usd": cfg.monthly_cost_cap_usd if cfg else None,
         "disabled_features": list(cfg.disabled_features or []) if cfg else [], "share_money": bool(cfg and cfg.share_money),
-        "share_health": bool(cfg and cfg.share_health),
+        "share_health": bool(cfg and cfg.share_health), "share_journal": cfg.share_journal if cfg else True,
+        "share_activity": cfg.share_activity if cfg else True, "keep_activity_days": cfg.keep_activity_days if cfg else None,
     }
     blocked = ai_client.gate(db, user.id, "general")
     return {
@@ -1176,6 +1228,8 @@ def _ai_view(db: Session, user: User) -> dict:
             "Saved memories marked non-sensitive that match your question",
             "Money totals" + ("" if settings_out["share_money"] else " — NOT shared (answered by rules instead)"),
             "Health data" + (" (only if you ask about it)" if settings_out["share_health"] else " — NOT shared"),
+            "Journal pages" + (" (only when you tap Reflect)" if settings_out["share_journal"] else " — NOT shared (rules write the reflection)"),
+            "Day tracker totals and top app names" + (" (only when you tap Coach me)" if settings_out["share_activity"] else " — NOT shared"),
             "Unusual voice-command text, only when the built-in rules can't understand it",
         ],
         "never_sent": ["Passwords, tokens and keys", "Sensitive memories", "Google/Gmail tokens", "Bank details"],
@@ -1195,9 +1249,9 @@ def ai_settings_update(data: dto.AiSettingsIn, db: Session = Depends(get_db), us
     if cfg is None:
         cfg = AiSettings(user_id=user.id, disabled_features=[]); db.add(cfg)
     changes = data.model_dump(exclude_unset=True)
-    for key in ("daily_token_cap", "monthly_token_cap", "monthly_cost_cap_usd"):
+    for key in ("daily_token_cap", "monthly_token_cap", "monthly_cost_cap_usd", "keep_activity_days"):
         if key in changes:
-            setattr(cfg, key, changes.pop(key) or None)   # 0 or null = no cap
+            setattr(cfg, key, changes.pop(key) or None)   # 0 or null = no cap / keep forever
     for key, value in changes.items():
         if value is not None: setattr(cfg, key, list(dict.fromkeys(value)) if key == "disabled_features" else value)
     cfg.updated_at = now_utc()
@@ -1730,6 +1784,10 @@ def internal_tick(x_service_token: str = Header(default="")):
     if configured in WEAK_SECRETS or len(configured) < 32 or not hmac.compare_digest(x_service_token.encode(), configured.encode()):
         raise HTTPException(403, "Forbidden")
     process_once()
+    from app.core.database import SessionLocal as _Session
+    from app.services import smart
+    with _Session() as _db:      # keep tracking data only as long as each person chose
+        smart.purge_old(_db); _db.commit()
     from app.core.database import SessionLocal
     from app.services.goal_engine import snapshot_all
     with SessionLocal() as db:
