@@ -13,7 +13,6 @@ import { WeeklyHealthCard } from "./src/screens/WeeklyHealthCard";
 import { notifyStockAlerts } from "./src/notify";
 import { CrashGuard, installCrashRecorder } from "./src/crash";
 installCrashRecorder();
-import { enableBackgroundSync } from "./src/health/background";   // defines the task at load; every native call inside is guarded
 import { ShieldPanel } from "./src/ShieldPanel";
 import { MonthAgenda } from "./src/screens/PlanExtras";
 import { JobsScreen, LearningScreen } from "./src/screens/LearningScreens";
@@ -125,10 +124,7 @@ function App() {
     if (!token) return;
     void loadQueue().then(() => flushQueue(token)).then(n => { if (n) showNotice(`Sent ${n} item${n === 1 ? "" : "s"} saved while offline`); });
     void syncReminders(api); void syncHabitReminders(api); void autoSyncHealth(api); void notifyStockAlerts(api);
-    // Background health sync: loaded after the app is on screen, so it can never stop the app from starting.
-    const bg = setTimeout(() => { void enableBackgroundSync(); }, 4000);
     void uploadUsage(api); void uploadUsage(api, new Date(Date.now() - 86400000));   // phone screen time for today and yesterday's report
-    return () => clearTimeout(bg);
   }, [token, api, showNotice]);
 
   // Stay signed in: restore the saved session on start; renew the access token whenever it expires.
