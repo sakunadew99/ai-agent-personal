@@ -29,6 +29,9 @@ def _no_real_news_downloads(monkeypatch):
     from app.services import tracking
     tracking.clear_cache()
     monkeypatch.setattr(tracking, "_get", lambda url, body=None: blocked(url))
+    from app.services import portfolio_ai
+    portfolio_ai.clear_cache()
+    monkeypatch.setattr(portfolio_ai, "_http", lambda method, url, data=None: blocked(url))
 
 
 @pytest.fixture(autouse=True)

@@ -1627,3 +1627,21 @@ class DeviceUsage(Base):
     hourly: Mapped[list] = mapped_column(JsonDict, default=list)     # 24 values, minutes per hour
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class MediaItem(Base):
+    """A video you saved (Google Drive, YouTube or any link) for your own in-app library."""
+    __tablename__ = "media_items"
+    __table_args__ = (CheckConstraint("provider IN ('drive','youtube','web')", name="ck_media_items_provider"),
+                      UniqueConstraint("user_id", "url", name="uq_media_items_user_url"))
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    title: Mapped[str] = mapped_column(String(200))
+    url: Mapped[str] = mapped_column(String(600))
+    provider: Mapped[str] = mapped_column(String(8), default="web")
+    file_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    folder: Mapped[str] = mapped_column(String(60), default="My videos")
+    minutes_watched: Mapped[int] = mapped_column(Integer, default=0)
+    last_opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -1516,6 +1516,8 @@ def internal_tick(x_service_token: str = Header(default="")):
     from app.services import smart
     with _Session() as _db:      # keep tracking data only as long as each person chose
         smart.purge_old(_db); _db.commit()
+        from app.services import portfolio_ai
+        portfolio_ai.daily_fetch(_db)       # CSE prices once a day after the close, so gains/losses stay current
     from app.core.database import SessionLocal
     from app.services.goal_engine import snapshot_all
     with SessionLocal() as db:

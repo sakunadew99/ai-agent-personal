@@ -1484,3 +1484,27 @@ class DeviceUsageIn(BaseModel):
     pickups: int = Field(default=0, ge=0, le=5000)
     apps: list[UsageApp] = Field(default_factory=list, max_length=40)
     hourly: list[int] = Field(default_factory=list, max_length=24)
+
+
+class PortfolioRowIn(BaseModel):
+    symbol: str = Field(min_length=1, max_length=20)
+    quantity: Decimal = Field(gt=0, le=100_000_000)
+    avg_price: Decimal = Field(gt=0, le=1_000_000)
+
+
+class PortfolioImportIn(BaseModel):
+    rows: list[PortfolioRowIn] = Field(min_length=1, max_length=200)
+    as_of: date | None = None
+    replace: bool = True           # replace earlier imported positions (your own trades stay)
+
+
+class MediaIn(BaseModel):
+    url: str = Field(min_length=8, max_length=600)
+    title: str | None = Field(default=None, max_length=200)
+    folder: str = Field(default="My videos", min_length=1, max_length=60)
+
+
+class MediaUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    folder: str | None = Field(default=None, min_length=1, max_length=60)
+    add_minutes: int | None = Field(default=None, ge=0, le=600)

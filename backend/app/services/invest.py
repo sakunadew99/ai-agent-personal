@@ -26,6 +26,7 @@ from app.services.audit import audit
 
 CSE_BASE = "https://www.cse.lk/api/"
 INDEX = "ASPI"
+SELL_FEE = Decimal("0.0112")   # CSE brokerage + levies on a sale (about 1.12%, as on ATrad statements)
 DISCLAIMER = "Signals come from rules you set. This is information, not financial advice; Sakuna never buys or sells."
 BIG_MOVE_PCT = Decimal("5")
 TWO = Decimal("0.01")
@@ -314,7 +315,12 @@ def holdings(db: Session, user_id) -> dict:
                       "unrealised_pct": round(float((value - b["cost"]) / b["cost"] * 100), 2) if value is not None and b["cost"] > 0 else None,
                       "realised": _money(b["realised"]), "dividends": _money(b["dividends"]),
                       "sector": watch[sym].sector if sym in watch and watch[sym].sector else "Unassigned",
-                      "change_pct": float(px.change_pct) if px is not None and px.change_pct is not None else None})
+                      "change_pct": float(px.change_pct) if px is not None and px.change_pct is not None else None,
+                      "prev_close": _money(Decimal(px.prev_close)) if px is not None and px.prev_close else None,
+                      "day_change": _money(b["qty"] * (Decimal(px.close) - Decimal(px.prev_close))) if px is not None and px.prev_close and b["qty"] > 0 else None,
+                      "break_even_price": _money(avg * (1 + SELL_FEE) / (1 - SELL_FEE)) if avg else None,
+                      "net_sale_value": _money(value * (1 - SELL_FEE)) if value is not None else None,
+                      "net_gain_after_fees": _money(value * (1 - SELL_FEE) - b["cost"]) if value is not None and b["qty"] > 0 else None})
     for it in items:
         it["weight_pct"] = round(float(it["value"] / total_value * 100), 1) if it["value"] and total_value else 0.0
     sectors: dict[str, Decimal] = defaultdict(Decimal)

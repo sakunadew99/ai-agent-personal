@@ -369,6 +369,44 @@ async def invest_upload(file: UploadFile = File(...), kind: str = Query("auto", 
     return {**out, "new_alerts": len(alerts)}
 
 
+@router.post("/invest/portfolio/preview")
+async def invest_portfolio_preview(file: UploadFile = File(...), user: User = Depends(get_current_user)):
+    """Read an ATrad 'Client Portfolio' PDF (or CSV / text) and show the holdings found. Nothing is saved yet."""
+    from app.services import portfolio_ai
+    content = await file.read(5 * 1024 * 1024 + 1)
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(413, "File is larger than 5 MB")
+    rows = portfolio_ai.read_portfolio_file(content, file.filename or "portfolio")
+    return {"rows": rows, "count": len(rows), "total_cost": round(sum(r["total_cost"] or 0 for r in rows), 2)}
+
+
+@router.post("/invest/portfolio/import")
+def invest_portfolio_import(data: dto.PortfolioImportIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Save your holdings as opening positions at your average price (replaces the previous import, keeps your own trades)."""
+    from app.services import portfolio_ai
+    out = portfolio_ai.save_opening_positions(db, user.id, [r.model_dump(mode="json") for r in data.rows],
+                                              data.as_of or routine_svc.today_for(db, user.id), data.replace)
+    audit(db, user.id, "invest.portfolio_import", "stock_trades", None, {"saved": out["saved"]})
+    invest_svc.evaluate(db, user.id); db.commit()
+    return {**out, **_invest_view(db, user)}
+
+
+@router.post("/invest/holdings", status_code=201)
+def invest_add_holding(data: dto.PortfolioRowIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Add one share you already own (symbol, quantity, average cost) without its full trade history."""
+    from app.services import portfolio_ai
+    portfolio_ai.save_opening_positions(db, user.id, [data.model_dump(mode="json")], routine_svc.today_for(db, user.id), replace=False)
+    db.commit(); return _invest_view(db, user)
+
+
+@router.get("/invest/review")
+def invest_review(ai: bool = False, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Daily review of every holding: trend, RSI, momentum, a 2-week statistical forecast, news, oil / rupee / ASPI context,
+    and a suggestion with reasons. Not financial advice; Sakuna never trades."""
+    from app.services import portfolio_ai
+    out = portfolio_ai.review(db, user.id, use_ai=ai); db.commit(); return out
+
+
 @router.post("/invest/import-text")
 def invest_import_text(data: dto.ImportTextIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     out = invest_svc.import_table(db, user.id, data.text.encode("utf-8"), "pasted.csv", data.kind, data.trade_date)
@@ -483,3 +521,71 @@ def journal_delete(day: date, db: Session = Depends(get_db), user: User = Depend
 @router.post("/journal/{day}/reflect")
 def journal_reflect(day: date, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     row = journal_svc.reflect(db, user.id, day); db.commit(); return journal_svc.entry_out(row)
+
+
+
+# ---------- Your video library (Google Drive / YouTube / web links), played inside the app ----------
+
+def _media_parse(url: str) -> tuple[str, str | None, str]:
+    """-> (provider, file id, playable url). Drive files play with Drive's preview player; folders open as links."""
+    import re as _re
+    u = url.strip()
+    m = _re.search(r"drive\.google\.com/(?:file/d/|open\?id=|uc\?(?:export=\w+&)?id=)([A-Za-z0-9_-]{10,})", u)
+    if m:
+        return "drive", m.group(1), f"https://drive.google.com/file/d/{m.group(1)}/preview"
+    if _re.search(r"drive\.google\.com/drive/(?:u/\d/)?folders/", u):
+        return "drive", None, u
+    m = _re.search(r"(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/)([A-Za-z0-9_-]{11})", u)
+    if m:
+        return "youtube", m.group(1), f"https://www.youtube.com/embed/{m.group(1)}"
+    if not _re.match(r"^https://", u):
+        raise HTTPException(422, "Paste an https link (Google Drive, YouTube or a video page)")
+    return "web", None, u
+
+
+def _media_out(row) -> dict:
+    provider, fid, play = _media_parse(row.url)
+    return {"id": row.id, "title": row.title, "url": row.url, "play_url": play, "provider": row.provider, "file_id": row.file_id,
+            "folder": row.folder, "is_folder": row.provider == "drive" and row.file_id is None, "minutes_watched": row.minutes_watched,
+            "last_opened_at": row.last_opened_at, "created_at": row.created_at,
+            "thumb": f"https://drive.google.com/thumbnail?id={row.file_id}&sz=w480" if row.provider == "drive" and row.file_id
+            else f"https://i.ytimg.com/vi/{row.file_id}/mqdefault.jpg" if row.provider == "youtube" else None}
+
+
+@router.get("/media")
+def media_list(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import MediaItem
+    rows = db.scalars(select(MediaItem).where(MediaItem.user_id == user.id).order_by(MediaItem.folder, MediaItem.created_at.desc())).all()
+    items = [_media_out(r) for r in rows]
+    return {"items": items, "folders": sorted({i["folder"] for i in items}), "minutes_total": sum(i["minutes_watched"] for i in items),
+            "tip": "In Google Drive set the video to 'Anyone with the link' so it can play here. Sakuna stores only the link."}
+
+
+@router.post("/media", status_code=201)
+def media_add(data: dto.MediaIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import MediaItem
+    provider, fid, _ = _media_parse(data.url)
+    exists = db.scalar(select(MediaItem).where(MediaItem.user_id == user.id, MediaItem.url == data.url.strip()))
+    if exists:
+        return _media_out(exists)
+    title = (data.title or "").strip() or ("Drive folder" if provider == "drive" and not fid else "Drive video" if provider == "drive" else "Video")
+    row = MediaItem(user_id=user.id, title=title[:200], url=data.url.strip(), provider=provider, file_id=fid, folder=data.folder.strip()[:60], minutes_watched=0)
+    db.add(row); db.commit(); db.refresh(row); return _media_out(row)
+
+
+@router.patch("/media/{media_id}")
+def media_update(media_id: uuid.UUID, data: dto.MediaUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import MediaItem
+    row = owned(db, MediaItem, user.id, media_id)
+    ch = data.model_dump(exclude_unset=True)
+    if ch.get("title"): row.title = ch["title"].strip()
+    if ch.get("folder"): row.folder = ch["folder"].strip()
+    if ch.get("add_minutes") is not None:
+        row.minutes_watched += ch["add_minutes"]; row.last_opened_at = now_utc()
+    db.commit(); db.refresh(row); return _media_out(row)
+
+
+@router.delete("/media/{media_id}", status_code=204)
+def media_delete(media_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import MediaItem
+    db.delete(owned(db, MediaItem, user.id, media_id)); db.commit()
