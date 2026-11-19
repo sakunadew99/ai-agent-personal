@@ -1,4 +1,5 @@
 import * as DocumentPicker from "expo-document-picker";
+import { InvestInsights } from "./InvestInsights";
 import React, { useCallback, useEffect, useState } from "react";
 import { Linking, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
@@ -109,6 +110,8 @@ export function InvestScreen({ api, upload, onError, onNotice }: Props) {
       {held.length ? <View style={{ gap: 8 }}>{held.map(h => <HoldingRow key={h.symbol} h={h} onPress={() => setSymbol(h.symbol)}/>)}</View> : <Muted>No holdings yet. Add a trade, or upload your broker's trade history (CSV / Excel with Date, Symbol, Buy/Sell, Qty, Price).</Muted>}
       {(p.sectors as Row[]).length > 1 && <Muted small>{"Sectors: " + (p.sectors as Row[]).map(x => `${x.sector} ${x.pct}%`).join(" · ")}</Muted>}
     </Card>
+
+    <InvestInsights api={api} held={held}/>
 
     <Card>
       <Kicker>WATCHLIST · YOUR RULES</Kicker>

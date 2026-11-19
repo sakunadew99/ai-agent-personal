@@ -4,7 +4,7 @@
 import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest as call, patchJson, postJson, type JsonRecord as Row } from "@/lib/api";
 import { Bars, Card, Donut, Hero, LineChart, Meter, Ring, SERIES, Stat, WeekDots } from "./Charts";
-import { HoldingsTable, PortfolioTools } from "./LifeOsPages5";
+import { HoldingsTable, PortfolioInsights, PortfolioTools } from "./LifeOsPages5";
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong");
 const hhmm = (t?: string | null) => (t ? String(t).slice(0, 5) : "");
@@ -633,6 +633,7 @@ export function InvestPage({ token }: { token: string }) {
     </Card>}
     {panel === "tools" && <PortfolioTools token={token} onChanged={load}/>}
     {held.length > 0 && <Card kicker="Holdings · today and since you bought" title="Value, gain/loss and break-even after fees"><HoldingsTable items={held}/></Card>}
+    {held.length > 0 && <PortfolioInsights token={token}/>}
     {alerts.length > 0 && <Card kicker="Rule alerts" title="From your own rules" action={<button className="text-button" onClick={() => void call("/invest/alerts/seen", token, postJson({})).then(load)}>Mark seen</button>}>
       {alerts.map(a => <button key={a.id} className="text-button" style={{ textAlign: "left" }} onClick={() => setSymbol(a.symbol)}>🔔 {a.message}</button>)}<p className="d-note">{v.disclaimer}</p></Card>}
     <div className="d-grid-2">

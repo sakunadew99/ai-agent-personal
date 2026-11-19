@@ -138,3 +138,23 @@ export function VideosPage({ token }: { token: string }) {
     {!items.length && <div className="d-empty">No videos yet. In Google Drive: Share → “Anyone with the link” → Copy link, then paste it above.</div>}
   </div>;
 }
+
+export function PortfolioInsights({ token }: { token: string }) {
+  const [perf, setPerf] = useState<Row | null>(null);
+  const [div, setDiv] = useState<Row | null>(null);
+  useEffect(() => { call<Row>("/invest/performance", token).then(setPerf).catch(() => undefined); call<Row>("/invest/dividends", token).then(setDiv).catch(() => undefined); }, [token]);
+  return <div className="d-grid-2">
+    <Card kicker="🏁 vs ASPI · 12 months" title={perf ? `Your mix ${sg(perf.portfolio_total_pct, "%")} · ASPI ${sg(perf.aspi_total_pct, "%")}` : "Comparing…"}>
+      {perf && <>
+        <LineChart series={[{ name: "Your shares %", values: (perf.months as Row[]).map(m => m.portfolio_pct) }, { name: "ASPI %", values: (perf.months as Row[]).map(m => m.aspi_pct), color: "var(--d-blue)" }]}
+          labels={(perf.months as Row[]).map(m => m.label)} height={160} format={n => `${n.toFixed(1)}%`}/>
+        <p className="d-note">Beat the ASPI in {perf.beat_months} of {perf.compared_months} months. {perf.note}</p></>}
+    </Card>
+    <Card kicker="💸 Dividends" title={div ? `${rs(div.total_12m)} in 12 months · ${div.yield_on_cost ?? "—"}% on cost` : "Loading…"}>
+      {div && <>
+        {(div.shares as Row[]).map(s => <div key={s.symbol} className="d-row" style={{ justifyContent: "space-between" }}><b style={{ color: "var(--d-text)" }}>{root(s.symbol)}</b>
+          <span style={{ color: "var(--d-green)" }}>{rs(s.amount_12m)}</span><small className="d-note">{s.yield_on_cost ?? "—"}% on cost · {s.yield_now ?? "—"}% now</small></div>)}
+        <p className="d-note">{div.tip}</p></>}
+    </Card>
+  </div>;
+}

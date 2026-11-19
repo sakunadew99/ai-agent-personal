@@ -407,6 +407,20 @@ def invest_review(ai: bool = False, db: Session = Depends(get_db), user: User = 
     out = portfolio_ai.review(db, user.id, use_ai=ai); db.commit(); return out
 
 
+@router.get("/invest/performance")
+def invest_performance(months: int = Query(default=12, ge=3, le=12), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Monthly % change of your current holdings against the ASPI (plain arithmetic, no AI)."""
+    from app.services import portfolio_ai
+    return portfolio_ai.performance(db, user.id, months)
+
+
+@router.get("/invest/dividends")
+def invest_dividends(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Recorded dividends: 12-month calendar, per-share totals, yield on cost and on today's value."""
+    from app.services import portfolio_ai
+    return portfolio_ai.dividends(db, user.id)
+
+
 @router.post("/invest/import-text")
 def invest_import_text(data: dto.ImportTextIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     out = invest_svc.import_table(db, user.id, data.text.encode("utf-8"), "pasted.csv", data.kind, data.trade_date)

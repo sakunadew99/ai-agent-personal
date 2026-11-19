@@ -7,7 +7,10 @@ import { ChatScreen } from "./src/screens/ChatScreen";
 import { BrainCard } from "./src/screens/BrainCard";
 import { LifeScreen } from "./src/screens/LifeScreen";
 import { ApprovalsScreen, FinanceScreen, MemoryScreen } from "./src/screens/MoneyMemoryScreens";
-import { HealthScreen, MoreScreen, ReviewScreen, type MoreTarget } from "./src/screens/HealthReviewScreens";
+import { HealthScreen, ReviewScreen, type MoreTarget } from "./src/screens/HealthReviewScreens";
+import { ExploreScreen, GROUPS, QuickLaunch, rememberScreen } from "./src/screens/Explore";
+import { WeeklyHealthCard } from "./src/screens/WeeklyHealthCard";
+import { notifyStockAlerts } from "./src/notify";
 import { ShieldPanel } from "./src/ShieldPanel";
 import { MonthAgenda } from "./src/screens/PlanExtras";
 import { JobsScreen, LearningScreen } from "./src/screens/LearningScreens";
@@ -89,7 +92,7 @@ export default function App() {
   // Mi Band data every time the app comes back to the screen (at most every 30 minutes), not only on the Health screen.
   useEffect(() => {
     if (!token) return;
-    const sub = AppState.addEventListener("change", st => { if (st === "active") void autoSyncHealth(api); });
+    const sub = AppState.addEventListener("change", st => { if (st === "active") { void autoSyncHealth(api); void notifyStockAlerts(api); } });
     return () => sub.remove();
   }, [token, api]);
 
@@ -114,7 +117,7 @@ export default function App() {
   useEffect(() => {
     if (!token) return;
     void loadQueue().then(() => flushQueue(token)).then(n => { if (n) showNotice(`Sent ${n} item${n === 1 ? "" : "s"} saved while offline`); });
-    void syncReminders(api); void syncHabitReminders(api); void autoSyncHealth(api);
+    void syncReminders(api); void syncHabitReminders(api); void autoSyncHealth(api); void notifyStockAlerts(api);
     void uploadUsage(api); void uploadUsage(api, new Date(Date.now() - 86400000));   // phone screen time for today and yesterday's report
   }, [token, api, showNotice]);
 
@@ -165,7 +168,7 @@ export default function App() {
   function openTarget(target: string) {
     if (target === "Plan") { setPlanView("day"); setTab("Plan"); setSub(null); }
     else if (target === "Focus") { setTab("Focus"); setSub(null); }
-    else if (["Exams", "You", "Team", "News", "Invest", "Money", "Life", "Balance", "Journal", "Day", "Gym", "Brain"].includes(target)) { setTab("More"); setSub(target as MoreTarget); }
+    else if (GROUPS.some(g => g.items.some(i => i.key === target))) { void rememberScreen(target); setTab("More"); setSub(target as MoreTarget); }
     else setTab("Home");
   }
   async function signOut() {
@@ -180,14 +183,17 @@ export default function App() {
 
   return <LockGate><SafeAreaView style={styles.safe}><StatusBar barStyle="light-content"/><View style={styles.app}>
     <View style={styles.topbar}>{tab === "More" && sub
-      ? <TouchableOpacity onPress={() => setSub(null)}><Text style={styles.kicker}>‹ MORE</Text><Text style={styles.topTitle}>{SUB_TITLES[sub]}</Text></TouchableOpacity>
-      : <View><Text style={styles.kicker}>SAKUNA AI</Text><Text style={styles.topTitle}>{tab === "Home" ? "Your day, in focus." : tab}</Text></View>}
-      {!(tab === "More" && sub) && <TouchableOpacity onPress={() => void loadTab(tab)}><Text style={styles.refresh}>Refresh ↻</Text></TouchableOpacity>}</View>
+      ? <TouchableOpacity onPress={() => setSub(null)}><Text style={styles.kicker}>‹ ALL APPS</Text><Text style={styles.topTitle}>{SUB_TITLES[sub]}</Text></TouchableOpacity>
+      : <View><Text style={styles.kicker}>SAKUNA AI</Text><Text style={styles.topTitle}>{tab === "Home" ? "Your day, in focus." : tab === "More" ? "All apps" : tab}</Text></View>}
+      {!(tab === "More" && sub) && <TouchableOpacity onPress={() => void loadTab(tab)}><View style={styles.refreshBtn}><Text style={styles.refresh}>↻</Text></View></TouchableOpacity>}</View>
     {!!error && <Text style={styles.errorBox}>{error}</Text>}{!!notice && <TouchableOpacity onPress={() => setNotice("")}><Text style={styles.notice}>{notice}  ×</Text></TouchableOpacity>}
     <View style={[styles.screen, tab === "More" && sub === "Assistant" && { marginBottom: 84 }]}>
-      {tab === "Home" && <HomeScreen name={String(user.full_name || "").split(" ")[0]} life={life} dashboard={dashboard} finance={finance} health={health} onOpen={openTarget} onComplete={completeTask} onOpenPlan={() => setTab("Plan")} top={<><NudgeBanner api={api} onOpen={openTarget}/><TodayPlanCard api={api} onOpen={openTarget}/><LifeCompass api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/>
-        <NowRoutineCard api={api} onOpen={() => { setPlanView("day"); setTab("Plan"); }}/>
-        <TeamTodayCard api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/><CoachCardMobile api={api} onError={showError}/><BrainCard api={api}/></>}/>}
+      {tab === "Home" && <HomeScreen name={String(user.full_name || "").split(" ")[0]} life={life} dashboard={dashboard} finance={finance} health={health} onOpen={openTarget} onComplete={completeTask} onOpenPlan={() => setTab("Plan")}
+        quick={<QuickLaunch open={openTarget} onSearch={() => { setTab("More"); setSub(null); }}/>}
+        top={<><NudgeBanner api={api} onOpen={openTarget}/><TodayPlanCard api={api} onOpen={openTarget}/>
+        <NowRoutineCard api={api} onOpen={() => { setPlanView("day"); setTab("Plan"); }}/><WeeklyHealthCard api={api} onOpen={() => openTarget("Health")}/></>}
+        extra={<><TeamTodayCard api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/><LifeCompass api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/>
+        <CoachCardMobile api={api} onError={showError}/><BrainCard api={api}/></>}/>}
       {tab === "Plan" && planView === "day" && <PlanScreen plan={plan} busy={busy} generate={generatePlan}
         top={<><PlanSwitch value={planView} onChange={setPlanView}/><TodayRoutines api={api} onError={showError} onNotice={showNotice}/><Text style={styles.sectionTitle}>Time plan</Text></>}
         extra={<TimeCard api={api}/>}/>}
@@ -200,7 +206,7 @@ export default function App() {
         <View style={{ height: 14 }}/><ShieldPanel/>
         <Text style={styles.disclaimer}>The focus timer runs from the session's end time, so it keeps going if you switch tabs or close Sakuna; a phone alarm rings at the end. It is not an emergency or safety control.</Text>
       </ScrollView>}
-      {tab === "More" && !sub && <MoreScreen open={target => { setError(""); setNotice(""); setSub(target); }}/>}
+      {tab === "More" && !sub && <ExploreScreen open={target => { setError(""); setNotice(""); setSub(target); }}/>}
       {tab === "More" && sub === "Assistant" && <ChatScreen api={api}/>}
       {tab === "More" && sub === "Life" && <LifeScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Learning" && <Switcher options={["lang", "radar", "progress", "study"] as const} labels={{ lang: "🗣 Lang", radar: "📡 Radar", progress: "📈 Track", study: "🎓 Cards" }} render={v => v === "radar" ? <RadarScreen api={api} onError={showError} onNotice={showNotice}/> : v === "lang" ? <LanguageScreen api={api} onError={showError} onNotice={showNotice}/> : v === "progress" ? <ProgressScreen api={api} onError={showError} onNotice={showNotice}/> : <LearningScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
@@ -231,11 +237,12 @@ export default function App() {
     <BrowserHost api={api} onNotice={showNotice}/>
     <View style={styles.tabbarWrap}><View style={styles.tabbar}>{(["Home", "Plan", "Capture", "Focus", "More"] as Tab[]).map(item => item === "Capture"
       ? <TouchableOpacity key={item} style={styles.tab} onPress={() => { setTab(item); setSub(null); setNotice(""); setError(""); }} accessibilityLabel="Capture"><View style={[styles.fab, tab === item && styles.fabOn]}><Text style={styles.fabIcon}>＋</Text></View></TouchableOpacity>
-      : <TouchableOpacity key={item} style={styles.tab} onPress={() => { setTab(item); setSub(null); setNotice(""); setError(""); }}><View style={[styles.tabPill, tab === item && styles.tabPillOn]}><Text style={[styles.tabIcon, tab === item && styles.tabIconActive]}>{({ Home: "⌂", Plan: "▦", Capture: "＋", Focus: "◷", More: "☰" } as Record<Tab, string>)[item]}</Text></View><Text style={[styles.tabText, tab === item && styles.tabTextActive]}>{item}</Text></TouchableOpacity>)}</View></View>
+      : <TouchableOpacity key={item} style={styles.tab} onPress={() => { setTab(item); setSub(null); setNotice(""); setError(""); }}><View style={[styles.tabPill, tab === item && styles.tabPillOn]}><Text style={[styles.tabIcon, tab === item && styles.tabIconActive]}>{({ Home: "🏠", Plan: "🗓", Capture: "＋", Focus: "🎯", More: "🧭" } as Record<Tab, string>)[item]}</Text></View><Text style={[styles.tabText, tab === item && styles.tabTextActive]}>{item}</Text></TouchableOpacity>)}</View></View>
   </View></SafeAreaView></LockGate>;
 }
 
-function HomeScreen({ name, life, dashboard, finance, health, onComplete, onOpenPlan, onOpen, top }: { name: string; life: Row; dashboard: Row; finance: Row; health: Row; onComplete: (id: string) => void; onOpenPlan: () => void; onOpen: (target: string) => void; top?: React.ReactNode }) {
+function HomeScreen({ name, life, dashboard, finance, health, onComplete, onOpenPlan, onOpen, top, quick, extra }: { name: string; life: Row; dashboard: Row; finance: Row; health: Row; onComplete: (id: string) => void; onOpenPlan: () => void; onOpen: (target: string) => void; top?: React.ReactNode; quick?: React.ReactNode; extra?: React.ReactNode }) {
+  const [more, setMore] = useState(false);
   const tasks: Row[] = Array.isArray(dashboard.tasks) ? dashboard.tasks : [];
   const goals: Row[] = Array.isArray(dashboard.goals) ? dashboard.goals : [];
   const steps = (Array.isArray(health.records) ? health.records : []).find((record: Row) => record.metric === "steps");
@@ -248,6 +255,7 @@ function HomeScreen({ name, life, dashboard, finance, health, onComplete, onOpen
     <Hero kicker={new Date().toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" }).toUpperCase()} title={`${greet},`} accent={name ? `${name}.` : ""}
       sub={life.tasks ? `${life.tasks.due_today ?? 0} due today · ${life.tasks.done_this_week ?? 0} done this week${life.tasks.overdue ? ` · ${life.tasks.overdue} overdue` : ""}` : "Let's build momentum today."}
       right={<Ring value={Number(life.score ?? 0)} size={96} label={`${life.score ?? "—"}`} sub="DAY SCORE"/>}/>
+    {quick}
     <TileRow>
       <StatTile label="Tasks" icon="☑" tone="green" value={`${tasks.length}`} hint="open today" onPress={onOpenPlan}/>
       <StatTile label="Goals" icon="🎯" tone="violet" value={`${goals.length}`} hint="active" onPress={() => onOpen("Life")}/>
@@ -261,6 +269,8 @@ function HomeScreen({ name, life, dashboard, finance, health, onComplete, onOpen
       <WeekDots today={Number(life.weekday ?? 0)} rows={habits.slice(0, 5).map(h => ({ label: h.name, done: h.week as boolean[] }))}/></View>}
     <View style={styles.headingRow}><Text style={styles.sectionTitle}>Today’s priorities</Text><TouchableOpacity onPress={onOpenPlan}><Text style={styles.linkSmall}>Daily plan →</Text></TouchableOpacity></View>
     {tasks.length ? tasks.map(task => <View key={task.id} style={styles.task}><TouchableOpacity style={styles.check} onPress={() => onComplete(task.id)}><Text style={styles.checkText}>✓</Text></TouchableOpacity><View style={{ flex: 1 }}><Text style={styles.taskTitle}>{task.title}</Text><Text style={styles.muted}>{task.due_at ? new Date(task.due_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "any time"}</Text></View><View style={[styles.prio, { borderColor: PRIORITY[task.priority] || "#8a9b92" }]}><Text style={[styles.prioText, { color: PRIORITY[task.priority] || "#8a9b92" }]}>{task.priority}</Text></View></View>) : <Text style={styles.empty}>Nothing on your task list. Add tasks in My life or use Capture.</Text>}
+    {extra && <TouchableOpacity onPress={() => setMore(m => !m)} style={styles.moreToggle}><Text style={styles.moreToggleText}>{more ? "Hide extra cards ▲" : "✨ AI team, coach & brain cards ▼"}</Text></TouchableOpacity>}
+    {more && extra}
     <Text style={styles.disclaimer}>Health and finance values show recorded data only. Sakuna does not provide medical or guaranteed financial advice.</Text>
   </ScrollView>;
 }
@@ -278,7 +288,7 @@ function ProfileScreen({ user, signOut, onHealth }: { user: Row; signOut: () => 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#070b09" }, app: { flex: 1, backgroundColor: "#070b09" },
   auth: { flex: 1, justifyContent: "center", padding: 25 }, logo: { color: "#082316", backgroundColor: "#39d98a", width: 52, height: 52, textAlign: "center", textAlignVertical: "center", overflow: "hidden", borderRadius: 16, fontSize: 30, fontWeight: "800", marginBottom: 24 },
-  logoSmall: { color: "#39d98a", fontSize: 27, marginBottom: 12 }, kicker: { color: "#8b9a91", fontSize: 10, letterSpacing: 1.4, marginBottom: 8, fontWeight: "700" }, title: { color: "#edf4ef", fontSize: 28, fontWeight: "800", marginBottom: 5 }, subtitle: { color: "#8b9a91", fontSize: 13, marginBottom: 20 }, topbar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 19, paddingTop: 15, paddingBottom: 13, borderBottomWidth: 1, borderBottomColor: "#27312d" }, topTitle: { color: "#edf4ef", fontSize: 20, fontWeight: "800" }, refresh: { color: "#39d98a", fontSize: 11 }, screen: { flex: 1 }, scroll: { padding: 16, paddingBottom: 110 },
+  logoSmall: { color: "#39d98a", fontSize: 27, marginBottom: 12 }, kicker: { color: "#8b9a91", fontSize: 10, letterSpacing: 1.4, marginBottom: 8, fontWeight: "700" }, title: { color: "#edf4ef", fontSize: 28, fontWeight: "800", marginBottom: 5 }, subtitle: { color: "#8b9a91", fontSize: 13, marginBottom: 20 }, topbar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 19, paddingTop: 15, paddingBottom: 10 }, topTitle: { color: "#edf4ef", fontSize: 24, fontWeight: "900", letterSpacing: -0.6 }, refresh: { color: "#3ee08f", fontSize: 18, fontWeight: "900" }, refreshBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: "#0f1a15", borderWidth: 1, borderColor: "#1f3a2c", alignItems: "center", justifyContent: "center" }, screen: { flex: 1 }, scroll: { padding: 16, paddingBottom: 110 },
   input: { color: "#edf4ef", backgroundColor: "#141b18", borderColor: "#27312d", borderWidth: 1, borderRadius: 9, padding: 13, marginBottom: 10, fontSize: 13 }, multiline: { minHeight: 100, textAlignVertical: "top" }, primary: { backgroundColor: "#39d98a", borderRadius: 9, alignItems: "center", padding: 13, marginVertical: 7 }, primaryText: { color: "#092216", fontSize: 13, fontWeight: "800" }, link: { textAlign: "center", color: "#39d98a", padding: 15, fontSize: 12 }, linkSmall: { color: "#39d98a", fontSize: 11 }, error: { color: "#ff9292", marginTop: 12, fontSize: 12 }, errorBox: { color: "#ffb0a4", backgroundColor: "#321f1d", padding: 10, marginHorizontal: 15, marginTop: 10, borderRadius: 8, fontSize: 11 }, notice: { color: "#9ee1b7", backgroundColor: "#193022", marginHorizontal: 15, marginTop: 8, padding: 9, borderRadius: 8, fontSize: 11 },
   statRow: { flexDirection: "row", gap: 9, marginBottom: 9 }, stat: { flex: 1, minHeight: 82, backgroundColor: "#141b18", borderColor: "#27312d", borderWidth: 1, borderRadius: 12, padding: 13 }, statLabel: { color: "#8b9a91", fontSize: 9, letterSpacing: 1, fontWeight: "700" }, statValue: { color: "#edf4ef", fontSize: 24, fontWeight: "800", marginTop: 6 }, statValueSmall: { color: "#edf4ef", fontSize: 15, fontWeight: "700", marginTop: 9 }, headingRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 16, marginBottom: 8 }, sectionTitle: { color: "#edf4ef", fontSize: 17, fontWeight: "700", marginVertical: 8 }, card: { backgroundColor: "#0f1613", borderWidth: 1, borderColor: "#1d2a24", borderRadius: 22, padding: 16, marginBottom: 11, gap: 10 }, task: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#0f1613", borderWidth: 1, borderColor: "#1d2a24", padding: 14, borderRadius: 18, marginBottom: 8 }, taskTitle: { color: "#eef6f1", fontSize: 14, fontWeight: "700", marginBottom: 2 }, muted: { color: "#8a9b92", fontSize: 11, lineHeight: 16 }, check: { width: 21, height: 21, borderWidth: 1, borderColor: "#476051", borderRadius: 6, alignItems: "center", justifyContent: "center" }, checkText: { color: "#39d98a", fontSize: 12 }, empty: { color: "#8b9a91", fontSize: 11, paddingVertical: 17, lineHeight: 18 }, goal: { padding: 12, backgroundColor: "#141b18", borderRadius: 9, marginBottom: 7 }, disclaimer: { color: "#75877c", fontSize: 9, lineHeight: 15, marginTop: 14 },
   tabbarWrap: { position: "absolute", left: 12, right: 12, bottom: Platform.OS === "ios" ? 18 : 12 },
@@ -286,6 +296,8 @@ const styles = StyleSheet.create({
   tab: { alignItems: "center", flex: 1, minWidth: 0 }, tabPill: { width: 44, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" }, tabPillOn: { backgroundColor: "#143524" },
   tabIcon: { color: "#75877c", fontSize: 18 }, tabIconActive: { color: "#3ee08f" }, tabText: { color: "#75877c", fontSize: 9, marginTop: 2, fontWeight: "600" }, tabTextActive: { color: "#3ee08f" },
   fab: { width: 52, height: 52, borderRadius: 26, backgroundColor: "#3ee08f", alignItems: "center", justifyContent: "center", marginTop: -26, borderWidth: 4, borderColor: "#070b09" }, fabOn: { backgroundColor: "#7af0b5" }, fabIcon: { color: "#04170d", fontSize: 26, fontWeight: "900", marginTop: -2 },
+  moreToggle: { alignSelf: "center", borderWidth: 1, borderColor: "#2a6b4a", backgroundColor: "#0f1a15", borderRadius: 99, paddingHorizontal: 16, paddingVertical: 10, marginTop: 6 },
+  moreToggleText: { color: "#3ee08f", fontWeight: "800", fontSize: 12 },
   prio: { borderWidth: 1, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 3 }, prioText: { fontSize: 10, fontWeight: "800", textTransform: "capitalize" },
   planItem: { flexDirection: "row", alignItems: "flex-start", gap: 11, marginBottom: 9 }, time: { color: "#b5c2b9", fontSize: 10, width: 56, paddingTop: 12 }, planBlock: { flex: 1, backgroundColor: "#17211b", borderLeftWidth: 2, borderLeftColor: "#39d98a", borderRadius: 7, padding: 11 }, warning: { color: "#f2b768", fontSize: 10, marginTop: 12 }, badge: { color: "#a5e3be", backgroundColor: "#203128", borderRadius: 20, overflow: "hidden", alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 4, fontSize: 9, marginBottom: 8 }, outlineButton: { borderColor: "#304139", borderWidth: 1, borderRadius: 8, padding: 10, alignItems: "center", marginTop: 8 }, outlineText: { color: "#39d98a", fontSize: 11, fontWeight: "700" }, healthStatus: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 16, marginBottom: 4 }, statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#75877c" }, statusDotOn: { backgroundColor: "#39d98a" }, timer: { color: "#edf4ef", fontSize: 50, fontWeight: "800", textAlign: "center", marginVertical: 22, fontVariant: ["tabular-nums"] }, durationRow: { flexDirection: "row", gap: 8, justifyContent: "center", marginBottom: 10 }, duration: { borderWidth: 1, borderColor: "#304139", borderRadius: 18, paddingHorizontal: 16, paddingVertical: 8 }, durationSelected: { backgroundColor: "#193a2a", borderColor: "#39d98a" }, durationText: { color: "#a8b8ad", fontSize: 11 }, durationTextSelected: { color: "#39d98a", fontWeight: "700" },
   aiScreen: { flex: 1 }, aiIntro: { paddingVertical: 20 }, prompts: { gap: 8, marginTop: 10 }, prompt: { color: "#bdc9c1", backgroundColor: "#141b18", borderColor: "#27312d", borderWidth: 1, borderRadius: 9, padding: 12, fontSize: 11 }, answer: { padding: 14, borderRadius: 10, backgroundColor: "#141b18", marginTop: 15 }, answerText: { color: "#d1ddd4", fontSize: 12, lineHeight: 19, marginTop: 7 }, composer: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 9, borderTopWidth: 1, borderTopColor: "#27312d" }, send: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: "#39d98a" }, profileCard: { alignItems: "center", backgroundColor: "#141b18", borderRadius: 12, padding: 20, marginBottom: 12 }, avatar: { width: 54, height: 54, borderRadius: 27, backgroundColor: "#244333", alignItems: "center", justifyContent: "center", marginBottom: 8 }, avatarText: { color: "#39d98a", fontSize: 22, fontWeight: "800" }, rowButton: { flexDirection: "row", justifyContent: "space-between", padding: 14, borderBottomColor: "#27312d", borderBottomWidth: 1 }, signout: { marginTop: 22, borderWidth: 1, borderColor: "#654039", alignItems: "center", padding: 12, borderRadius: 9 }, signoutText: { color: "#ff9b8c", fontWeight: "700", fontSize: 12 },

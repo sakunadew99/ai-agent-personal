@@ -406,3 +406,96 @@ def daily_fetch(db: Session) -> int:
         except HTTPException:
             db.rollback()
     return done
+
+
+# ---------------------------------------------------------------- monthly performance vs ASPI, dividends and yield
+
+def _at_or_before(series: list[tuple[date, float]], day: date) -> float | None:
+    best = None
+    for d, v in series:
+        if d > day:
+            break
+        best = v
+    return best
+
+
+def performance(db: Session, user_id, months: int = 12) -> dict:
+    """Month by month: how your *current* holdings (today's quantities) moved, against the ASPI. Plain arithmetic."""
+    from app.services import invest
+    held = [h for h in invest.holdings(db, user_id)["items"] if h["quantity"] and h["quantity"] > 0]
+    try:
+        aspi = aspi_history()
+    except (httpx.HTTPError, ValueError, KeyError, TypeError):
+        aspi = []
+    series = {}
+    for h in held:
+        try:
+            series[h["symbol"]] = price_history(h["symbol"])
+        except (httpx.HTTPError, ValueError, KeyError, TypeError):
+            series[h["symbol"]] = []
+    today = date.today()
+    ends = []
+    for k in range(months, -1, -1):          # month ends, oldest first, ending today
+        y, m = today.year, today.month - k
+        while m <= 0:
+            m += 12; y -= 1
+        nxt = date(y + (m == 12), m % 12 + 1, 1)
+        ends.append(min(nxt - timedelta(days=1), today))
+
+    def value(day):
+        tot, ok = 0.0, False
+        for h in held:
+            p = _at_or_before(series[h["symbol"]], day)
+            if p is not None:
+                tot += float(h["quantity"]) * p; ok = True
+        return tot if ok else None
+    rows, cum_p, cum_a = [], 1.0, 1.0
+    for prev, cur in zip(ends, ends[1:]):
+        v0, v1 = value(prev), value(cur)
+        a0, a1 = _at_or_before(aspi, prev), _at_or_before(aspi, cur)
+        p = round((v1 / v0 - 1) * 100, 2) if v0 and v1 else None
+        a = round((a1 / a0 - 1) * 100, 2) if a0 and a1 else None
+        cum_p *= 1 + (p or 0) / 100; cum_a *= 1 + (a or 0) / 100
+        rows.append({"month": cur.strftime("%Y-%m"), "label": cur.strftime("%b"), "portfolio_pct": p, "aspi_pct": a,
+                     "beat": (p is not None and a is not None and p > a)})
+    known = [r for r in rows if r["portfolio_pct"] is not None and r["aspi_pct"] is not None]
+    return {"months": rows, "portfolio_total_pct": round((cum_p - 1) * 100, 2), "aspi_total_pct": round((cum_a - 1) * 100, 2),
+            "beat_months": sum(1 for r in known if r["beat"]), "compared_months": len(known),
+            "note": "Uses the shares you hold today at today's quantities, so it shows how this mix behaved, not your exact past returns."}
+
+
+def dividends(db: Session, user_id) -> dict:
+    """Dividends you recorded: a 12-month calendar, per-share totals and yield on cost / on today's value."""
+    from app.services import invest
+    port = invest.holdings(db, user_id)
+    by_sym = {h["symbol"]: h for h in port["items"]}
+    rows = db.scalars(select(StockTrade).where(StockTrade.user_id == user_id, StockTrade.side == "dividend").order_by(StockTrade.trade_date.desc())).all()
+    since = date.today() - timedelta(days=365)
+    cal: dict[str, Decimal] = {}
+    per: dict[str, Decimal] = {}
+    for t in rows:
+        amt = Decimal(t.quantity) * Decimal(t.price) - Decimal(t.fees or 0)
+        if t.trade_date >= since:
+            cal[t.trade_date.strftime("%Y-%m")] = cal.get(t.trade_date.strftime("%Y-%m"), Decimal(0)) + amt
+            per[t.symbol] = per.get(t.symbol, Decimal(0)) + amt
+    months = []
+    d = date.today().replace(day=1)
+    for _ in range(12):
+        key = d.strftime("%Y-%m")
+        months.append({"month": key, "label": d.strftime("%b"), "amount": invest._money(cal.get(key, Decimal(0)))})
+        d = (d - timedelta(days=1)).replace(day=1)
+    months.reverse()
+    total = sum(per.values(), Decimal(0))
+    cost = Decimal(port["cost"] or 0); value = Decimal(port["value"] or 0)
+    shares = []
+    for sym, amt in sorted(per.items(), key=lambda x: -x[1]):
+        h = by_sym.get(sym) or {}
+        c, v = Decimal(h.get("cost") or 0), Decimal(h.get("value") or 0)
+        shares.append({"symbol": sym, "amount_12m": invest._money(amt), "yield_on_cost": round(float(amt / c * 100), 2) if c > 0 else None,
+                       "yield_now": round(float(amt / v * 100), 2) if v > 0 else None,
+                       "last_paid": next((t.trade_date for t in rows if t.symbol == sym), None)})
+    return {"months": months, "total_12m": invest._money(total), "yield_on_cost": round(float(total / cost * 100), 2) if cost > 0 else None,
+            "yield_now": round(float(total / value * 100), 2) if value > 0 else None, "shares": shares,
+            "recent": [{"symbol": t.symbol, "date": t.trade_date, "per_share": invest._money(Decimal(t.price)), "shares": t.quantity,
+                        "amount": invest._money(Decimal(t.quantity) * Decimal(t.price) - Decimal(t.fees or 0))} for t in rows[:10]],
+            "tip": "Record each dividend with ＋ Trade → dividend (shares × amount per share). Yield = last 12 months ÷ cost."}

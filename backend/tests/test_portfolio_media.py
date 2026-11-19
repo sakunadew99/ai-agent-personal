@@ -105,3 +105,17 @@ def test_media_library_and_ownership(client):
     b("PATCH", f"/media/{v['id']}", {"title": "x"}, 404)
     b("DELETE", f"/media/{v['id']}", expect=404)
     a("DELETE", f"/media/{v['id']}", expect=204)
+
+
+def test_performance_and_dividends_are_private(client):
+    a, b = _user(client), _user(client)
+    a("POST", "/invest/holdings", {"symbol": "COMB", "quantity": 100, "avg_price": 150}, 201)
+    a("POST", "/invest/trades", {"symbol": "COMB", "side": "dividend", "quantity": 100, "price": 4.5, "fees": 0, "trade_date": date.today().isoformat()}, 201)
+    perf = a("GET", "/invest/performance?months=6", expect=200).json()
+    assert len(perf["months"]) == 6 and perf["compared_months"] >= 5
+    assert perf["portfolio_total_pct"] > 0 and perf["aspi_total_pct"] > 0      # both fake series rise
+    div = a("GET", "/invest/dividends", expect=200).json()
+    assert float(div["total_12m"]) == 450 and div["yield_on_cost"] == 3.0 and len(div["months"]) == 12
+    assert div["shares"][0]["symbol"] == "COMB.N0000" and float(div["months"][-1]["amount"]) == 450
+    assert float(b("GET", "/invest/dividends", expect=200).json()["total_12m"]) == 0      # private
+    assert b("GET", "/invest/performance", expect=200).json()["compared_months"] == 0

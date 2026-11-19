@@ -3,6 +3,7 @@
  * The API decides *when* (due time minus a lead, moved out of your quiet hours); the phone only schedules it.
  */
 import * as Notifications from "expo-notifications";
+import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import type { ApiRecord as Row } from "./api";
 
@@ -175,4 +176,25 @@ export async function scheduleHourlyCheckins(on: boolean): Promise<number> {
   } catch {
     return 0;
   }
+}
+
+const SEEN_ALERTS = "sakuna.seenStockAlerts";
+
+/** Your own watchlist rules (buy below, stop-loss, take-profit) that fired after the daily CSE close, shown as phone notifications once each. */
+export async function notifyStockAlerts(api: Api): Promise<number> {
+  try {
+    if (!(await ready())) return -1;
+    const v = await api<Row>("/invest");
+    const fresh: Row[] = (Array.isArray(v.alerts) ? v.alerts : []).filter((a: Row) => a.status === "new");
+    const seen: string[] = JSON.parse((await SecureStore.getItemAsync(SEEN_ALERTS)) || "[]");
+    const todo = fresh.filter(a => !seen.includes(String(a.id))).slice(0, 5);
+    for (const a of todo) {
+      await Notifications.scheduleNotificationAsync({
+        content: { title: `📈 ${String(a.symbol).split(".")[0]}: your rule fired`, body: `${a.message} (not advice; decide yourself)` },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 2, channelId: CHANNEL },
+      });
+    }
+    if (todo.length) await SecureStore.setItemAsync(SEEN_ALERTS, JSON.stringify([...todo.map(a => String(a.id)), ...seen].slice(0, 100)));
+    return todo.length;
+  } catch { return 0; }
 }

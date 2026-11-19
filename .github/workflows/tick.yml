@@ -23,6 +23,10 @@ jobs:
     environment: RENDER_SERVICE_TOKEN   # holds API_BASE_URL (variable) and SERVICE_TOKEN (secret)
     timeout-minutes: 5
     steps:
+      - name: Keep the API awake
+        env:
+          API: ${{ vars.API_BASE_URL || 'https://ai-agent-personal.onrender.com' }}
+        run: curl -sS --retry 2 --retry-delay 20 --max-time 90 -o /dev/null -w "live %{http_code} in %{time_total}s\n" "$API/health/live" || true
       - name: Run one worker round
         env:
           API: ${{ vars.API_BASE_URL }}
