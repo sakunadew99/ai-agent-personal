@@ -3,7 +3,8 @@ import { Linking, Text, TouchableOpacity, View } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { peek, type ApiRecord as Row } from "../api";
 import { Bars, Hero, LineChart, Ring, StatTile, TileRow } from "../charts";
-import { connectHealthConnect, getHealthConnectStatus, readTodayHealth, type HealthConnectStatus, type TodayHealth } from "../health/health-connect";
+import { connectHealthConnect, getHealthConnectStatus, type HealthConnectStatus, type TodayHealth } from "../health/health-connect";
+import { syncHealthNow } from "../health/autosync";
 import { Btn, C, Card, Empty, Field, H1, H2, Kicker, Muted, Progress, Row as Line, Screen } from "../ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
@@ -24,19 +25,9 @@ export function HealthScreen({ api, onError, onNotice }: { api: Api; onError: (m
   const sync = useCallback(async (quiet = false) => {
     setBusy(true);
     try {
-      const result = await readTodayHealth();
-      const current = await api<Row>("/health/summary");
-      const records: Row[] = Array.isArray(current.records) ? current.records : [];
-      const sleeps: Row[] = Array.isArray(current.sleep) ? current.sleep : [];
-      const savedToday = (metric: string, value: number) => records.some(r => r.metric === metric && r.source === "health_connect" && Number(r.value) === value && new Date(r.recorded_at).toDateString() === new Date().toDateString());
-      let saved = 0;
-      if (result.steps && !savedToday("steps", result.steps.value)) { await api("/health/records", "POST", { metric: "steps", value: result.steps.value, unit: "steps", recorded_at: result.steps.recordedAt, source: "health_connect" }); saved++; }
-      if (result.heartRate && !savedToday("heart_rate", result.heartRate.value)) { await api("/health/records", "POST", { metric: "heart_rate", value: result.heartRate.value, unit: "bpm", recorded_at: result.heartRate.recordedAt, source: "health_connect" }); saved++; }
-      if (result.sleep && !sleeps.some(r => r.source === "health_connect" && new Date(r.start_at).getTime() === new Date(result.sleep!.startAt).getTime())) {
-        await api("/health/sleep", "POST", { start_at: result.sleep.startAt, end_at: result.sleep.endAt, stages: { stage_codes: result.sleep.stages }, source: "health_connect" }); saved++;
-      }
+      const { saved, today: result } = await syncHealthNow(api);
       setToday(result); setSummary(await api<Row>("/health/summary")); loadTrends();
-      const now = Date.now(); setLastSync(now); await SecureStore.setItemAsync(LAST_SYNC, String(now)).catch(() => undefined);
+      setLastSync(Date.now());
       if (!quiet) onNotice(saved ? `Synced ${saved} new record${saved === 1 ? "" : "s"} from Health Connect.` : "Already up to date. If numbers look old, open Mi Fitness so the band syncs first.");
     } catch (reason) { if (!quiet) onError(reason instanceof Error ? reason.message : "Could not sync"); }
     finally { setBusy(false); }
@@ -79,7 +70,7 @@ export function HealthScreen({ api, onError, onNotice }: { api: Api; onError: (m
     </Hero>
 
     <TileRow>
-      <StatTile label="Steps" icon="👟" tone="green" value={steps ? steps.toLocaleString() : "—"} hint={`${Math.round(Math.min(100, (steps / stepGoal) * 100))}% of ${stepGoal.toLocaleString()}`}/>
+      <StatTile label="Steps" icon="👟" tone="green" value={Number(steps || 0).toLocaleString()} hint={`${Math.round(Math.min(100, (steps / stepGoal) * 100))}% of ${stepGoal.toLocaleString()}`}/>
       <StatTile label="Heart" icon="❤️" tone="red" value={hr ? `${hr}` : "—"} hint="bpm, latest"/>
     </TileRow>
     <TileRow>
@@ -170,13 +161,14 @@ export function ReviewScreen({ api, onError, onNotice }: { api: Api; onError: (m
   </Screen>;
 }
 
-export type MoreTarget = "Day" | "Gym" | "Brain" | "Assistant" | "Journal" | "Invest" | "News" | "You" | "Team" | "Exams" | "Life" | "Learning" | "Jobs" | "Money" | "Rewards" | "AI" | "Study" | "Balance" | "Vault" | "Finance" | "Health" | "Memory" | "Review" | "Approvals" | "Profile";
+export type MoreTarget = "Videos" | "Day" | "Gym" | "Brain" | "Assistant" | "Journal" | "Invest" | "News" | "You" | "Team" | "Exams" | "Life" | "Learning" | "Jobs" | "Money" | "Rewards" | "AI" | "Study" | "Balance" | "Vault" | "Finance" | "Health" | "Memory" | "Review" | "Approvals" | "Profile";
 const MENU: { key: MoreTarget; icon: string; title: string; hint: string }[] = [
   { key: "Assistant", icon: "✳", title: "Assistant", hint: "Chat with Sakuna" },
   { key: "Journal", icon: "✍️", title: "Journal", hint: "Day, gratitude, lessons" },
   { key: "Invest", icon: "📈", title: "Invest (CSE)", hint: "Portfolio, rules, alerts" },
   { key: "News", icon: "📰", title: "News & videos", hint: "Digest + must-watch videos" },
   { key: "Brain", icon: "🧠", title: "Brain gym", hint: "Daily brain games workout" },
+  { key: "Videos", icon: "🎬", title: "My videos", hint: "Google Drive & YouTube, played in-app" },
   { key: "Day", icon: "⏱", title: "Day tracker", hint: "Hour by hour + end-of-day report" },
   { key: "Gym", icon: "🏋️", title: "Gym", hint: "Workouts, sets, kg × reps, PRs" },
   { key: "You", icon: "🪞", title: "About you", hint: "Your patterns & one change" },

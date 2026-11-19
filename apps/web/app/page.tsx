@@ -36,6 +36,7 @@ import { FinanceDashboard, HealthDashboard, LifeDashboard } from "@/components/D
 import { AboutYouPage, AiTeamPage, ExamsPage, InvestPage, JournalPage, MyDayPage, NewsPage } from "@/components/LifeOsPages";
 import { HabitManager, InboxPage, JobFinder, LearnRadar, PlannerBoard, RewardsGame, SubscriptionsPanel } from "@/components/LifeOsPages2";
 import { BrainGymPage, NewsAndWatch } from "@/components/LifeOsPages3";
+import { VideosPage } from "@/components/LifeOsPages5";
 import { DayPage, GymPage, LanguagesPage, ProgressPage } from "@/components/LifeOsPages4";
 import { NudgeBanner, TodayPlanCard } from "@/components/SmartCards";
 
@@ -64,6 +65,7 @@ const navigation = [
   { label: "Gym", icon: "heart", hint: "Workouts, sets, kg × reps, records" },
   { label: "News", icon: "bell", hint: "Daily digest and must-watch videos" },
   { label: "Brain gym", icon: "brain", hint: "Daily brain games workout" },
+  { label: "My videos", icon: "book", hint: "Google Drive & YouTube library" },
   { label: "Rewards", icon: "flame", hint: "Points, streak, quests and treats" },
   { label: "Study abroad", icon: "arrow", hint: "Programs, checklist, costs, scholarships" },
   { label: "Documents", icon: "copy", hint: "Passport, visas, IDs and expiry reminders" },
@@ -425,6 +427,7 @@ export default function Home() {
       case "Exam coach": return <ExamsPage token={token} />;
       case "News": return <NewsAndWatch token={token} news={<NewsPage token={token} />} />;
       case "Brain gym": return <BrainGymPage token={token} />;
+      case "My videos": return <VideosPage token={token} />;
       case "Day tracker": return <DayPage token={token} />;
       case "Languages": return <LanguagesPage token={token} />;
       case "Progress": return <ProgressPage token={token} />;

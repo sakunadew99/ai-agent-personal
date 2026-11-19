@@ -20,6 +20,7 @@ const chip = (on: boolean, color = C.green) => ({ borderColor: on ? color : C.li
 // =====================================================================================================================
 
 type SetRow = { exercise: string; weight: string; reps: string };
+const gymInput = { width: 74, color: C.text, fontSize: 16, fontWeight: "700" as const, borderColor: C.line, borderWidth: 1, borderRadius: 12, paddingVertical: 8, textAlign: "center" as const, backgroundColor: C.bg };
 export function GymScreen({ api, onError, onNotice }: Props) {
   const [v, setV] = useState<Row | null>(null);
   const [group, setGroup] = useState("Chest");
@@ -28,14 +29,19 @@ export function GymScreen({ api, onError, onNotice }: Props) {
   const [started, setStarted] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
   const load = useCallback(() => { api<Row>("/gym").then(setV).catch(r => onError(msg(r))); }, [api, onError]);
-  useEffect(() => { load(); void SecureStore.getItemAsync("sakuna.gymDraft").then(x => { if (x) { const d = JSON.parse(x); setSets(d.sets || []); setTitle(d.title || "Gym"); setStarted(d.started || null); } }).catch(() => undefined); }, [load]);
+  const [custom, setCustom] = useState("");
+  useEffect(() => { load(); void SecureStore.getItemAsync("sakuna.gymDraft").then(x => { if (x) { const d = JSON.parse(x);
+    const fresh = d.started && Date.now() - d.started < 4 * 3600 * 1000;      // an old draft's timer would read hundreds of minutes
+    setSets(fresh ? d.sets || [] : []); setTitle(fresh ? d.title || "Gym" : "Gym"); setStarted(fresh ? d.started : null); } }).catch(() => undefined); }, [load]);
   useEffect(() => { void SecureStore.setItemAsync("sakuna.gymDraft", JSON.stringify({ sets, title, started })).catch(() => undefined); }, [sets, title, started]);
   useEffect(() => { if (!started) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [started]);
   if (!v) return <Screen><Empty>Loading your gym log…</Empty></Screen>;
   const last = (ex: string) => v.last?.[ex] as Row | undefined;
   const addEx = (ex: string) => { const l = last(ex); setSets(s => [...s, { exercise: ex, weight: l?.weight_kg != null ? String(l.weight_kg) : "", reps: l?.reps != null ? String(l.reps) : "" }]); if (!started) setStarted(Date.now()); };
   const template = (name: string) => { setTitle(name); setSets([]); (v.templates[name] as string[]).forEach(ex => { for (let i = 0; i < 3; i++) addEx(ex); }); };
-  const elapsed = started ? Math.round((now - started) / 60000) : 0;
+  const elapsed = started ? Math.min(240, Math.round((now - started) / 60000)) : 0;
+  const groups: [string, { s: SetRow; i: number }[]][] = [];
+  sets.forEach((st, i) => { const g = groups.find(x => x[0] === st.exercise); if (g) g[1].push({ s: st, i }); else groups.push([st.exercise, [{ s: st, i }]]); });
   async function finish() {
     const clean = sets.filter(s => s.exercise && (s.reps || s.weight));
     if (!clean.length) { onError("Add at least one set with reps or weight."); return; }
@@ -56,23 +62,31 @@ export function GymScreen({ api, onError, onNotice }: Props) {
     <Card><Kicker>QUICK START</Kicker><View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{Object.keys(v.templates).map(t => <TouchableOpacity key={t} style={chip(title === t)} onPress={() => template(t)}><Text style={{ color: C.text, fontWeight: "700" }}>{t}</Text></TouchableOpacity>)}</View></Card>
     <Card><Kicker>ADD AN EXERCISE</Kicker>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>{Object.keys(v.exercises).map(g => <TouchableOpacity key={g} style={chip(group === g)} onPress={() => setGroup(g)}><Text style={{ color: C.text }}>{g}</Text></TouchableOpacity>)}</ScrollView>
+      <Line><View style={{ flex: 1 }}><Field value={custom} onChangeText={setCustom} placeholder="Your own exercise, e.g. Cable row (narrow grip)"/></View>
+        <Btn title="Add" disabled={!custom.trim()} onPress={() => { addEx(custom.trim()); setCustom(""); }}/></Line>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{(v.exercises[group] as string[]).map(ex => <TouchableOpacity key={ex} style={chip(false, PALETTE[1])} onPress={() => addEx(ex)}>
         <Text style={{ color: C.text, fontSize: 13 }}>{`＋ ${ex}`}</Text>{last(ex) && <Text style={{ color: C.muted, fontSize: 10 }}>{`last ${last(ex)!.weight_kg ?? "-"}kg × ${last(ex)!.reps ?? "-"}`}</Text>}</TouchableOpacity>)}</View>
     </Card>
-    {sets.length > 0 && <Card accent><Line><Kicker>{`TODAY · ${title.toUpperCase()} · ${sets.length} SETS`}</Kicker><View style={{ flex: 1 }}/><Btn kind="link" title="Clear" onPress={() => setSets([])}/></Line>
-      {sets.map((s, i) => <Line key={i}>
-        <Text style={{ color: C.text, flex: 1 }} numberOfLines={1}>{`${i + 1}. ${s.exercise}`}</Text>
-        <TextInput style={{ width: 62, color: C.text, borderColor: C.line, borderWidth: 1, borderRadius: 10, padding: 6, textAlign: "center" }} keyboardType="decimal-pad" value={s.weight} placeholder="kg" placeholderTextColor={C.muted}
-          onChangeText={w => setSets(x => x.map((y, j) => j === i ? { ...y, weight: w } : y))}/>
-        <Text style={{ color: C.muted }}>×</Text>
-        <TextInput style={{ width: 52, color: C.text, borderColor: C.line, borderWidth: 1, borderRadius: 10, padding: 6, textAlign: "center" }} keyboardType="number-pad" value={s.reps} placeholder="reps" placeholderTextColor={C.muted}
-          onChangeText={r => setSets(x => x.map((y, j) => j === i ? { ...y, reps: r } : y))}/>
-        <TouchableOpacity onPress={() => setSets(x => [...x.slice(0, i + 1), { ...x[i] }, ...x.slice(i + 1)])}><Text style={{ color: C.green, fontSize: 18 }}>⧉</Text></TouchableOpacity>
-        <TouchableOpacity onPress={() => setSets(x => x.filter((_, j) => j !== i))}><Text style={{ color: C.muted }}>✕</Text></TouchableOpacity>
-      </Line>)}
-      <Field value={title} onChangeText={setTitle} placeholder="Workout name"/>
-      <Btn title={`✓ Finish & save (${Math.max(1, elapsed)} min)`} onPress={() => void finish()}/>
-      <Muted small>⧉ copies a set. Your last weight and reps are filled in for you.</Muted>
+    {sets.length > 0 && <Card accent>
+      <Line><Kicker>{`TODAY · ${sets.length} SETS · ${groups.length} EXERCISES`}</Kicker><View style={{ flex: 1 }}/>
+        <Btn kind="link" title="Clear all" onPress={() => Alert.alert("Clear today's sets?", "", [{ text: "Keep", style: "cancel" }, { text: "Clear", style: "destructive", onPress: () => { setSets([]); setStarted(null); } }])}/></Line>
+      {groups.map(([ex, rows], gi) => <View key={ex} style={{ borderRadius: 18, padding: 12, gap: 8, backgroundColor: C.panel2, borderLeftWidth: 4, borderLeftColor: PALETTE[gi % PALETTE.length] }}>
+        <Line><Text style={{ color: C.text, fontSize: 17, fontWeight: "900", flex: 1 }}>{ex}</Text>
+          {last(ex) && <Text style={{ color: C.muted, fontSize: 12 }}>{`last ${last(ex)!.weight_kg ?? "-"} kg × ${last(ex)!.reps ?? "-"}`}</Text>}</Line>
+        {rows.map(({ s: st, i: idx }, n) => <Line key={idx}>
+          <View style={{ width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: C.bg }}><Text style={{ color: C.text, fontWeight: "800" }}>{n + 1}</Text></View>
+          <TextInput style={gymInput} keyboardType="decimal-pad" value={st.weight} placeholder="kg" placeholderTextColor={C.muted} onChangeText={w => setSets(x => x.map((y, j2) => j2 === idx ? { ...y, weight: w } : y))}/>
+          <Text style={{ color: C.muted, fontSize: 16 }}>×</Text>
+          <TextInput style={gymInput} keyboardType="number-pad" value={st.reps} placeholder="reps" placeholderTextColor={C.muted} onChangeText={r => setSets(x => x.map((y, j2) => j2 === idx ? { ...y, reps: r } : y))}/>
+          <View style={{ flex: 1 }}/>
+          <TouchableOpacity onPress={() => setSets(x => x.filter((_, j2) => j2 !== idx))} hitSlop={10}><Text style={{ color: C.muted, fontSize: 16 }}>✕</Text></TouchableOpacity>
+        </Line>)}
+        <TouchableOpacity onPress={() => { const lastRow = rows[rows.length - 1].s; setSets(x => [...x, { ...lastRow }]); }} style={{ alignSelf: "flex-start", borderWidth: 1, borderColor: C.green, borderRadius: 99, paddingHorizontal: 12, paddingVertical: 6 }}>
+          <Text style={{ color: C.green, fontWeight: "800" }}>＋ Add set</Text></TouchableOpacity>
+      </View>)}
+      <Field value={title} onChangeText={setTitle} placeholder="Workout name (e.g. Pull day)"/>
+      <Btn title={`✓ Finish & save · ${Math.max(1, elapsed)} min`} onPress={() => void finish()}/>
+      <Muted small>Your last weight and reps are filled in. “＋ Add set” copies the previous set.</Muted>
     </Card>}
     <Card><Kicker>MINUTES PER WEEK</Kicker><Bars data={(v.weeks as Row[]).map((w, i, a) => ({ label: w.label.split(" ")[0], value: w.minutes, highlight: i === a.length - 1 }))} height={100} format={n => `${n}m`}/></Card>
     <Card><Kicker>VOLUME PER WEEK (KG)</Kicker><LineChart series={[{ values: (v.weeks as Row[]).map(w => w.volume_kg), color: C.amber }]} labels={(v.weeks as Row[]).map(w => w.label)} height={100}/></Card>

@@ -4,6 +4,7 @@
 import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest as call, patchJson, postJson, type JsonRecord as Row } from "@/lib/api";
 import { Bars, Card, Donut, Hero, LineChart, Meter, Ring, SERIES, Stat, WeekDots } from "./Charts";
+import { HoldingsTable, PortfolioTools } from "./LifeOsPages5";
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong");
 const hhmm = (t?: string | null) => (t ? String(t).slice(0, 5) : "");
@@ -571,7 +572,7 @@ export function InvestPage({ token }: { token: string }) {
   const [watchAdd, setWatchAdd] = useState("");
   const [trade, setTrade] = useState<Row>({ symbol: "", side: "buy", quantity: "", price: "", fees: "", trade_date: iso(new Date()) });
   const [paste, setPaste] = useState("");
-  const [panel, setPanel] = useState<"" | "trade" | "paste">("");
+  const [panel, setPanel] = useState<"" | "trade" | "paste" | "tools">("");
   const n = useNote();
   const load = useCallback(() => { call<Row>("/invest", token).then(setV).catch(n.fail); }, [token, n.fail]);
   useEffect(() => { load(); }, [load]);
@@ -606,6 +607,7 @@ export function InvestPage({ token }: { token: string }) {
         <label className="d-btn ghost" style={{ cursor: "pointer" }}>{busy === "upload" ? "Uploading…" : "⬆ CSV / Excel"}<input type="file" accept=".csv,.xlsx,.xls" hidden onChange={e => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ""; }}/></label>
         <button className="d-btn ghost" onClick={() => setPanel(panel === "paste" ? "" : "paste")}>📋 Paste</button>
         <button className="d-btn ghost" onClick={() => setPanel(panel === "trade" ? "" : "trade")}>＋ Add trade</button>
+        <button className="d-btn ghost" onClick={() => setPanel(panel === "tools" ? "" : "tools")}>📊 Review · 📄 ATrad PDF · ＋ Share</button>
       </div>
     </Hero>
     {n.view}
@@ -629,6 +631,8 @@ export function InvestPage({ token }: { token: string }) {
       <div className="d-row"><button className="d-btn" disabled={paste.trim().length < 5} onClick={() => void call<Row>("/invest/import-text", token, postJson({ text: paste }))
         .then(o => { n.ok(`${o.kind === "trades" ? "Trades" : "Prices"}: ${o.saved} saved`); setPaste(""); setPanel(""); load(); }).catch(n.fail)}>Import</button></div>
     </Card>}
+    {panel === "tools" && <PortfolioTools token={token} onChanged={load}/>}
+    {held.length > 0 && <Card kicker="Holdings · today and since you bought" title="Value, gain/loss and break-even after fees"><HoldingsTable items={held}/></Card>}
     {alerts.length > 0 && <Card kicker="Rule alerts" title="From your own rules" action={<button className="text-button" onClick={() => void call("/invest/alerts/seen", token, postJson({})).then(load)}>Mark seen</button>}>
       {alerts.map(a => <button key={a.id} className="text-button" style={{ textAlign: "left" }} onClick={() => setSymbol(a.symbol)}>🔔 {a.message}</button>)}<p className="d-note">{v.disclaimer}</p></Card>}
     <div className="d-grid-2">

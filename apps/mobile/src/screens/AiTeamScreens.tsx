@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
+import { ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
 
 import { peek, type ApiRecord as Row } from "../api";
 import { Badge, Btn, C, Card, Empty, Kicker, Muted, Row as Line, Screen } from "../ui";
@@ -15,6 +15,7 @@ export function TeamTodayCard({ api, onError, onNotice, onOpen }: { api: Api; on
   const [v, setV] = useState<Row | null>(() => peek("/workers/today"));
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [more, setMore] = useState(false);
   const load = useCallback(() => { api<Row>("/workers/today").then(x => { setV(x); }).catch(() => setV(null)); }, [api]);
   useEffect(() => { load(); }, [load]);
   if (!v || !(v.items as Row[]).length) return null;
@@ -42,14 +43,15 @@ export function TeamTodayCard({ api, onError, onNotice, onOpen }: { api: Api; on
   const current = items.find(i => i.worker === shown);
   return <Card accent style={{ marginBottom: 10 }}>
     <Line><Kicker>TODAY FROM YOUR AI TEAM</Kicker><View style={{ flex: 1 }}/>{v.unread > 0 && <Badge tone="amber">{`${v.unread} new`}</Badge>}</Line>
-    <View style={s.team}>{items.map(i => <TouchableOpacity key={i.worker} onPress={() => setOpen(i.worker)} style={[s.member, shown === i.worker && s.memberOn]}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.team}>{items.map(i => <TouchableOpacity key={i.worker} onPress={() => { setOpen(i.worker); setMore(false); }} style={[s.member, shown === i.worker && s.memberOn]}>
       <Text style={{ fontSize: 20 }}>{i.icon}</Text>
       <View style={[s.dot, i.note ? (i.note.status === "new" ? s.dotNew : s.dotRead) : null]}/>
-    </TouchableOpacity>)}</View>
+    </TouchableOpacity>)}</ScrollView>
     {current && (current.note ? <View style={{ gap: 8 }}>
       <Line><Text style={s.who}>{current.icon} {current.name}</Text><View style={{ flex: 1 }}/>{current.note.used_ai ? <Badge>✨ AI</Badge> : <Badge tone="muted">rules</Badge>}</Line>
       <Text style={s.title}>{current.note.title}</Text>
-      <Text style={s.body}>{current.note.body}</Text>
+      <Text style={s.body} numberOfLines={more ? undefined : 6}>{current.note.body}</Text>
+      {String(current.note.body || "").length > 280 && <TouchableOpacity onPress={() => setMore(m => !m)}><Text style={{ color: C.green, fontWeight: "800" }}>{more ? "Show less ▲" : "Read more ▼"}</Text></TouchableOpacity>}
       <View style={s.actions}>{(current.note.actions as Row[]).map(a => <TouchableOpacity key={a.id} style={[s.action, a.action === "done" && s.actionQuiet]} onPress={() => void act(current.note, a)}>
         <Text style={[s.actionText, a.action === "done" && { color: C.muted }]}>{a.label}</Text></TouchableOpacity>)}</View>
       <Line>
@@ -100,7 +102,7 @@ export function AiTeamScreen({ api, onError, onNotice }: { api: Api; onError: (m
 }
 
 const s = StyleSheet.create({
-  team: { flexDirection: "row", gap: 8 },
+  team: { flexDirection: "row", gap: 8, paddingRight: 8 },
   member: { width: 46, height: 46, borderRadius: 23, backgroundColor: C.panel2, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.line },
   memberOn: { borderColor: C.green, backgroundColor: C.greenSoft },
   dot: { position: "absolute", top: 2, right: 2, width: 10, height: 10, borderRadius: 5, backgroundColor: "transparent" },

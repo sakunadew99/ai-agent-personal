@@ -5,6 +5,7 @@ import { Linking, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpaci
 import { peek, type ApiRecord as Row } from "../api";
 import { Badge, Btn, C, Card, Empty, H2, Kicker, Muted, Progress, Row as Line, Screen } from "../ui";
 import { DateField } from "../pickers";
+import { AddHolding, HoldingRow, ImportPortfolio, PortfolioReview } from "./InvestPlus";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 type Upload = (path: string, file: { uri: string; name: string; type?: string | null }) => Promise<Row>;
@@ -48,7 +49,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 export function InvestScreen({ api, upload, onError, onNotice }: Props) {
   const [v, setV] = useState<Row | null>(() => peek("/invest"));
   const [busy, setBusy] = useState<string | null>(null);
-  const [modal, setModal] = useState<"trade" | "paste" | null>(null);
+  const [modal, setModal] = useState<"trade" | "paste" | "import" | "holding" | "review" | null>(null);
   const [symbol, setSymbol] = useState<string | null>(null);
   const [watchAdd, setWatchAdd] = useState("");
   const load = useCallback(() => { api<Row>("/invest").then(setV).catch(r => onError(msg(r))); }, [api, onError]);
@@ -85,12 +86,16 @@ export function InvestScreen({ api, upload, onError, onNotice }: Props) {
         <View style={{ flex: 1 }}><Text style={[s.stat, { color: tone(p.total_return) }]}>{signed(p.total_return)}</Text><Muted small>total return</Muted></View>
       </Line>
       <Muted small>{`Cost ${lkr(p.cost)} · realised ${signed(p.realised)} · dividends ${lkr(p.dividends)}`}</Muted>
-      {idx && <Text style={s.index}>{`ASPI ${Number(idx.close).toLocaleString()} `}<Text style={{ color: tone(idx.change_pct) }}>{signed(idx.change_pct, "%")}</Text>{` · ${idx.date}`}</Text>}
+      {idx && <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.panel2, borderRadius: 14, padding: 10 }}>
+        <Text style={{ color: C.muted, fontWeight: "800" }}>ASPI</Text><Text style={{ color: C.text, fontWeight: "900", fontSize: 17 }}>{Number(idx.close).toLocaleString()}</Text>
+        <Text style={{ color: tone(idx.change_pct), fontWeight: "900" }}>{`${Number(idx.change_pct) >= 0 ? "▲" : "▼"} ${signed(idx.change_pct, "%")}`}</Text>
+        <View style={{ flex: 1 }}/><Muted small>{idx.date}</Muted></View>}
       <Line>
         <Btn title={busy === "fetch" ? "Reading CSE…" : "↻ CSE prices"} busy={busy === "fetch"} onPress={() => void fetchCse()} style={{ flex: 1 }}/>
         <Btn kind="outline" title={busy === "upload" ? "Uploading…" : "⬆ CSV / Excel"} busy={busy === "upload"} onPress={() => void pickFile()} style={{ flex: 1 }}/>
       </Line>
-      <Line><Btn kind="link" title="📋 Paste from Excel" onPress={() => setModal("paste")}/><View style={{ flex: 1 }}/><Btn kind="link" title="＋ Add a trade" onPress={() => setModal("trade")}/></Line>
+      <Line><Btn title="📊 AI review" onPress={() => setModal("review")} style={{ flex: 1 }}/><Btn kind="outline" title="📄 Import ATrad PDF" onPress={() => setModal("import")} style={{ flex: 1 }}/></Line>
+      <Line><Btn kind="link" title="＋ Share I own" onPress={() => setModal("holding")}/><Btn kind="link" title="📋 Paste" onPress={() => setModal("paste")}/><View style={{ flex: 1 }}/><Btn kind="link" title="＋ Trade" onPress={() => setModal("trade")}/></Line>
     </Card>
 
     {newAlerts.length > 0 && <Card style={{ borderColor: C.amber }}>
@@ -101,13 +106,7 @@ export function InvestScreen({ api, upload, onError, onNotice }: Props) {
 
     <Card>
       <Kicker>{`HOLDINGS · ${held.length}`}</Kicker>
-      {held.length ? held.map(h => <TouchableOpacity key={h.symbol} onPress={() => setSymbol(h.symbol)} style={s.holding}>
-        <Line><Text style={s.sym}>{root(h.symbol)}</Text><Muted small>{`${Number(h.quantity).toLocaleString()} @ ${h.avg_cost}`}</Muted><View style={{ flex: 1 }}/>
-          <Text style={s.sym}>{lkr(h.value)}</Text></Line>
-        <Line><Muted small>{`${h.price ?? "—"} (${signed(h.change_pct, "%")}) · ${h.sector}`}</Muted><View style={{ flex: 1 }}/>
-          <Text style={{ color: tone(h.unrealised), fontWeight: "800" }}>{signed(h.unrealised_pct, "%")}</Text></Line>
-        <Progress value={h.weight_pct}/>
-      </TouchableOpacity>) : <Muted>No holdings yet. Add a trade, or upload your broker's trade history (CSV / Excel with Date, Symbol, Buy/Sell, Qty, Price).</Muted>}
+      {held.length ? <View style={{ gap: 8 }}>{held.map(h => <HoldingRow key={h.symbol} h={h} onPress={() => setSymbol(h.symbol)}/>)}</View> : <Muted>No holdings yet. Add a trade, or upload your broker's trade history (CSV / Excel with Date, Symbol, Buy/Sell, Qty, Price).</Muted>}
       {(p.sectors as Row[]).length > 1 && <Muted small>{"Sectors: " + (p.sectors as Row[]).map(x => `${x.sector} ${x.pct}%`).join(" · ")}</Muted>}
     </Card>
 
@@ -126,6 +125,10 @@ export function InvestScreen({ api, upload, onError, onNotice }: Props) {
     </Card>
 
     {modal === "trade" && <TradeModal api={api} onClose={() => setModal(null)} onSaved={next => { setV(next); setModal(null); onNotice("Trade recorded"); }} onError={onError}/>}
+    {modal === "import" && <ImportPortfolio api={api} upload={upload} onClose={() => setModal(null)} onError={onError} onDone={next => { setV(next); setModal(null); onNotice(`Portfolio imported: ${next.saved} holdings`); }}/>}
+    {modal === "holding" && <AddHolding api={api} onClose={() => setModal(null)} onError={onError} onDone={next => { setV(next); setModal(null); onNotice("Share added"); }}
+      picker={(val, set) => <SymbolPicker api={api} value={val} onChange={set}/>}/>}
+    {modal === "review" && <PortfolioReview api={api} onClose={() => setModal(null)} onError={onError}/>}
     {modal === "paste" && <PasteModal api={api} onClose={() => setModal(null)} onSaved={(text) => { setModal(null); onNotice(text); load(); }} onError={onError}/>}
     {symbol && <SymbolSheet api={api} symbol={symbol} watch={(v.watchlist as Row[]).find(w => w.symbol === symbol)} holding={held.find(h => h.symbol === symbol)}
       onClose={() => { setSymbol(null); load(); }} onError={onError} onNotice={onNotice}/>}

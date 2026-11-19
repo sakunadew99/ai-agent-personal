@@ -28,17 +28,20 @@ import { JournalScreen } from "./src/screens/JournalScreen";
 import { MonthRoutines, NowRoutineCard, PlanSwitch, TodayRoutines, WeekPlan, type PlanView } from "./src/screens/MyDayScreens";
 import { InboxScreen, JobFinderScreen, PlanBoard, RadarScreen, RewardsGameScreen, SubscriptionsScreen, Switcher } from "./src/screens/LifeOs2Screens";
 import { BrainGymScreen, WatchScreen } from "./src/screens/LifeOs3Screens";
+import { VideosScreen } from "./src/screens/VideosScreen";
 import { DayTrackerScreen, GymScreen, LanguageScreen, ProgressScreen, uploadUsage } from "./src/screens/LifeOs4Screens";
 import { BrowserHost } from "./src/browser";
 import { LockGate } from "./src/lock";
 import { NudgeBanner, TodayPlanCard } from "./src/screens/SmartCards";
+import { autoSyncHealth } from "./src/health/autosync";
+import { AppState } from "react-native";
 import * as Notifications from "expo-notifications";
 import { CHECKIN_ACTIONS } from "./src/notify";
 import { appendSpeech, MicButton } from "./src/voice";
 import { Hero, Ring, StatTile, TileRow, WeekDots } from "./src/charts";
 
 type Tab = "Home" | "Plan" | "Capture" | "Focus" | "More";
-const SUB_TITLES: Record<MoreTarget, string> = { Day: "Day tracker", Gym: "Gym", Brain: "Brain gym", Assistant: "Assistant", Journal: "Journal", Invest: "Invest (CSE)", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
+const SUB_TITLES: Record<MoreTarget, string> = { Videos: "My videos", Day: "Day tracker", Gym: "Gym", Brain: "Brain gym", Assistant: "Assistant", Journal: "Journal", Invest: "Invest (CSE)", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
 
 export default function App() {
   const [booting, setBooting] = useState(true);       // restoring the saved session
@@ -83,6 +86,13 @@ export default function App() {
 
   useEffect(() => { if (token) void loadTab(tab); }, [token, tab, loadTab]);
 
+  // Mi Band data every time the app comes back to the screen (at most every 30 minutes), not only on the Health screen.
+  useEffect(() => {
+    if (!token) return;
+    const sub = AppState.addEventListener("change", st => { if (st === "active") void autoSyncHealth(api); });
+    return () => sub.remove();
+  }, [token, api]);
+
   // Hourly check-in answers (from the notification buttons) and taps on the day report open the Day tracker.
   useEffect(() => {
     if (!token) return;
@@ -104,7 +114,7 @@ export default function App() {
   useEffect(() => {
     if (!token) return;
     void loadQueue().then(() => flushQueue(token)).then(n => { if (n) showNotice(`Sent ${n} item${n === 1 ? "" : "s"} saved while offline`); });
-    void syncReminders(api); void syncHabitReminders(api);
+    void syncReminders(api); void syncHabitReminders(api); void autoSyncHealth(api);
     void uploadUsage(api); void uploadUsage(api, new Date(Date.now() - 86400000));   // phone screen time for today and yesterday's report
   }, [token, api, showNotice]);
 
@@ -203,6 +213,7 @@ export default function App() {
       {tab === "More" && sub === "Brain" && <BrainGymScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Day" && <DayTrackerScreen key={`day-${checkinHour ?? "x"}`} api={api} onError={showError} onNotice={showNotice} initialHour={checkinHour}/>}
       {tab === "More" && sub === "Gym" && <GymScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "Videos" && <VideosScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "You" && <AboutYouScreen api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/>}
       {tab === "More" && sub === "Team" && <AiTeamScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Exams" && <ExamScreen api={api} onError={showError} onNotice={showNotice}/>}
