@@ -11,6 +11,7 @@ import { HealthScreen, ReviewScreen, type MoreTarget } from "./src/screens/Healt
 import { ExploreScreen, GROUPS, QuickLaunch, rememberScreen } from "./src/screens/Explore";
 import { WeeklyHealthCard } from "./src/screens/WeeklyHealthCard";
 import { notifyStockAlerts } from "./src/notify";
+import { enableBackgroundSync } from "./src/health/background";
 import { ShieldPanel } from "./src/ShieldPanel";
 import { MonthAgenda } from "./src/screens/PlanExtras";
 import { JobsScreen, LearningScreen } from "./src/screens/LearningScreens";
@@ -117,7 +118,7 @@ export default function App() {
   useEffect(() => {
     if (!token) return;
     void loadQueue().then(() => flushQueue(token)).then(n => { if (n) showNotice(`Sent ${n} item${n === 1 ? "" : "s"} saved while offline`); });
-    void syncReminders(api); void syncHabitReminders(api); void autoSyncHealth(api); void notifyStockAlerts(api);
+    void syncReminders(api); void syncHabitReminders(api); void autoSyncHealth(api); void notifyStockAlerts(api); void enableBackgroundSync();
     void uploadUsage(api); void uploadUsage(api, new Date(Date.now() - 86400000));   // phone screen time for today and yesterday's report
   }, [token, api, showNotice]);
 

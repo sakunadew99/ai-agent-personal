@@ -5,6 +5,7 @@ import { peek, type ApiRecord as Row } from "../api";
 import { Bars, Hero, LineChart, Ring, StatTile, TileRow } from "../charts";
 import { connectHealthConnect, getHealthConnectStatus, type HealthConnectStatus, type TodayHealth } from "../health/health-connect";
 import { syncHealthNow } from "../health/autosync";
+import { BackgroundSyncCard } from "../health/BackgroundSyncCard";
 import { Btn, C, Card, Empty, Field, H1, H2, Kicker, Muted, Progress, Row as Line, Screen } from "../ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
@@ -91,6 +92,7 @@ export function HealthScreen({ api, onError, onNotice }: { api: Api; onError: (m
     </>}
     <Muted small>{trends?.note || "Personal records, not medical advice."}</Muted>
 
+    {status?.connected && <BackgroundSyncCard onNotice={onNotice} onError={onError}/>}
     <Card><TouchableOpacity onPress={() => setShowSetup(v => !v)}><Line style={{ justifyContent: "space-between" }}><Kicker>SET UP MI FITNESS (ONCE)</Kicker><Text style={{ color: C.green }}>{showSetup ? "Hide" : "Show"}</Text></Line></TouchableOpacity>
       {showSetup && <>
       {[
