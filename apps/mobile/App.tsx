@@ -11,7 +11,9 @@ import { HealthScreen, ReviewScreen, type MoreTarget } from "./src/screens/Healt
 import { ExploreScreen, GROUPS, QuickLaunch, rememberScreen } from "./src/screens/Explore";
 import { WeeklyHealthCard } from "./src/screens/WeeklyHealthCard";
 import { notifyStockAlerts } from "./src/notify";
-import { enableBackgroundSync } from "./src/health/background";
+import { CrashGuard, installCrashRecorder } from "./src/crash";
+installCrashRecorder();
+import { enableBackgroundSync } from "./src/health/background";   // defines the task at load; every native call inside is guarded
 import { ShieldPanel } from "./src/ShieldPanel";
 import { MonthAgenda } from "./src/screens/PlanExtras";
 import { JobsScreen, LearningScreen } from "./src/screens/LearningScreens";
@@ -47,7 +49,11 @@ import { Hero, Ring, StatTile, TileRow, WeekDots } from "./src/charts";
 type Tab = "Home" | "Plan" | "Capture" | "Focus" | "More";
 const SUB_TITLES: Record<MoreTarget, string> = { Videos: "My videos", Day: "Day tracker", Gym: "Gym", Brain: "Brain gym", Assistant: "Assistant", Journal: "Journal", Invest: "Invest (CSE)", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
 
-export default function App() {
+export default function Root() {
+  return <CrashGuard><App/></CrashGuard>;
+}
+
+function App() {
   const [booting, setBooting] = useState(true);       // restoring the saved session
   const [bootProblem, setBootProblem] = useState("");
   const [authNote, setAuthNote] = useState("");
@@ -118,8 +124,11 @@ export default function App() {
   useEffect(() => {
     if (!token) return;
     void loadQueue().then(() => flushQueue(token)).then(n => { if (n) showNotice(`Sent ${n} item${n === 1 ? "" : "s"} saved while offline`); });
-    void syncReminders(api); void syncHabitReminders(api); void autoSyncHealth(api); void notifyStockAlerts(api); void enableBackgroundSync();
+    void syncReminders(api); void syncHabitReminders(api); void autoSyncHealth(api); void notifyStockAlerts(api);
+    // Background health sync: loaded after the app is on screen, so it can never stop the app from starting.
+    const bg = setTimeout(() => { void enableBackgroundSync(); }, 4000);
     void uploadUsage(api); void uploadUsage(api, new Date(Date.now() - 86400000));   // phone screen time for today and yesterday's report
+    return () => clearTimeout(bg);
   }, [token, api, showNotice]);
 
   // Stay signed in: restore the saved session on start; renew the access token whenever it expires.
