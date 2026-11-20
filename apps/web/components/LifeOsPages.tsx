@@ -5,6 +5,7 @@ import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest as call, patchJson, postJson, type JsonRecord as Row } from "@/lib/api";
 import { Bars, Card, Donut, Hero, LineChart, Meter, Ring, SERIES, Stat, WeekDots } from "./Charts";
 import { HoldingsTable, PortfolioInsights, PortfolioTools } from "./LifeOsPages5";
+import { WhatIfCard } from "./LifeOsPages6";
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong");
 const hhmm = (t?: string | null) => (t ? String(t).slice(0, 5) : "");
@@ -600,7 +601,7 @@ export function InvestPage({ token }: { token: string }) {
   const tone = (x: unknown) => (x == null ? "plain" : Number(x) >= 0 ? "green" : "red") as "plain" | "green" | "red";
   return <div className="d-dash">
     <Hero kicker={`Portfolio · CSE${v.last_price_date ? ` · prices ${v.last_price_date}` : ""}`} title={lkr(p.value)}
-      sub={<>Cost {lkr(p.cost)} · realised {signed(p.realised)} · dividends {lkr(p.dividends)}{idx && <><br/>ASPI {Number(idx.close).toLocaleString()} ({signed(idx.change_pct, "%")}) · {idx.date}</>}</>}
+      sub={<>Cost {lkr(p.cost)} · realised {signed(p.realised)} · dividends {lkr(p.dividends)}{idx && <><br/>ASPI {Number(idx.close).toLocaleString()} {idx.change != null && <>{signed(idx.change)} pts </>}({signed(idx.change_pct, "%")}) · {idx.date}</>}</>}
       right={<Donut size={140} format={lkr} center={<><b style={{ fontSize: 16 }}>{held.length}</b><small>holdings</small></>} parts={held.map(h => ({ label: symLabel(h.symbol), value: Number(h.value || 0) }))}/>}>
       <div className="d-row" style={{ marginTop: 12 }}>
         <button className="d-btn" disabled={busy === "fetch"} onClick={() => void fetchCse()}>{busy === "fetch" ? "Reading CSE…" : "↻ Fetch CSE prices"}</button>
@@ -634,6 +635,7 @@ export function InvestPage({ token }: { token: string }) {
     {panel === "tools" && <PortfolioTools token={token} onChanged={load}/>}
     {held.length > 0 && <Card kicker="Holdings · today and since you bought" title="Value, gain/loss and break-even after fees"><HoldingsTable items={held}/></Card>}
     {held.length > 0 && <PortfolioInsights token={token}/>}
+    {held.length > 0 && <WhatIfCard held={held}/>}
     {alerts.length > 0 && <Card kicker="Rule alerts" title="From your own rules" action={<button className="text-button" onClick={() => void call("/invest/alerts/seen", token, postJson({})).then(load)}>Mark seen</button>}>
       {alerts.map(a => <button key={a.id} className="text-button" style={{ textAlign: "left" }} onClick={() => setSymbol(a.symbol)}>🔔 {a.message}</button>)}<p className="d-note">{v.disclaimer}</p></Card>}
     <div className="d-grid-2">

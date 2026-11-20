@@ -20,7 +20,7 @@ export function HoldingsTable({ items }: { items: Row[] }) {
       <th key={h} style={{ padding: "6px 8px", textAlign: i ? "right" : "left", borderBottom: "1px solid var(--d-line)" }}>{h}</th>)}</tr></thead>
     <tbody>{items.map(h => <tr key={h.symbol} style={{ textAlign: "right" }}>
       <td style={{ textAlign: "left", padding: "6px 8px", fontWeight: 800 }}>{root(h.symbol)}</td><td>{Number(h.quantity).toLocaleString()}</td><td>{Number(h.avg_cost).toFixed(2)}</td>
-      <td>{h.price ?? "—"}</td><td style={{ color: col(h.day_change) }}>{sg(h.day_change)} <small>({sg(h.change_pct, "%")})</small></td><td>{rs(h.value)}</td>
+      <td>{h.price ?? "—"}{h.price_change != null && <small style={{ display: "block", color: col(h.price_change) }}>{sg(h.price_change)}</small>}</td><td style={{ color: col(h.day_change) }}>{sg(h.day_change)} <small>({sg(h.change_pct, "%")})</small></td><td>{rs(h.value)}</td>
       <td style={{ color: col(h.unrealised), fontWeight: 800 }}>{sg(h.unrealised)}</td><td style={{ color: col(h.unrealised_pct), fontWeight: 800 }}>{sg(h.unrealised_pct, "%")}</td>
       <td style={{ color: col(h.net_gain_after_fees) }}>{sg(h.net_gain_after_fees)}</td><td>{h.break_even_price ?? "—"}</td><td>{h.weight_pct}%</td></tr>)}</tbody></table></div>;
 }
@@ -74,7 +74,8 @@ export function PortfolioTools({ token, onChanged }: { token: string; onChanged:
         {review && <button className="d-btn ghost" onClick={() => loadReview(true)}>✨ AI summary</button>}</div>}>
       {!review ? <p className="d-note">Reads a year of CSE prices per share, the ASPI, Brent oil, USD/LKR and gold, plus your news, then explains a suggestion for each holding. First run takes ~20 s.</p> : <>
         <div className="d-stats">
-          <Stat label="ASPI" icon={m.aspi_trend === "up" ? "▲" : "▼"} value={m.aspi ? Number(m.aspi).toLocaleString() : "—"} tone={m.aspi_trend === "up" ? "green" : "red"} hint={`${sg(m.aspi_1m_pct, "%")} 1 month`}/>
+          <Stat label="ASPI" icon={m.aspi_trend === "up" ? "▲" : "▼"} value={m.aspi ? Number(m.aspi).toLocaleString() : "—"} tone={m.aspi_trend === "up" ? "green" : "red"}
+            hint={`${m.aspi_change != null ? `${sg(m.aspi_change)} pts (${sg(m.aspi_change_pct, "%")}) today · ` : ""}${sg(m.aspi_1m_pct, "%")} 1M`}/>
           <Stat label="Brent oil" icon="🛢" value={m.brent ? `$${m.brent}` : "—"} tone="amber" hint={`${sg(m.brent_1m_pct, "%")} 1 month`}/>
           <Stat label="USD / LKR" icon="💱" value={m.usd_lkr ?? "—"} tone="blue" hint={`${sg(m.usd_lkr_1m_pct, "%")} 1 month`}/>
           <Stat label="Today" icon="📈" value={sg(review.day_change)} tone={review.day_change >= 0 ? "green" : "red"} hint="portfolio change"/>
