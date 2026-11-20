@@ -18,7 +18,7 @@ export function TodayPlanCard({ api, onOpen }: { api: Api; onOpen: (t: string) =
   const blocks = (p.blocks as Row[]).filter(b => all || b.start_min + b.minutes >= nowMin());
   const next = blocks.find(b => b.kind !== "work" && b.start_min >= nowMin());
   return <Card accent>
-    <Line><Kicker>TODAY'S PLAN · BUILT FROM YOUR DATA</Kicker><View style={{ flex: 1 }}/><Badge tone="muted">{`${Math.round(p.planned_minutes / 60)} h planned`}</Badge></Line>
+    <Line><Kicker>TODAY'S PLAN</Kicker><View style={{ flex: 1 }}/><Badge tone="muted">{`${Math.round(p.planned_minutes / 60)} h planned`}</Badge></Line>
     {next && <Text style={{ color: C.green, fontWeight: "800" }}>{`Next: ${next.start} ${next.title}`}</Text>}
     {blocks.slice(0, all ? 30 : 6).map((b, i) => <View key={i} style={{ flexDirection: "row", gap: 10, alignItems: "center", borderLeftWidth: 3, borderLeftColor: b.color, paddingLeft: 10, paddingVertical: 3 }}>
       <Text style={{ color: C.muted, width: 92, fontSize: 12 }}>{`${b.start}–${b.end}`}</Text>
@@ -26,7 +26,7 @@ export function TodayPlanCard({ api, onOpen }: { api: Api; onOpen: (t: string) =
     {(p.clashes as string[]).length > 0 && <Muted small>{`⚠ ${(p.clashes as string[])[0]}`}</Muted>}
     {(p.gaps as Row[]).length > 0 && <Muted small>{`Free: ${(p.gaps as Row[]).slice(0, 3).map(g => `${g.start}–${g.end}`).join(", ")}`}</Muted>}
     {p.best_focus && <Muted small>{`🎯 Your best focus hours: ${p.best_focus.from}–${p.best_focus.to} (deep work goes there)`}</Muted>}
-    <Line><Btn kind="link" title={all ? "Show what's left" : "Show whole day"} onPress={() => setAll(a => !a)}/><View style={{ flex: 1 }}/><Btn kind="link" title="Board ›" onPress={() => onOpen("Plan")}/></Line>
+    <Line><Btn kind="link" title={all ? "Show what's left" : "Show whole day"} onPress={() => setAll(a => !a)}/><View style={{ flex: 1 }}/><Btn kind="link" title="⏰ Times" onPress={() => onOpen("Schedule")}/><Btn kind="link" title="Board ›" onPress={() => onOpen("Plan")}/></Line>
   </Card>;
 }
 

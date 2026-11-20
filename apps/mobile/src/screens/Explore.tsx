@@ -30,6 +30,7 @@ export const GROUPS: Group[] = [
     { key: "Study", icon: "✈️", title: "Study abroad", hint: "DAAD, programs, checklist", words: "germany daad masters university" },
   ] },
   { name: "Life", emoji: "🌱", color: "#f5b65b", items: [
+    { key: "Schedule", icon: "⏰", title: "My schedule", hint: "Office, gym, sleep times", words: "office work time gym time wake sleep routine shift hours" },
     { key: "Life", icon: "🎯", title: "My life", hint: "Tasks, goals, habits", words: "todo goals habits" },
     { key: "Journal", icon: "✍️", title: "Journal", hint: "Day, gratitude, lessons", words: "diary notes" },
     { key: "Jobs", icon: "💼", title: "Jobs", hint: "Find jobs, tracker", words: "linkedin topjobs career cv" },
@@ -58,7 +59,7 @@ export async function rememberScreen(key: string) {
 
 function Tile({ item, color, open, wide }: { item: Item; color: string; open: (k: MoreTarget) => void; wide?: boolean }) {
   return <TouchableOpacity onPress={() => open(item.key)} activeOpacity={0.8} accessibilityLabel={item.title}
-    style={{ width: wide ? "100%" : "48.5%", backgroundColor: C.panel, borderRadius: 20, padding: 14, gap: 8, borderWidth: 1, borderColor: `${color}33`, overflow: "hidden", flexDirection: wide ? "row" : "column", alignItems: wide ? "center" : "flex-start" }}>
+    style={{ width: wide ? "100%" : "48%", backgroundColor: C.panel, borderRadius: 20, padding: 14, gap: 8, borderWidth: 1, borderColor: `${color}33`, overflow: "hidden", flexDirection: wide ? "row" : "column", alignItems: wide ? "center" : "flex-start" }}>
     <View style={{ position: "absolute", right: -18, top: -18, width: 70, height: 70, borderRadius: 35, backgroundColor: `${color}1f` }}/>
     <View style={{ width: 42, height: 42, borderRadius: 14, backgroundColor: `${color}26`, alignItems: "center", justifyContent: "center" }}><Text style={{ fontSize: 21 }}>{item.icon}</Text></View>
     <View style={{ flex: wide ? 1 : undefined, gap: 2 }}>
@@ -101,7 +102,7 @@ export function ExploreScreen({ open }: { open: (t: MoreTarget) => void }) {
           <View style={{ width: 6, height: 20, borderRadius: 3, backgroundColor: g.color }}/>
           <Text style={{ color: C.text, fontWeight: "900", fontSize: 17 }}>{`${g.emoji}  ${g.name}`}</Text>
           <Text style={{ color: C.muted, fontSize: 12 }}>{g.items.length}</Text></View>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "space-between" }}>{g.items.map(i => <Tile key={i.key} item={i} color={g.color} open={go}/>)}</View>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", rowGap: 10, justifyContent: "space-between" }}>{g.items.map(i => <Tile key={i.key} item={i} color={g.color} open={go}/>)}</View>
       </View>)}
     </>}
   </ScrollView>;

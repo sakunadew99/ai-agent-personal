@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { apiRequest as request, apiUpload, clearScreenCache, flushQueue, loadQueue, loadScreenCache, loadServerUrl, peek, prefetchScreens, setAccessToken, setRefresher, type ApiRecord as Row } from "./src/api";
 import { clearSession, endSession, hasSession, onSessionExpired, refreshAccess, saveSession, storedUser } from "./src/session";
@@ -34,6 +34,7 @@ import { MonthRoutines, NowRoutineCard, PlanSwitch, TodayRoutines, WeekPlan, typ
 import { InboxScreen, JobFinderScreen, PlanBoard, RadarScreen, RewardsGameScreen, SubscriptionsScreen, Switcher } from "./src/screens/LifeOs2Screens";
 import { BrainGymScreen, WatchScreen } from "./src/screens/LifeOs3Screens";
 import { VideosScreen } from "./src/screens/VideosScreen";
+import { ScheduleScreen } from "./src/screens/ScheduleScreen";
 import { DayTrackerScreen, GymScreen, LanguageScreen, ProgressScreen, uploadUsage } from "./src/screens/LifeOs4Screens";
 import { BrowserHost } from "./src/browser";
 import { LockGate } from "./src/lock";
@@ -46,7 +47,7 @@ import { appendSpeech, MicButton } from "./src/voice";
 import { Hero, Ring, StatTile, TileRow, WeekDots } from "./src/charts";
 
 type Tab = "Home" | "Plan" | "Capture" | "Focus" | "More";
-const SUB_TITLES: Record<MoreTarget, string> = { Videos: "My videos", Day: "Day tracker", Gym: "Gym", Brain: "Brain gym", Assistant: "Assistant", Journal: "Journal", Invest: "Invest (CSE)", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
+const SUB_TITLES: Record<MoreTarget, string> = { Schedule: "My schedule", Videos: "My videos", Day: "Day tracker", Gym: "Gym", Brain: "Brain gym", Assistant: "Assistant", Journal: "Journal", Invest: "Invest (CSE)", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
 
 export default function Root() {
   return <CrashGuard><App/></CrashGuard>;
@@ -57,6 +58,9 @@ function App() {
   const [bootProblem, setBootProblem] = useState("");
   const [authNote, setAuthNote] = useState("");
   const [token, setToken] = useState("");
+  // Fast start: with a saved session and saved screens, the app opens at once ("warm") while the sign-in is renewed.
+  const [warm, setWarm] = useState(false);
+  const waiting = useRef<((t: string) => void)[]>([]);
   const [user, setUser] = useState<Row>({});
   const [tab, setTab] = useState<Tab>("Home");
   const [planView, setPlanView] = useState<PlanView>("day");
@@ -70,8 +74,11 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [sub, setSub] = useState<MoreTarget | null>(null);
   const [checkinHour, setCheckinHour] = useState<number | null>(null);
-  // One API helper for all screens (adds the signed-in token).
-  const api = useCallback(<T = Row,>(path: string, method = "GET", body?: unknown) => request<T>(path, token, method, body), [token]);
+  // One API helper for all screens (adds the signed-in token). While warm, calls wait for the renewed token.
+  const api = useCallback(<T = Row,>(path: string, method = "GET", body?: unknown): Promise<T> => token
+    ? request<T>(path, token, method, body)
+    : new Promise<string>(resolve => { waiting.current.push(resolve); }).then(t => request<T>(path, t, method, body)), [token]);
+  useEffect(() => { if (token) waiting.current.splice(0).forEach(resolve => resolve(token)); }, [token]);
   const showError = useCallback((message: string) => { setNotice(""); setError(message); }, []);
   const showNotice = useCallback((message: string) => { setError(""); setNotice(message); }, []);
 
@@ -135,14 +142,19 @@ function App() {
     const saved = await storedUser();
     await loadScreenCache(String(saved.id || ""));
     setDashboard(peek("/dashboard") || {}); setFinance(peek("/finance/summary") || {}); setHealth(peek("/health/summary") || {}); setPlan(peek("/planner/daily") || {});
+    const quick = !!peek("/dashboard");
+    if (quick) { setUser(saved); setWarm(true); setBooting(false); }      // show saved screens now; no waiting for a sleeping server
     const access = await refreshAccess();
-    if (access) { setUser(saved); setToken(access); setBooting(false); prefetchScreens(access); return; }
-    if (await hasSession()) { setBootProblem("Can't reach your server right now. You're still signed in; try again in a moment."); return; }
-    setBooting(false); // the session had ended on the server
+    if (access) { setUser(saved); setToken(access); setWarm(false); setBooting(false); prefetchScreens(access); return; }
+    if (await hasSession()) {
+      if (quick) { setNotice("Showing saved data: the server is waking up or you're offline. Tap ↻ to retry."); setTimeout(() => void restore(), 20000); return; }
+      setBootProblem("Can't reach your server right now. You're still signed in; try again in a moment."); return;
+    }
+    setWarm(false); setBooting(false); // the session had ended on the server
   }, []);
   useEffect(() => {
     setRefresher(refreshAccess);
-    onSessionExpired(() => { setToken(""); setAuthNote("Your session ended. Please sign in again."); });
+    onSessionExpired(() => { setToken(""); setWarm(false); setAuthNote("Your session ended. Please sign in again."); });
     void restore();
     return () => { setRefresher(null); onSessionExpired(null); };
   }, [restore]);
@@ -180,18 +192,18 @@ function App() {
   async function signOut() {
     await endSession();
     clearScreenCache();
-    setToken(""); setUser({}); setDashboard({}); setSub(null); setTab("Home"); setAuthNote("");
+    setToken(""); setWarm(false); setUser({}); setDashboard({}); setSub(null); setTab("Home"); setAuthNote("");
   }
 
   if (booting) return <SplashScreen problem={bootProblem} onRetry={() => void restore()}
     onSignInAgain={() => { void clearSession(); setBootProblem(""); setBooting(false); }}/>;
-  if (!token) return <LoginScreen onSignedIn={onSignedIn} initialError={authNote}/>;
+  if (!token && !warm) return <LoginScreen onSignedIn={onSignedIn} initialError={authNote}/>;
 
   return <LockGate><SafeAreaView style={styles.safe}><StatusBar barStyle="light-content"/><View style={styles.app}>
     <View style={styles.topbar}>{tab === "More" && sub
       ? <TouchableOpacity onPress={() => setSub(null)}><Text style={styles.kicker}>‹ ALL APPS</Text><Text style={styles.topTitle}>{SUB_TITLES[sub]}</Text></TouchableOpacity>
       : <View><Text style={styles.kicker}>SAKUNA AI</Text><Text style={styles.topTitle}>{tab === "Home" ? "Your day, in focus." : tab === "More" ? "All apps" : tab}</Text></View>}
-      {!(tab === "More" && sub) && <TouchableOpacity onPress={() => void loadTab(tab)}><View style={styles.refreshBtn}><Text style={styles.refresh}>↻</Text></View></TouchableOpacity>}</View>
+      {!token && <Text style={{ color: "#8a9b92", fontSize: 11 }}>connecting…</Text>}{!(tab === "More" && sub) && <TouchableOpacity onPress={() => void (token ? loadTab(tab) : restore())}><View style={styles.refreshBtn}><Text style={styles.refresh}>↻</Text></View></TouchableOpacity>}</View>
     {!!error && <Text style={styles.errorBox}>{error}</Text>}{!!notice && <TouchableOpacity onPress={() => setNotice("")}><Text style={styles.notice}>{notice}  ×</Text></TouchableOpacity>}
     <View style={[styles.screen, tab === "More" && sub === "Assistant" && { marginBottom: 84 }]}>
       {tab === "Home" && <HomeScreen name={String(user.full_name || "").split(" ")[0]} life={life} dashboard={dashboard} finance={finance} health={health} onOpen={openTarget} onComplete={completeTask} onOpenPlan={() => setTab("Plan")}
@@ -226,6 +238,7 @@ function App() {
       {tab === "More" && sub === "Day" && <DayTrackerScreen key={`day-${checkinHour ?? "x"}`} api={api} onError={showError} onNotice={showNotice} initialHour={checkinHour}/>}
       {tab === "More" && sub === "Gym" && <GymScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Videos" && <VideosScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "Schedule" && <ScheduleScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "You" && <AboutYouScreen api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/>}
       {tab === "More" && sub === "Team" && <AiTeamScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Exams" && <ExamScreen api={api} onError={showError} onNotice={showNotice}/>}

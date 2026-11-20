@@ -317,6 +317,7 @@ def holdings(db: Session, user_id) -> dict:
                       "sector": watch[sym].sector if sym in watch and watch[sym].sector else "Unassigned",
                       "change_pct": float(px.change_pct) if px is not None and px.change_pct is not None else None,
                       "prev_close": _money(Decimal(px.prev_close)) if px is not None and px.prev_close else None,
+                      "price_change": _money(Decimal(px.close) - Decimal(px.prev_close)) if px is not None and px.prev_close else None,
                       "day_change": _money(b["qty"] * (Decimal(px.close) - Decimal(px.prev_close))) if px is not None and px.prev_close and b["qty"] > 0 else None,
                       "break_even_price": _money(avg * (1 + SELL_FEE) / (1 - SELL_FEE)) if avg else None,
                       "net_sale_value": _money(value * (1 - SELL_FEE)) if value is not None else None,
@@ -343,6 +344,7 @@ def _price_out(p: StockPrice | None) -> dict | None:
     if p is None:
         return None
     return {"symbol": p.symbol, "name": p.name, "date": p.trade_date, "close": p.close, "prev_close": p.prev_close,
+            "change": _money(Decimal(p.close) - Decimal(p.prev_close)) if p.prev_close else None,
             "change_pct": float(p.change_pct) if p.change_pct is not None else None, "source": p.source}
 
 

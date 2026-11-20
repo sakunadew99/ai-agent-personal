@@ -83,13 +83,13 @@ export function InvestScreen({ api, upload, onError, onNotice }: Props) {
       <Text style={s.value}>{lkr(p.value)}</Text>
       <Line>
         <View style={{ flex: 1 }}><Text style={[s.stat, { color: tone(p.day_change) }]}>{signed(p.day_change)}</Text><Muted small>today</Muted></View>
-        <View style={{ flex: 1 }}><Text style={[s.stat, { color: tone(p.unrealised) }]}>{signed(p.unrealised_pct, "%")}</Text><Muted small>unrealised</Muted></View>
+        <View style={{ flex: 1 }}><Text style={[s.stat, { color: tone(p.unrealised) }]}>{signed(p.unrealised)}</Text><Muted small>{`unrealised ${signed(p.unrealised_pct, "%")}`}</Muted></View>
         <View style={{ flex: 1 }}><Text style={[s.stat, { color: tone(p.total_return) }]}>{signed(p.total_return)}</Text><Muted small>total return</Muted></View>
       </Line>
       <Muted small>{`Cost ${lkr(p.cost)} · realised ${signed(p.realised)} · dividends ${lkr(p.dividends)}`}</Muted>
       {idx && <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.panel2, borderRadius: 14, padding: 10 }}>
         <Text style={{ color: C.muted, fontWeight: "800" }}>ASPI</Text><Text style={{ color: C.text, fontWeight: "900", fontSize: 17 }}>{Number(idx.close).toLocaleString()}</Text>
-        <Text style={{ color: tone(idx.change_pct), fontWeight: "900" }}>{`${Number(idx.change_pct) >= 0 ? "▲" : "▼"} ${signed(idx.change_pct, "%")}`}</Text>
+        <Text style={{ color: tone(idx.change_pct), fontWeight: "900" }}>{`${Number(idx.change_pct) >= 0 ? "▲" : "▼"} ${idx.change != null ? `${signed(idx.change)}  ` : ""}${signed(idx.change_pct, "%")}`}</Text>
         <View style={{ flex: 1 }}/><Muted small>{idx.date}</Muted></View>}
       <Line>
         <Btn title={busy === "fetch" ? "Reading CSE…" : "↻ CSE prices"} busy={busy === "fetch"} onPress={() => void fetchCse()} style={{ flex: 1 }}/>

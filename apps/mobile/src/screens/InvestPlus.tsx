@@ -29,8 +29,10 @@ export function HoldingRow({ h, onPress }: { h: Row; onPress: () => void }) {
   return <TouchableOpacity onPress={onPress} style={{ borderRadius: 18, padding: 12, gap: 6, backgroundColor: C.panel2, borderLeftWidth: 4, borderLeftColor: col(h.unrealised) }}>
     <Line><Text style={{ color: C.text, fontSize: 17, fontWeight: "900" }}>{root(h.symbol)}</Text><Muted small>{`${Number(h.quantity).toLocaleString()} sh @ ${Number(h.avg_cost).toFixed(2)}`}</Muted>
       <View style={{ flex: 1 }}/><Text style={{ color: C.text, fontWeight: "900", fontSize: 16 }}>{rs(h.value)}</Text></Line>
-    <Line><Text style={{ color: C.muted, fontSize: 12, flex: 1 }}>{`Price ${h.price ?? "—"}  ·  today `}<Text style={{ color: col(h.day_change), fontWeight: "800" }}>{`${sg(h.day_change, "", 0)} (${sg(h.change_pct, "%")})`}</Text></Text></Line>
-    <Line><Text style={{ color: C.muted, fontSize: 12, flex: 1 }}>{`Unrealised `}<Text style={{ color: col(h.unrealised), fontWeight: "900" }}>{`${sg(h.unrealised, "", 0)} (${sg(h.unrealised_pct, "%")})`}</Text></Text>
+    <Line><Text style={{ color: C.text, fontSize: 15, fontWeight: "900" }}>{`LKR ${h.price ?? "—"}`}</Text>
+      <Text style={{ color: col(h.price_change), fontWeight: "900", fontSize: 13 }}>{`  ${sg(h.price_change)}  ${sg(h.change_pct, "%")}`}</Text>
+      <View style={{ flex: 1 }}/><Text style={{ color: C.muted, fontSize: 12 }}>{"today "}<Text style={{ color: col(h.day_change), fontWeight: "900" }}>{`${sg(h.day_change, "", 0)} Rs`}</Text></Text></Line>
+    <Line><Text style={{ color: C.muted, fontSize: 12, flex: 1 }}>{`Unrealised `}<Text style={{ color: col(h.unrealised), fontWeight: "900" }}>{`${sg(h.unrealised, "", 0)} Rs  (${sg(h.unrealised_pct, "%")})`}</Text></Text>
       <Text style={{ color: C.muted, fontSize: 11 }}>{`B.E.S ${h.break_even_price ?? "—"}`}</Text></Line>
     <Line><Text style={{ color: C.muted, fontSize: 11, flex: 1 }}>{`After sale fees: ${rs(h.net_sale_value)} · net ${sg(h.net_gain_after_fees, "", 0)}`}</Text><Text style={{ color: C.muted, fontSize: 11 }}>{`${h.weight_pct}%`}</Text></Line>
     <Meter value={h.weight_pct} color={col(h.unrealised)} height={5}/>
@@ -96,16 +98,19 @@ export function PortfolioReview({ api, onClose, onError }: { api: Api; onClose: 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const m: Row = r?.market || {};
   return <Sheet title="Portfolio review" onClose={onClose}>
+    {r && !(r.holdings as Row[]).length && <Card accent><Kicker>NO SHARES SAVED YET</Kicker>
+      <Muted>Your portfolio is empty, so values show Rs 0. Close this and tap “📄 Import ATrad PDF” (or “＋ Share I own”) on the Invest screen, then run the review again.</Muted></Card>}
     {!r ? <Empty>{busy ? "Reading a year of CSE prices, oil, rupee and news… (first time ~20 s)" : "No data"}</Empty> : <>
       <View style={{ borderRadius: 24, padding: 16, gap: 8, backgroundColor: "#0f1a15", borderWidth: 1, borderColor: "#2a6b4a" }}>
         <Line><View style={{ flex: 1 }}><Text style={{ color: C.green, fontWeight: "800", fontSize: 11, letterSpacing: 1.4 }}>PORTFOLIO · TODAY</Text>
           <Text style={{ color: C.text, fontSize: 28, fontWeight: "900" }}>{rs(r.value)}</Text>
           <Text style={{ color: col(r.unrealised), fontWeight: "800" }}>{`Unrealised ${sg(r.unrealised, "", 0)} (${sg(r.unrealised_pct, "%")})`}</Text>
-          <Text style={{ color: col(r.day_change), fontWeight: "700" }}>{`Today ${sg(r.day_change, "", 0)}`}</Text></View>
+          <Text style={{ color: col(r.day_change), fontWeight: "700" }}>{`Today ${sg(r.day_change, "", 0)} Rs`}</Text></View>
           <Ring value={Math.max(0, Math.min(100, 50 + Number(r.unrealised_pct || 0)))} size={88} color={col(r.unrealised)} label={sg(r.unrealised_pct, "%", 1)} sub="GAIN"/></Line>
       </View>
       <TileRow>
-        <StatTile label="ASPI" tone={m.aspi_trend === "up" ? "green" : "red"} value={m.aspi ? Number(m.aspi).toLocaleString() : "—"} hint={`${sg(m.aspi_1m_pct, "%")} 1 month · ${m.aspi_trend || "?"}trend`}/>
+        <StatTile label="ASPI" tone={m.aspi_trend === "up" ? "green" : "red"} value={m.aspi ? Number(m.aspi).toLocaleString() : "—"}
+          hint={`${m.aspi_change != null ? `${sg(m.aspi_change)} pts (${sg(m.aspi_change_pct, "%")}) today · ` : ""}${sg(m.aspi_1m_pts, " pts", 0)} / ${sg(m.aspi_1m_pct, "%")} 1M`}/>
         <StatTile label="Brent oil" tone="amber" value={m.brent ? `$${m.brent}` : "—"} hint={`${sg(m.brent_1m_pct, "%")} 1 month`}/>
       </TileRow>
       <TileRow>
@@ -121,7 +126,9 @@ export function PortfolioReview({ api, onClose, onError }: { api: Api; onClose: 
         return <Card key={h.symbol} style={{ borderLeftWidth: 4, borderLeftColor: ACTION_TONE[s.action] || C.line }}>
           <TouchableOpacity onPress={() => setOpen(isOpen ? null : h.symbol)} style={{ gap: 4 }}>
             <Line><Text style={{ color: C.text, fontSize: 17, fontWeight: "900", flex: 1 }}>{root(h.symbol)}</Text><Badge tone={s.score >= 1 ? "green" : s.score <= -2 ? "red" : "amber"}>{s.action}</Badge></Line>
-            <Muted small>{`${Number(h.quantity).toLocaleString()} sh · price ${h.price ?? "—"} · ${sg(h.unrealised_pct, "%")} · RSI ${ind.rsi14 ?? "—"} · 1M ${sg(ind.ret_1m, "%")}`}</Muted>
+            <Text style={{ color: col(h.unrealised), fontWeight: "900" }}>{`Unrealised ${sg(h.unrealised, "", 0)} Rs (${sg(h.unrealised_pct, "%")}) · value ${rs(h.value)}`}</Text>
+            <Text style={{ color: col(h.price_change), fontWeight: "700", fontSize: 12 }}>{`LKR ${h.price ?? "—"}  ${sg(h.price_change)} (${sg(h.change_pct, "%")}) · today ${sg(h.day_change, "", 0)} Rs`}</Text>
+            <Muted small>{`${Number(h.quantity).toLocaleString()} sh @ ${Number(h.avg_cost).toFixed(2)} · RSI ${ind.rsi14 ?? "—"} · 1M ${sg(ind.ret_1m, "%")}`}</Muted>
             {f && <Text style={{ color: col(f.expected_change_pct), fontSize: 12 }}>{`Model, 2 weeks: ${sg(f.expected_change_pct, "%")} (range ${f.low}–${f.high})`}</Text>}
           </TouchableOpacity>
           {isOpen && <View style={{ gap: 6 }}>

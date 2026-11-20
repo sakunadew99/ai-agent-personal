@@ -407,6 +407,13 @@ def invest_review(ai: bool = False, db: Session = Depends(get_db), user: User = 
     out = portfolio_ai.review(db, user.id, use_ai=ai); db.commit(); return out
 
 
+@router.get("/schedule/suggest")
+def schedule_suggest(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Your real office, gym, wake and sleep times from the last 4 weeks of logs. A suggestion only: confirm via PATCH /profile."""
+    from app.services import schedule_detect
+    return schedule_detect.suggest(db, user.id)
+
+
 @router.get("/invest/performance")
 def invest_performance(months: int = Query(default=12, ge=3, le=12), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Monthly % change of your current holdings against the ASPI (plain arithmetic, no AI)."""

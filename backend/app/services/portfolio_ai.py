@@ -295,6 +295,9 @@ def market_context() -> dict:
         a = [v for _, v in aspi_history()]
         if a:
             out.update({"aspi": round(a[-1], 2), "aspi_1m_pct": ret(a, 21), "aspi_3m_pct": ret(a, 63),
+                        "aspi_change": round(a[-1] - a[-2], 2) if len(a) > 1 else None,
+                        "aspi_change_pct": round((a[-1] / a[-2] - 1) * 100, 2) if len(a) > 1 and a[-2] else None,
+                        "aspi_1m_pts": round(a[-1] - a[-22], 2) if len(a) > 22 else None,
                         "aspi_trend": "up" if sma(a, 50) and a[-1] > sma(a, 50) else "down"})
     except (httpx.HTTPError, ValueError, KeyError, TypeError):
         out["aspi_error"] = True
