@@ -380,6 +380,22 @@ async def invest_portfolio_preview(file: UploadFile = File(...), user: User = De
     return {"rows": rows, "count": len(rows), "total_cost": round(sum(r["total_cost"] or 0 for r in rows), 2)}
 
 
+@router.post("/invest/portfolio/preview-json")
+def invest_portfolio_preview_json(data: dto.PortfolioFileIn, user: User = Depends(get_current_user)):
+    """Same as /invest/portfolio/preview, with the file as base64 JSON (more reliable from phones)."""
+    import base64
+    import binascii
+    from app.services import portfolio_ai
+    try:
+        content = base64.b64decode(data.data_base64.split(",", 1)[-1], validate=False)
+    except (binascii.Error, ValueError) as exc:
+        raise HTTPException(422, "The file couldn't be read. Pick it again.") from exc
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(413, "File is larger than 5 MB")
+    rows = portfolio_ai.read_portfolio_file(content, data.filename)
+    return {"rows": rows, "count": len(rows), "total_cost": round(sum(r["total_cost"] or 0 for r in rows), 2)}
+
+
 @router.post("/invest/portfolio/import")
 def invest_portfolio_import(data: dto.PortfolioImportIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Save your holdings as opening positions at your average price (replaces the previous import, keeps your own trades)."""

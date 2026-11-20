@@ -185,16 +185,19 @@ export async function apiUpload<T = ApiRecord>(path: string, token: string, file
   form.append("file", { uri: file.uri, name: file.name, type: file.type || "application/octet-stream" } as unknown as Blob);
   for (const [k, v] of Object.entries(fields || {})) form.append(k, v);
   const bearer = token ? latestAccess || token : "";
-  let response: Response;
-  try {
-    response = await fetch(`${baseUrl}/api/v1${path}`, { method: "POST", headers: bearer ? { Authorization: `Bearer ${bearer}` } : {}, body: form });
-    if (response.status === 401 && bearer && refresher) {
-      const fresh = await refresher();
-      if (fresh) response = await fetch(`${baseUrl}/api/v1${path}`, { method: "POST", headers: { Authorization: `Bearer ${fresh}` }, body: form });
-    }
-  } catch {
-    throw new ApiError(`Can't reach the server at ${baseUrl}. Check your internet connection and the server address.`, 0);
+  let response: Response | null = null;
+  let why = "";
+  for (let attempt = 0; attempt < 2 && !response; attempt++) {     // one retry: the free server may be waking up
+    if (attempt) await sleep(4000);
+    try {
+      response = await fetch(`${baseUrl}/api/v1${path}`, { method: "POST", headers: bearer ? { Authorization: `Bearer ${bearer}` } : {}, body: form });
+      if (response.status === 401 && bearer && refresher) {
+        const fresh = await refresher();
+        if (fresh) response = await fetch(`${baseUrl}/api/v1${path}`, { method: "POST", headers: { Authorization: `Bearer ${fresh}` }, body: form });
+      }
+    } catch (reason) { why = reason instanceof Error ? reason.message : ""; response = null; }
   }
+  if (!response) throw new ApiError(`Can't reach the server at ${baseUrl}${why ? ` (${why})` : ""}. Check your internet connection and try again.`, 0);
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new ApiError(String(payload.detail || `Upload failed (${response.status})`), response.status);
   return payload as T;

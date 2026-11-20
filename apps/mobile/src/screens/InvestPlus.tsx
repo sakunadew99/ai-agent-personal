@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
+import { readAsStringAsync } from "expo-file-system/legacy";
 import type { ApiRecord as Row } from "../api";
 import { LineChart, Meter, Ring, StatTile, TileRow } from "../charts";
 import { openInApp } from "../browser";
@@ -49,7 +50,16 @@ export function ImportPortfolio({ api, upload, onClose, onDone, onError }: { api
       if (res.canceled || !res.assets?.length) return;
       setBusy(true);
       const f = res.assets[0];
-      const out = await upload("/invest/portfolio/preview", { uri: f.uri, name: f.name, type: f.mimeType });
+      if (f.size && f.size > 5 * 1024 * 1024) { onError("That file is over 5 MB. Export only the portfolio page."); return; }
+      // Sent as base64 JSON (like every other request) instead of a multipart upload, which fails on some phones.
+      const data = await readAsStringAsync(f.uri, { encoding: "base64" });
+      let out: Row | null = null, last: unknown = null;
+      for (let attempt = 0; attempt < 3 && !out; attempt++) {
+        if (attempt) await new Promise(r => setTimeout(r, attempt * 4000));     // the free server may be waking up
+        try { out = await api<Row>("/invest/portfolio/preview-json", "POST", { filename: f.name || "portfolio.pdf", data_base64: data }); }
+        catch (e) { last = e; if ((e as { status?: number })?.status) break; }  // a real answer (e.g. 422) is not retried
+      }
+      if (!out) throw last;
       setRows(out.rows);
     } catch (e) { onError(msg(e)); } finally { setBusy(false); }
   }

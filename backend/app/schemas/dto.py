@@ -1516,3 +1516,9 @@ class SpeakingIn(BaseModel):
     lang: Literal["en", "de"] = "en"
     topic: str | None = Field(default=None, max_length=200)
     source: Literal["device", "whisper"] = "device"
+
+
+class PortfolioFileIn(BaseModel):
+    """A portfolio file sent as base64 JSON (phones: avoids multipart upload problems)."""
+    filename: str = Field(default="portfolio.pdf", max_length=200)
+    data_base64: str = Field(min_length=8, max_length=7_200_000)       # ~5 MB file

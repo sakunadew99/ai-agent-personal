@@ -119,3 +119,13 @@ def test_performance_and_dividends_are_private(client):
     assert div["shares"][0]["symbol"] == "COMB.N0000" and float(div["months"][-1]["amount"]) == 450
     assert float(b("GET", "/invest/dividends", expect=200).json()["total_12m"]) == 0      # private
     assert b("GET", "/invest/performance", expect=200).json()["compared_months"] == 0
+
+
+def test_preview_json_base64_for_phones(client):
+    import base64
+    a = _user(client)
+    data = base64.b64encode(ATRAD.encode()).decode()
+    out = a("POST", "/invest/portfolio/preview-json", {"filename": "portfolio.txt", "data_base64": data}, 200).json()
+    assert out["count"] == 3 and out["rows"][1]["symbol"] == "COCR.N0000"
+    a("POST", "/invest/portfolio/preview-json", {"filename": "x.txt", "data_base64": base64.b64encode(b"nothing here").decode()}, 422)
+    assert client.post("/api/v1/invest/portfolio/preview-json", json={"filename": "p.txt", "data_base64": data}).status_code == 401
