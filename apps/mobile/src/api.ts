@@ -179,10 +179,11 @@ export function prefetchScreens(token: string) {
 }
 
 /** Upload one file (multipart/form-data) to the API, e.g. a CSV or Excel file picked on the phone. */
-export async function apiUpload<T = ApiRecord>(path: string, token: string, file: { uri: string; name: string; type?: string | null }): Promise<T> {
+export async function apiUpload<T = ApiRecord>(path: string, token: string, file: { uri: string; name: string; type?: string | null }, fields?: Record<string, string>): Promise<T> {
   const form = new FormData();
   // React Native's FormData accepts { uri, name, type } for files on the device.
   form.append("file", { uri: file.uri, name: file.name, type: file.type || "application/octet-stream" } as unknown as Blob);
+  for (const [k, v] of Object.entries(fields || {})) form.append(k, v);
   const bearer = token ? latestAccess || token : "";
   let response: Response;
   try {

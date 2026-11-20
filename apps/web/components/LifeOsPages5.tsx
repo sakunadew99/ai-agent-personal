@@ -158,3 +158,24 @@ export function PortfolioInsights({ token }: { token: string }) {
     </Card>
   </div>;
 }
+
+export function SearchPage({ token }: { token: string }) {
+  const [q, setQ] = useState("");
+  const [r, setR] = useState<Row | null>(null);
+  useEffect(() => {
+    const s = q.trim();
+    if (s.length < 2) { setR(null); return; }
+    const t = setTimeout(() => { call<Row>(`/search?q=${encodeURIComponent(s)}`, token).then(setR).catch(() => setR(null)); }, 400);
+    return () => clearTimeout(t);
+  }, [q, token]);
+  return <div className="d-dash">
+    <Hero kicker="Search everything" title="Find it" accent="fast" sub="Tasks, inbox, journal, memories, videos, news, flashcards, jobs and more. With HF_TOKEN set it also finds things by meaning.">
+      <input className="d-input" autoFocus style={{ marginTop: 12, fontSize: 17 }} placeholder="e.g. running shoes, German exam, salary…" value={q} onChange={e => setQ(e.target.value)}/>
+    </Hero>
+    {r && <p className="d-note">{r.count} found · {r.mode === "meaning" ? "✨ by meaning + words" : "by words"}{r.note ? ` · ${r.note}` : ""}</p>}
+    <div style={{ display: "grid", gap: 10 }}>{(r?.results as Row[] || []).map(x => <article key={`${x.kind}-${x.id}`} className="d-card" style={{ padding: 12, gap: 4 }}>
+      <div className="d-row"><span style={{ fontSize: 20 }}>{x.icon}</span><b style={{ color: "var(--d-text)" }}>{x.url ? <a href={x.url} target="_blank" rel="noreferrer">{x.title}</a> : x.title}</b></div>
+      {x.snippet && <small className="d-note">{x.snippet}</small>}
+      <small style={{ color: x.why === "similar meaning" ? "var(--d-violet)" : "var(--d-green)" }}>{x.label}{x.why ? ` · ${x.why}` : ""}</small></article>)}</div>
+  </div>;
+}

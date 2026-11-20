@@ -1669,7 +1669,8 @@ def life_list(db: Session = Depends(get_db), user: User = Depends(get_current_us
 
 
 # Sections that live in their own modules (imported last: they reuse the helpers defined above).
-from app.api.v1 import routes_lifeos, routes_tracking  # noqa: E402
+from app.api.v1 import routes_ai_tools, routes_lifeos, routes_tracking  # noqa: E402
 
 router.include_router(routes_tracking.router)
 router.include_router(routes_lifeos.router)
+router.include_router(routes_ai_tools.router)

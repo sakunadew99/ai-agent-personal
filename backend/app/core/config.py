@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     ai_base_url: str = "https://api.openai.com/v1"
     ai_api_key: str = ""                  # falls back to OPENAI_API_KEY
     ai_embeddings: bool = True            # needs 1536-dim embeddings; turn off for providers without them
+    # Free Hugging Face Inference (huggingface.co -> Settings -> Access tokens, "read"). Powers FinBERT news tone and
+    # search-by-meaning (all-MiniLM-L6-v2). Empty = keyword fallbacks, everything still works.
+    hf_token: str = ""
+    hf_base_url: str = "https://router.huggingface.co/hf-inference/models"
+    hf_sentiment_model: str = "ProsusAI/finbert"
+    hf_embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     ai_transcription: bool = True
     openai_model_small: str = "gpt-4o-mini"
     openai_model_balanced: str = "gpt-4o-mini"

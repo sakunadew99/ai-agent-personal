@@ -244,6 +244,34 @@ def _news_for(db: Session, user_id, name: str | None, symbol: str) -> list[dict]
     return [{"title": r.title, "url": r.url, "tone": "negative" if re.search(neg, r.title, re.I) else "positive" if re.search(pos, r.title, re.I) else "neutral"} for r in hit[:5]]
 
 
+MARKET_WORDS = r"\b(sri lanka|lanka|cse|colombo|aspi|rupee|lkr|cbsl|central bank|imf|economy|inflation|interest rates?|stocks?|shares?|tea|oil|budget|tourism|exports?)\b"
+
+
+def news_mood(db: Session, user_id, holding_news: list[dict]) -> dict:
+    """FinBERT (free Hugging Face model) reads the tone of recent market headlines and your shares' headlines.
+    Without HF_TOKEN the keyword tone is kept. Only public headlines are sent."""
+    from app.services import hf
+    since = datetime.now(timezone.utc) - timedelta(days=4)
+    recent = db.scalars(select(NewsItem).where(NewsItem.user_id == user_id, NewsItem.published_at >= since).order_by(NewsItem.published_at.desc()).limit(200)).all()
+    market = [{"title": r.title, "url": r.url} for r in recent if re.search(MARKET_WORDS, r.title, re.I)][:30]
+    all_news = holding_news + market
+    tones = hf.finbert([n["title"] for n in all_news])
+    model = "FinBERT" if any(tones) else "keywords"
+    for n, t in zip(all_news, tones):
+        if t:
+            n["tone"], n["tone_score"], n["tone_model"] = t["label"], t["score"], "FinBERT"
+        elif "tone" not in n:
+            neg = re.search(r"\b(loss|falls?|drop|fraud|probe|downgrade|default|slump|plunge|cut|crisis|weak)\b", n["title"], re.I)
+            pos = re.search(r"\b(profit|record|growth|rises?|gain|upgrade|dividend|expands?|wins?|surge|strong)\b", n["title"], re.I)
+            n["tone"] = "negative" if neg else "positive" if pos else "neutral"
+    pos = sum(1 for n in market if n.get("tone") == "positive")
+    neg = sum(1 for n in market if n.get("tone") == "negative")
+    score = round((pos - neg) / len(market) * 100) if market else 0
+    label = "positive" if score >= 20 else "negative" if score <= -20 else "mixed"
+    return {"model": model, "headlines": len(market), "positive": pos, "negative": neg, "neutral": len(market) - pos - neg, "score": score, "label": label,
+            "top": sorted([n for n in market if n.get("tone") != "neutral"], key=lambda n: -(n.get("tone_score") or 0.5))[:5]}
+
+
 def _suggest(h: dict, ind: dict, market: dict) -> dict:
     """Plain rules -> one suggestion with reasons. Scores add up; the reasons are what you read."""
     score, reasons = 0, []
@@ -285,6 +313,16 @@ def _suggest(h: dict, ind: dict, market: dict) -> dict:
         action = "Watch closely"
     else:
         action = "Hold"
+    news = h.get("news") or []
+    bad = [n for n in news if n.get("tone") == "negative" and (n.get("tone_score") or 0) >= 0.8]
+    good = [n for n in news if n.get("tone") == "positive" and (n.get("tone_score") or 0) >= 0.8]
+    if len(bad) >= 2 and len(bad) > len(good):
+        reasons.append(f"{len(bad)} clearly negative headlines (FinBERT): check the news before adding")
+    elif len(good) >= 2 and len(good) > len(bad):
+        reasons.append(f"{len(good)} clearly positive headlines (FinBERT)")
+    mood = (market.get("news_mood") or {}).get("label")
+    if mood == "negative" and score > 0:
+        reasons.append("Market news mood is negative right now: buy in small steps")
     return {"action": action, "score": score, "confidence": "medium" if abs(score) >= 2 and ind.get("enough_data") else "low",
             "reasons": reasons or ["No strong signal: hold and keep watching"]}
 
@@ -324,6 +362,13 @@ def market_context() -> dict:
     return out
 
 
+def mood_note(mood: dict) -> str | None:
+    if not mood or not mood.get("headlines"):
+        return None
+    return (f"News mood ({mood['model']}, {mood['headlines']} headlines, 4 days): {mood['label']}: "
+            f"{mood['positive']} positive, {mood['negative']} negative.")
+
+
 def review(db: Session, user_id, use_ai: bool = False) -> dict:
     from app.services import invest
     port = invest.holdings(db, user_id)
@@ -338,11 +383,14 @@ def review(db: Session, user_id, use_ai: bool = False) -> dict:
         return h, indicators(series)
     with ThreadPoolExecutor(max_workers=4) as pool:
         pairs = list(pool.map(one, held))
-    rows = []
-    for h, ind in pairs:
-        h = {k: (float(v) if isinstance(v, Decimal) else v) for k, v in h.items()}
+    pairs = [({k: (float(v) if isinstance(v, Decimal) else v) for k, v in h.items()}, ind) for h, ind in pairs]
+    for h, _ in pairs:
         h["news"] = _news_for(db, user_id, h.get("name"), h["symbol"])
-        rows.append({**h, "indicators": ind, "suggestion": _suggest(h, ind, market)})
+    market["news_mood"] = news_mood(db, user_id, [n for h, _ in pairs for n in h["news"]])   # FinBERT tones (or keywords)
+    note = mood_note(market["news_mood"])
+    if note:
+        market["notes"] = [*market.get("notes", []), note]
+    rows = [{**h, "indicators": ind, "suggestion": _suggest(h, ind, market)} for h, ind in pairs]
     rows.sort(key=lambda r: r["suggestion"]["score"])
     total = float(port["value"] or 0)
     top3 = sum(sorted((r.get("weight_pct") or 0 for r in rows), reverse=True)[:3])

@@ -1645,3 +1645,39 @@ class MediaItem(Base):
     minutes_watched: Mapped[int] = mapped_column(Integer, default=0)
     last_opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class SpeakingSession(Base):
+    """One speaking practice: what you said (transcript), how long, and the plain-code scores (pace, fillers, variety)."""
+    __tablename__ = "speaking_sessions"
+    __table_args__ = (CheckConstraint("lang IN ('en','de')", name="ck_speaking_sessions_lang"),
+                      CheckConstraint("source IN ('device','whisper')", name="ck_speaking_sessions_source"),
+                      CheckConstraint("seconds BETWEEN 5 AND 1800", name="ck_speaking_sessions_seconds"))
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    lang: Mapped[str] = mapped_column(String(2), default="en")
+    topic: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    transcript: Mapped[str] = mapped_column(Text)
+    seconds: Mapped[int] = mapped_column(Integer)
+    words: Mapped[int] = mapped_column(Integer, default=0)
+    wpm: Mapped[int] = mapped_column(Integer, default=0)
+    fillers: Mapped[int] = mapped_column(Integer, default=0)
+    score: Mapped[int] = mapped_column(Integer, default=0)
+    details: Mapped[dict | None] = mapped_column(JsonDict, nullable=True)
+    feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source: Mapped[str] = mapped_column(String(8), default="device")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class TextVector(Base):
+    """Cached meaning vector for one piece of your text (search). Keyed by a hash, so edits get a new vector."""
+    __tablename__ = "text_vectors"
+    __table_args__ = (UniqueConstraint("user_id", "text_hash", "model", name="uq_text_vectors_user_hash_model"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    text_hash: Mapped[str] = mapped_column(String(64))
+    model: Mapped[str] = mapped_column(String(80))
+    vector: Mapped[list] = mapped_column(JsonDict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

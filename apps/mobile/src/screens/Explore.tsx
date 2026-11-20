@@ -1,6 +1,8 @@
 import * as SecureStore from "expo-secure-store";
 import React, { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import type { ApiRecord as Row } from "../api";
+import { openInApp } from "../browser";
 import { C } from "../ui";
 import type { MoreTarget } from "./HealthReviewScreens";
 
@@ -23,6 +25,7 @@ export const GROUPS: Group[] = [
   ] },
   { name: "Learning", emoji: "🎓", color: "#b18cff", items: [
     { key: "Learning", icon: "📚", title: "Learning", hint: "Languages, flashcards, tracker", words: "german english words leetcode course" },
+    { key: "Speak", icon: "🎙", title: "Speaking coach", hint: "Public speaking, English & German", words: "speech talk presentation pronunciation fluency confidence communication whisper" },
     { key: "Exams", icon: "📝", title: "Exam coach", hint: "IELTS & Goethe plan", words: "ielts goethe exam" },
     { key: "Brain", icon: "🧠", title: "Brain gym", hint: "Daily brain games", words: "games puzzle memory" },
     { key: "Videos", icon: "🎬", title: "My videos", hint: "Drive & YouTube in-app", words: "google drive youtube lectures" },
@@ -69,8 +72,15 @@ function Tile({ item, color, open, wide }: { item: Item; color: string; open: (k
 }
 
 /** The "More" tab: search box, recently used, then colourful groups. */
-export function ExploreScreen({ open }: { open: (t: MoreTarget) => void }) {
+export function ExploreScreen({ open, api, openAny }: { open: (t: MoreTarget) => void; api?: <T = Row>(path: string) => Promise<T>; openAny?: (screen: string) => void }) {
   const [q, setQ] = useState("");
+  const [found, setFound] = useState<Row | null>(null);
+  useEffect(() => {
+    const s = q.trim();
+    if (!api || s.length < 2) { setFound(null); return; }
+    const t = setTimeout(() => { api<Row>(`/search?q=${encodeURIComponent(s)}`).then(setFound).catch(() => setFound(null)); }, 450);
+    return () => clearTimeout(t);
+  }, [q, api]);
   const [recent, setRecent] = useState<string[]>([]);
   useEffect(() => { SecureStore.getItemAsync(RECENT_KEY).then(v => setRecent(JSON.parse(v || "[]"))).catch(() => undefined); }, []);
   const go = (k: MoreTarget) => { void rememberScreen(k); open(k); };
@@ -83,12 +93,25 @@ export function ExploreScreen({ open }: { open: (t: MoreTarget) => void }) {
   return <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120, gap: 16 }} keyboardShouldPersistTaps="handled">
     <View style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: C.panel2, borderRadius: 18, paddingHorizontal: 14, borderWidth: 1, borderColor: q ? C.green : C.line }}>
       <Text style={{ fontSize: 16 }}>🔍</Text>
-      <TextInput value={q} onChangeText={setQ} placeholder="Search: gym, shares, German, videos…" placeholderTextColor={C.muted} style={{ flex: 1, color: C.text, paddingVertical: 13, fontSize: 15 }} autoCorrect={false}/>
+      <TextInput value={q} onChangeText={setQ} placeholder="Search apps and everything you saved…" placeholderTextColor={C.muted} style={{ flex: 1, color: C.text, paddingVertical: 13, fontSize: 15 }} autoCorrect={false}/>
       {!!q && <TouchableOpacity onPress={() => setQ("")}><Text style={{ color: C.muted, fontSize: 18 }}>✕</Text></TouchableOpacity>}
     </View>
     {q ? <View style={{ gap: 10 }}>
-      <Text style={{ color: C.muted, fontSize: 12 }}>{hits.length ? `${hits.length} found` : "Nothing found. Try another word."}</Text>
+      {hits.length > 0 && <Text style={{ color: C.text, fontWeight: "900", fontSize: 15 }}>{`🧭 Apps · ${hits.length}`}</Text>}
       {hits.map(i => <Tile key={i.key} item={i} color={i.color} open={go} wide/>)}
+      <Text style={{ color: C.text, fontWeight: "900", fontSize: 15, marginTop: 6 }}>{`🔎 In your stuff${found ? ` · ${found.count}` : ""}`}</Text>
+      {found?.mode === "meaning" && <Text style={{ color: "#b48cff", fontSize: 11 }}>✨ Searching by meaning too (Hugging Face MiniLM)</Text>}
+      {!found ? <Text style={{ color: C.muted, fontSize: 12 }}>{q.trim().length < 2 ? "Type 2+ letters" : "Searching…"}</Text>
+        : !found.results.length ? <Text style={{ color: C.muted, fontSize: 12 }}>Nothing in your tasks, notes, journal, videos or news.</Text>
+        : (found.results as Row[]).map(r => <TouchableOpacity key={`${r.kind}-${r.id}`} activeOpacity={0.8}
+          onPress={() => { if (r.url) openInApp(r.url, r.title); else openAny?.(r.screen); }}
+          style={{ flexDirection: "row", gap: 10, alignItems: "center", backgroundColor: C.panel, borderRadius: 16, padding: 12, borderWidth: 1, borderColor: C.line }}>
+          <Text style={{ fontSize: 20 }}>{r.icon}</Text>
+          <View style={{ flex: 1, gap: 2 }}><Text style={{ color: C.text, fontWeight: "800" }} numberOfLines={1}>{r.title}</Text>
+            {!!r.snippet && <Text style={{ color: C.muted, fontSize: 12 }} numberOfLines={1}>{r.snippet}</Text>}
+            <Text style={{ color: r.why === "similar meaning" ? "#b48cff" : C.green, fontSize: 10.5, fontWeight: "700" }}>{`${r.label}${r.why ? ` · ${r.why}` : ""}`}</Text></View>
+          <Text style={{ color: C.muted }}>›</Text></TouchableOpacity>)}
+      {!!found?.note && <Text style={{ color: C.muted, fontSize: 11 }}>{found.note}</Text>}
     </View> : <>
       {recents.length > 0 && <View style={{ gap: 10 }}>
         <Text style={{ color: C.text, fontWeight: "900", fontSize: 16 }}>🕘 Recently used</Text>

@@ -1508,3 +1508,11 @@ class MediaUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     folder: str | None = Field(default=None, min_length=1, max_length=60)
     add_minutes: int | None = Field(default=None, ge=0, le=600)
+
+
+class SpeakingIn(BaseModel):
+    transcript: str = Field(min_length=1, max_length=20000)
+    seconds: int = Field(ge=5, le=1800)
+    lang: Literal["en", "de"] = "en"
+    topic: str | None = Field(default=None, max_length=200)
+    source: Literal["device", "whisper"] = "device"
