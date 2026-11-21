@@ -74,8 +74,8 @@ def test_cards_review_flow_and_stats(api):
     api("POST", "/learning/cards", {"deck": "german", "front": "der Apfel", "back": "dup"}, 409)
     assert card["id"] in [c["id"] for c in api("GET", "/learning/review?deck=german", expect=200).json()]
     reviewed = api("POST", f"/learning/cards/{card['id']}/review", {"grade": "good"}, 200).json()
-    assert reviewed["interval_days"] == 1
-    assert as_utc(datetime.fromisoformat(reviewed["due_at"].replace("Z", "+00:00"))) > datetime.now(timezone.utc) + timedelta(hours=23)
+    assert reviewed["interval_days"] == 4 and reviewed["stability"] > 3          # FSRS: first "good" = about 4 days
+    assert as_utc(datetime.fromisoformat(reviewed["due_at"].replace("Z", "+00:00"))) > datetime.now(timezone.utc) + timedelta(days=3)
     assert card["id"] not in [c["id"] for c in api("GET", "/learning/review", expect=200).json()]
     api("POST", f"/learning/cards/{card['id']}/review", {"grade": "perfect"}, 422)
     stats = api("GET", "/learning/stats", expect=200).json()

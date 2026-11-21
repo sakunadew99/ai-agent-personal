@@ -127,12 +127,22 @@ def due_cards(db: Session, user_id, deck: str | None, limit: int) -> list[Flashc
 
 
 def review_card(db: Session, row: Flashcard, grade: str) -> Flashcard:
+    """FSRS scheduling (free spaced-repetition algorithm): the card comes back just before you'd forget it."""
+    from app.services import fsrs
     now = now_utc()
+    s, d = row.stability, row.difficulty
+    if s is None and row.repetitions:                       # reviewed before FSRS: start from its SM-2 history
+        s, d = fsrs.from_sm2(row.ease, row.interval_days, row.repetitions)
+    elapsed = (now - as_utc(row.last_reviewed_at)).total_seconds() / 86400 if row.last_reviewed_at else 0.0
     try:
-        nxt = schedule(row.ease, row.interval_days, row.repetitions, row.lapses, grade, now)
+        nxt = fsrs.review(s, d, elapsed, grade, now)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
-    row.ease, row.interval_days, row.repetitions, row.lapses, row.due_at = nxt.ease, nxt.interval_days, nxt.repetitions, nxt.lapses, nxt.due_at
+    row.stability, row.difficulty = round(nxt.stability, 4), round(nxt.difficulty, 4)
+    row.interval_days, row.due_at = nxt.interval_days, nxt.due_at
+    row.repetitions = 0 if grade == "again" else row.repetitions + 1
+    if grade == "again":
+        row.lapses += 1
     row.last_reviewed_at = row.updated_at = now
     db.add(FlashcardReview(user_id=row.user_id, card_id=row.id, grade=grade, interval_days=nxt.interval_days, reviewed_at=now))
     return row

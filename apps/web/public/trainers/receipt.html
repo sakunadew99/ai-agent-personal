@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Receipt scan</title>
+<style>
+:root{--bg:#070b09;--card:#0f1613;--line:#1d2a24;--text:#eef6f1;--muted:#8a9b92;--green:#3ee08f;--amber:#f5b65b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:14px;max-width:560px;margin:auto}
+h1{font-size:21px;margin:2px 0}.muted{color:var(--muted);font-size:13px}.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px;margin-top:12px}
+.pick{display:block;text-align:center;border:2px dashed #3ee08f66;border-radius:20px;padding:30px 12px;font-weight:800;font-size:17px;cursor:pointer}
+.pick input{display:none}img{max-width:100%;border-radius:14px;margin-top:10px}
+.bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin-top:10px}.bar i{display:block;height:100%;width:0;background:var(--green);transition:width .2s}
+label{display:block;font-size:12px;color:var(--muted);margin-top:10px}input[type=text],input[type=number],select{width:100%;background:#141d19;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:11px;font-size:16px}
+button{width:100%;border:0;border-radius:14px;padding:13px;font-weight:900;font-size:16px;background:var(--green);color:#04170d;margin-top:14px}
+pre{white-space:pre-wrap;font-size:11px;color:var(--muted);max-height:140px;overflow:auto}
+</style></head><body>
+<h1>🧾 Receipt → expense</h1><div class="muted">Take a photo of a receipt. It's read on this phone (free Tesseract OCR); the photo is not uploaded. Check the numbers, then save.</div>
+<label class="pick card">📷 Take or choose a receipt photo<input type="file" id="file" accept="image/*" capture="environment"></label>
+<div id="prog" style="display:none"><div class="muted" id="ptext">Reading…</div><div class="bar"><i id="pbar"></i></div></div>
+<img id="img" style="display:none">
+<div id="form" class="card" style="display:none">
+  <label>Amount</label><input type="number" id="amount" step="0.01" inputmode="decimal">
+  <label>Currency</label><select id="cur"><option>LKR</option><option>USD</option><option>EUR</option><option>GBP</option><option>INR</option></select>
+  <label>Shop</label><input type="text" id="merchant">
+  <label>Category</label><select id="cat"></select>
+  <label>Date</label><input type="text" id="date" placeholder="YYYY-MM-DD">
+  <button id="save">✓ Save expense</button>
+  <details style="margin-top:10px"><summary class="muted">What the scanner read</summary><pre id="raw"></pre></details>
+</div>
+<div id="err" class="muted" style="color:var(--amber);margin-top:10px"></div>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+function post(d){const s=JSON.stringify(d);if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(s);else if(window.parent!==window)window.parent.postMessage(s,"*");}
+const CATS=["food","transport","shopping","health","education","housing","subscriptions","business","other"];
+CATS.forEach(c=>{const o=document.createElement("option");o.value=c;o.textContent=c;$("cat").appendChild(o);});
+const KEYWORDS={food:/restaurant|cafe|café|bakery|hotel|kfc|pizza|burger|food|kitchen|coffee|tea|juice|bistro|dine|kottu|rice/i,
+  transport:/fuel|petrol|diesel|filling|ceypetco|ioc|uber|pickme|taxi|bus|train|parking|toll/i,health:/pharmacy|pharma|hospital|clinic|medical|lab|osu|healthguard|chemist/i,
+  shopping:/keells|cargills|arpico|glomark|spar|laugfs|supermarket|mart|store|shop|fashion|odel|nolimit|daraz/i,education:/book|school|college|course|tuition|stationery/i,
+  housing:/rent|electric|ceb|leco|water board|nwsdb|gas/i,subscriptions:/netflix|spotify|dialog|mobitel|airtel|hutch|subscription|internet|broadband/i};
+function parse(text){const lines=text.split(/\n/).map(l=>l.trim()).filter(Boolean);
+  const num=s=>{const m=s.replace(/[oO](?=\d)/g,"0").match(/(\d{1,3}(?:[ ,]\d{3})+|\d+)(?:[.,](\d{2}))?(?!\d)/g);return m?m.map(x=>{const t=x.replace(/[ ,](?=\d{3}\b)/g,"");return parseFloat(t.replace(",","."))}).filter(v=>!isNaN(v)):[]};
+  let amount=null;const totalRe=/(grand\s*total|net\s*total|total\s*amount|amount\s*due|net\s*amount|total|balance\s*due|to\s*pay|payable)/i;
+  for(let i=lines.length-1;i>=0;i--){if(totalRe.test(lines[i])&&!/sub\s*total|items?\s*total|total\s*items|discount|tax/i.test(lines[i])){const own=num(lines[i]),v=own.length?own:(lines[i+1]?num(lines[i+1]):[]);if(v.length){amount=v[v.length-1];break}}}
+  if(amount==null){const all=lines.flatMap(num).filter(v=>v<10000000&&v>0);if(all.length)amount=Math.max(...all);}
+  const cur=/\$|usd/i.test(text)?"USD":/€|eur/i.test(text)?"EUR":/£|gbp/i.test(text)?"GBP":/₹|inr/i.test(text)?"INR":"LKR";
+  let date="";const d1=text.match(/(20\d{2})[-/.](\d{1,2})[-/.](\d{1,2})/),d2=text.match(/(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2}|\d{2})/);
+  if(d1)date=`${d1[1]}-${d1[2].padStart(2,"0")}-${d1[3].padStart(2,"0")}`;else if(d2){const y=d2[3].length===2?"20"+d2[3]:d2[3];date=`${y}-${d2[2].padStart(2,"0")}-${d2[1].padStart(2,"0")}`;}
+  const merchant=(lines.find(l=>/[a-z]{3,}/i.test(l)&&!/receipt|invoice|tax|tel|phone|date|bill/i.test(l))||"").slice(0,60);
+  let cat="other";for(const[k,re]of Object.entries(KEYWORDS))if(re.test(text)){cat=k;break}
+  return{amount,cur,date,merchant,cat};}
+$("file").onchange=async e=>{const f=e.target.files[0];if(!f)return;$("err").textContent="";$("form").style.display="none";$("img").src=URL.createObjectURL(f);$("img").style.display="";
+  $("prog").style.display="";$("pbar").style.width="0";
+  try{const r=await Tesseract.recognize(f,"eng",{logger:m=>{if(m.status==="recognizing text"){$("pbar").style.width=Math.round(m.progress*100)+"%";$("ptext").textContent="Reading the receipt… "+Math.round(m.progress*100)+"%";}else $("ptext").textContent=m.status+"…";}});
+    const text=r.data.text||"";$("raw").textContent=text;const p=parse(text);
+    $("amount").value=p.amount??"";$("cur").value=p.cur;$("merchant").value=p.merchant;$("cat").value=p.cat;$("date").value=p.date;
+    $("prog").style.display="none";$("form").style.display="";if(p.amount==null)$("err").textContent="Couldn't find the total: type it in.";}
+  catch(err){$("prog").style.display="none";$("err").textContent="Couldn't read the photo: "+err.message+". Check your internet (the reader downloads once) and try a sharper photo.";}};
+$("save").onclick=()=>{const amount=parseFloat($("amount").value);if(!(amount>0)){$("err").textContent="Enter the amount.";return}
+  post({kind:"receipt",amount,currency:$("cur").value,merchant:$("merchant").value.trim()||null,category:$("cat").value,date:/^\d{4}-\d{2}-\d{2}$/.test($("date").value)?$("date").value:null});
+  $("save").disabled=true;$("save").textContent="Saved ✓";};
+</script></body></html>

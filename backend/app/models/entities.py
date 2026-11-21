@@ -508,6 +508,8 @@ class Flashcard(Base):
     lapses: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    stability: Mapped[float | None] = mapped_column(Float, nullable=True)      # FSRS: days until recall falls to 90%
+    difficulty: Mapped[float | None] = mapped_column(Float, nullable=True)     # FSRS: 1 (easy) .. 10 (hard)
     suspended: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

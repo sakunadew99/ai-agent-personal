@@ -582,6 +582,8 @@ class FlashcardOut(ORMModel):
     example: str | None
     ease: float
     interval_days: int
+    stability: float | None = None
+    difficulty: float | None = None
     repetitions: int
     lapses: int
     due_at: datetime
@@ -1669,3 +1671,10 @@ class EveningIn(BaseModel):
     wins: list[str] = Field(default_factory=list, max_length=5)
     lesson: str | None = Field(default=None, max_length=1000)
     tomorrow: list[str] = Field(default_factory=list, max_length=3)
+
+
+class DrillIn(BaseModel):
+    target: str = Field(min_length=1, max_length=300)
+    heard: str = Field(default="", max_length=600)
+    lang: Literal["en", "de"] = "de"
+    seconds: int = Field(default=5, ge=1, le=120)

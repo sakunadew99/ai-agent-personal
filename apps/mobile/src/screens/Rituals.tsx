@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { KeyboardAvoidingView, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import type { ApiRecord as Row } from "../api";
 import { Btn, C, Kicker, Muted } from "../ui";
+import { Trainer, type TrainerResult } from "./Trainer";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 const msg = (r: unknown) => (r instanceof Error ? r.message : "Something went wrong");
@@ -112,16 +113,20 @@ const CATS = ["food", "transport", "shopping", "health", "education", "housing",
 const CAT_ICON: Record<string, string> = { food: "🍛", transport: "🚌", shopping: "🛍️", health: "💊", education: "🎓", housing: "🏠", subscriptions: "🔁", business: "💼", other: "📦" };
 
 export function QuickAdd({ api, onClose, onOpen, onNotice, onError }: { api: Api; onClose: () => void; onOpen: (t: string) => void; onNotice: (m: string) => void; onError: (m: string) => void }) {
-  const [mode, setMode] = useState<"" | "expense" | "task">("");
+  const [mode, setMode] = useState<"" | "expense" | "task" | "receipt">("");
   const [amount, setAmount] = useState(""); const [cat, setCat] = useState("food"); const [cur, setCur] = useState("LKR"); const [note, setNote] = useState("");
   const [title, setTitle] = useState(""); const [prio, setPrio] = useState("medium");
   const go = (t: string) => { onClose(); onOpen(t); };
   const saveExpense = () => void api("/finance/expenses", "POST", { amount: Number(amount), currency: cur, category: cat, notes: note.trim() || undefined, record_kind: "actual", scope: "personal" })
     .then(() => { onNotice(`Expense saved: ${Number(amount).toLocaleString()} ${cur}`); onClose(); }).catch(e => onError(msg(e)));
   const saveTask = () => void api("/tasks", "POST", { title: title.trim(), priority: prio }).then(() => { onNotice("Task added"); onClose(); }).catch(e => onError(msg(e)));
+  const saveReceipt = (r: TrainerResult) => void api("/finance/expenses", "POST", { amount: Number(r.amount), currency: String(r.currency || "LKR"), category: String(r.category || "other"),
+    merchant: r.merchant || undefined, spent_at: r.date ? `${r.date}T12:00:00` : undefined, notes: "Scanned receipt", record_kind: "actual", scope: "personal" })
+    .then(() => { onNotice(`Receipt saved: ${Number(r.amount).toLocaleString()} ${r.currency}`); onClose(); }).catch(e => onError(msg(e)));
+  if (mode === "receipt") return <Trainer kind="receipt" onClose={() => setMode("")} onResult={saveReceipt}/>;
   const tiles: [string, string, () => void][] = [
-    ["💸", "Expense", () => setMode("expense")], ["☑", "Task", () => setMode("task")], ["💊", "Medicine", () => go("Meds")],
-    ["🎯", "Practice", () => go("Skills")], ["✍️", "Journal", () => go("Journal")], ["🎙", "Voice note", () => go("Capture")]];
+    ["🧾", "Scan receipt", () => setMode("receipt")], ["💸", "Expense", () => setMode("expense")], ["☑", "Task", () => setMode("task")], ["💊", "Medicine", () => go("Meds")],
+    ["🎯", "Practice", () => go("Skills")], ["✍️", "Journal", () => go("Journal")]];
   return <Sheet title={mode === "expense" ? "💸 Quick expense" : mode === "task" ? "☑ Quick task" : "＋ Quick add"} onClose={onClose}>
     {!mode && <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 10 }}>{tiles.map(([i, l, f]) =>
       <TouchableOpacity key={l} onPress={f} style={{ width: "31.5%", alignItems: "center", gap: 6, paddingVertical: 16, borderRadius: 18, backgroundColor: C.panel, borderWidth: 1, borderColor: C.line }}>

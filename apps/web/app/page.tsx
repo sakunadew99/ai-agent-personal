@@ -38,7 +38,7 @@ import { HabitManager, InboxPage, JobFinder, LearnRadar, PlannerBoard, RewardsGa
 import { BrainGymPage, NewsAndWatch } from "@/components/LifeOsPages3";
 import { SearchPage, VideosPage } from "@/components/LifeOsPages5";
 import { SchedulePage, SpeakingPage } from "@/components/LifeOsPages6";
-import { HealthAdvicePanel, MedicinesPage, RitualsPage, SkillsPage, SkinPage } from "@/components/LifeOsPages7";
+import { DrillPage, HealthAdvicePanel, MedicinesPage, ReceiptPage, RitualsPage, SkillsPage, SkinPage } from "@/components/LifeOsPages7";
 import { DayPage, GymPage, LanguagesPage, ProgressPage } from "@/components/LifeOsPages4";
 import { NudgeBanner, TodayPlanCard } from "@/components/SmartCards";
 
@@ -72,6 +72,8 @@ const navigation = [
   { label: "Speaking coach", icon: "brain", hint: "Public speaking, English & German: pace, fillers, tips" },
   { label: "My schedule", icon: "check", hint: "Office, gym, sleep times (detected from your logs)" },
   { label: "Medicines", icon: "heart", hint: "Doses, reminders, refills" },
+  { label: "Scan receipt", icon: "copy", hint: "Receipt photo to expense (free on-device OCR)" },
+  { label: "Say it", icon: "book", hint: "Pronunciation drill: German & English" },
   { label: "Morning & evening", icon: "sun", hint: "2-minute start and close of your day" },
   { label: "Skin & glow", icon: "heart", hint: "Daily face scan and glow score" },
   { label: "Skills & trainers", icon: "flame", hint: "Yoga, singing, guitar, boxing: pitch trainer and pose coach" },
@@ -139,9 +141,9 @@ function niceDate(value: unknown) {
 // Same groups as the phone's "All apps"; anything not listed lands in MORE so a new page is never hidden.
 const NAV_GROUPS: [string, string[]][] = [
   ["TODAY", ["Home", "Morning & evening", "Focus", "Planner", "My day", "Day tracker", "My schedule", "Capture inbox", "Search"]],
-  ["💰 MONEY", ["Finance", "Invest", "Documents"]],
+  ["💰 MONEY", ["Finance", "Scan receipt", "Invest", "Documents"]],
   ["💪 BODY", ["Health", "Gym", "Medicines", "Skin & glow", "Skills & trainers"]],
-  ["🎓 LEARNING", ["Learning", "Languages", "Exam coach", "Speaking coach", "Progress", "Study abroad", "Career", "My videos", "News", "Brain gym"]],
+  ["🎓 LEARNING", ["Learning", "Languages", "Say it", "Exam coach", "Speaking coach", "Progress", "Study abroad", "Career", "My videos", "News", "Brain gym"]],
   ["🌱 LIFE", ["My life", "Journal", "Life balance", "Experiences", "Rewards", "Weekly review", "About you", "Insights"]],
   ["✨ AI & SETTINGS", ["Assistant", "AI team", "Memory", "Approvals", "Settings"]],
 ];
@@ -454,6 +456,8 @@ export default function Home() {
       case "Speaking coach": return <SpeakingPage token={token} />;
       case "My schedule": return <SchedulePage token={token} />;
       case "Medicines": return <MedicinesPage token={token} />;
+      case "Scan receipt": return <ReceiptPage token={token} />;
+      case "Say it": return <DrillPage token={token} />;
       case "Morning & evening": return <RitualsPage token={token} />;
       case "Skin & glow": return <SkinPage token={token} />;
       case "Skills & trainers": return <SkillsPage token={token} />;

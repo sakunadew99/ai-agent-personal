@@ -128,3 +128,62 @@ def ai_feedback(db: Session, user_id, row: SpeakingSession) -> str | None:
     if text:
         row.feedback = text.strip()[:2000]
     return row.feedback
+
+
+# ------------------------------------------------------------------ pronunciation drill (say a sentence, compare word by word)
+
+DRILL_PHRASES = {
+    "de": [("Guten Morgen, wie geht es Ihnen?", "Good morning, how are you?"), ("Ich heiße Sakuna und komme aus Sri Lanka.", "My name is Sakuna and I come from Sri Lanka."),
+           ("Ich möchte einen Kaffee, bitte.", "I'd like a coffee, please."), ("Wo ist der Bahnhof?", "Where is the train station?"),
+           ("Ich lerne seit einem Jahr Deutsch.", "I have been learning German for a year."), ("Können Sie das bitte wiederholen?", "Could you repeat that, please?"),
+           ("Ich arbeite als Softwareentwickler.", "I work as a software developer."), ("Am Wochenende gehe ich gern ins Fitnessstudio.", "At the weekend I like going to the gym."),
+           ("Wie viel kostet das?", "How much does that cost?"), ("Ich habe morgen einen Termin beim Arzt.", "I have a doctor's appointment tomorrow."),
+           ("Entschuldigung, ich habe eine Frage.", "Excuse me, I have a question."), ("Das Wetter ist heute sehr schön.", "The weather is very nice today.")],
+    "en": [("Could you tell me a little about the role?", "Interview question"), ("I'd like to propose a different approach.", "Meeting phrase"),
+           ("Thank you for your patience while we fix this.", "Customer phrase"), ("The results were better than we expected.", "Reporting"),
+           ("Let me think about that for a moment.", "Buying time politely"), ("I completely understand your point of view.", "Agreeing")],
+}
+
+
+def _norm_words(text: str) -> list[str]:
+    import re
+    t = text.lower().replace("ß", "ss")
+    for a, b in (("ä", "a"), ("ö", "o"), ("ü", "u"), ("é", "e")):
+        t = t.replace(a, b)
+    return re.findall(r"[a-z0-9']+", t)
+
+
+def compare_speech(target: str, heard: str) -> dict:
+    """Word-by-word match (plain difflib). Accuracy = target words heard correctly / target words."""
+    import difflib
+    tw, hw = _norm_words(target), _norm_words(heard)
+    sm = difflib.SequenceMatcher(a=tw, b=hw, autojunk=False)
+    ok = set()
+    for block in sm.get_matching_blocks():
+        ok.update(range(block.a, block.a + block.size))
+    original = target.split()
+    marks = []
+    j = 0
+    for word in original:                                   # map back to the sentence as written, for highlighting
+        n = len(_norm_words(word))
+        good = all(k in ok for k in range(j, j + n)) if n else True
+        marks.append({"word": word, "ok": good})
+        j += n
+    acc = round(len(ok) / len(tw) * 100) if tw else 0
+    extra = max(0, len(hw) - len(ok))
+    tip = ("Perfect, every word was clear." if acc == 100 else
+           f"Missed: {', '.join(m['word'] for m in marks if not m['ok'])}. Say those words slowly, then the whole sentence." if acc >= 50 else
+           "Most words weren't recognised: speak a little slower and closer to the phone, one phrase at a time.")
+    return {"accuracy": acc, "words": marks, "extra_words": extra, "tip": tip}
+
+
+def drill_phrases(db: Session, user_id, lang: str) -> list[dict]:
+    from app.models.entities import Flashcard
+    import random
+    own = []
+    if lang == "de":
+        cards = db.scalars(select(Flashcard).where(Flashcard.user_id == user_id, Flashcard.deck == "german", Flashcard.suspended.is_(False))).all()
+        own = [{"text": c.front, "meaning": c.back, "from": "your cards"} for c in cards if 1 <= len(c.front.split()) <= 14]
+        random.shuffle(own)
+    base = [{"text": t, "meaning": m, "from": "built-in"} for t, m in DRILL_PHRASES.get(lang, [])]
+    return own[:8] + base

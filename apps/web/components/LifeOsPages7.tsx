@@ -63,7 +63,7 @@ export function MedicinesPage({ token }: { token: string }) {
   </div>;
 }
 
-function TrainerFrame({ kind, onResult, onClose }: { kind: "pitch" | "pose" | "skin" | "karaoke"; onResult: (r: Row) => void; onClose: () => void }) {
+function TrainerFrame({ kind, onResult, onClose }: { kind: "pitch" | "pose" | "skin" | "karaoke" | "receipt"; onResult: (r: Row) => void; onClose: () => void }) {
   useEffect(() => {
     const h = (e: MessageEvent) => { if (e.origin !== window.location.origin) return; try { const r = JSON.parse(String(e.data)); if (r?.kind === kind) onResult(r); } catch { /* ignore */ } };
     window.addEventListener("message", h); return () => window.removeEventListener("message", h);
@@ -181,5 +181,56 @@ export function RitualsPage({ token }: { token: string }) {
           lesson: ef.lesson || null, tomorrow: ef.tomorrow.split(",").map(s => s.trim()).filter(Boolean).slice(0, 3) })).then(r => { setNote(`Day closed 🌙 · ${(r.tasks_created as string[]).length} tasks for tomorrow`); load(); })}>✓ Close my day</button>
       </Card>
     </div>
+  </div>;
+}
+
+export function ReceiptPage({ token }: { token: string }) {
+  const [scan, setScan] = useState(false);
+  const [saved, setSaved] = useState<Row[]>([]);
+  const onResult = useCallback((r: Row) => {
+    setScan(false);
+    void call<Row>("/finance/expenses", token, postJson({ amount: Number(r.amount), currency: r.currency || "LKR", category: r.category || "other", merchant: r.merchant || undefined,
+      spent_at: r.date ? `${r.date}T12:00:00` : undefined, notes: "Scanned receipt", record_kind: "actual", scope: "personal" })).then(x => setSaved(s => [{ ...r, id: x.id }, ...s]));
+  }, [token]);
+  return <div className="d-dash">
+    <Hero kicker="Money · receipt to expense" title="Scan a" accent="receipt" sub="Free on-device text reading (Tesseract). Check the total, shop and category, then save. The photo is not uploaded.">
+      <button className="d-btn" style={{ marginTop: 12 }} onClick={() => setScan(true)}>🧾 Scan a receipt</button></Hero>
+    {saved.length > 0 && <Card kicker="Saved now" title={`${saved.length} expenses`}>{saved.map(s => <p key={s.id} className="d-note">✓ {Number(s.amount).toLocaleString()} {s.currency} · {s.merchant || s.category} · {s.date || "today"}</p>)}</Card>}
+    {scan && <TrainerFrame kind="receipt" onResult={onResult} onClose={() => setScan(false)}/>}
+  </div>;
+}
+
+type SR = { lang: string; interimResults: boolean; continuous: boolean; start: () => void; stop: () => void; onresult: ((e: { results: { 0: { transcript: string } }[] }) => void) | null; onend: (() => void) | null };
+
+export function DrillPage({ token }: { token: string }) {
+  const [lang, setLang] = useState<"de" | "en">("de");
+  const [ph, setPh] = useState<Row[]>([]);
+  const [i, setI] = useState(0);
+  const [res, setRes] = useState<Row | null>(null);
+  const [heard, setHeard] = useState("");
+  const [rec, setRec] = useState(false);
+  useEffect(() => { call<Row>(`/speaking/drill?lang=${lang}`, token).then(x => { setPh(x.phrases); setI(0); setRes(null); }).catch(() => undefined); }, [lang, token]);
+  const p = ph[i];
+  const hear = () => { if (!p || !("speechSynthesis" in window)) return; const u = new SpeechSynthesisUtterance(p.text); u.lang = lang === "de" ? "de-DE" : "en-GB"; u.rate = 0.9; speechSynthesis.cancel(); speechSynthesis.speak(u); };
+  const say = () => {
+    const W = window as unknown as { SpeechRecognition?: new () => SR; webkitSpeechRecognition?: new () => SR };
+    const C = W.SpeechRecognition || W.webkitSpeechRecognition;
+    if (!C || !p) { setHeard("This browser has no speech recognition: use Chrome or Edge."); return; }
+    const r = new C(); r.lang = lang === "de" ? "de-DE" : "en-US"; r.interimResults = false; r.continuous = false; let text = "";
+    r.onresult = e => { text = e.results[0][0].transcript; setHeard(text); };
+    r.onend = () => { setRec(false); void call<Row>("/speaking/drill", token, postJson({ target: p.text, heard: text, lang, seconds: 5 })).then(setRes); };
+    setRes(null); setHeard(""); setRec(true); r.start();
+  };
+  return <div className="d-dash">
+    <Hero kicker="Say it · pronunciation drill" title="Speak" accent={lang === "de" ? "Deutsch" : "English"} sub="Hear the sentence, say it, see which words were clear. Your German flashcards come first.">
+      <div className="d-chips" style={{ marginTop: 10 }}>{(["de", "en"] as const).map(l => <button key={l} className={`d-chip ${lang === l ? "on" : ""}`} onClick={() => setLang(l)}>{l === "de" ? "🇩🇪 Deutsch" : "🇬🇧 English"}</button>)}</div></Hero>
+    {p && <Card kicker={`${i + 1}/${ph.length}${p.from === "your cards" ? " · from your cards" : ""}`} title={p.meaning}>
+      <p style={{ fontSize: 28, fontWeight: 900, margin: "6px 0" }}>{(res ? res.words as Row[] : p.text.split(" ").map((w: string) => ({ word: w, ok: null }))).map((w: Row, k: number) =>
+        <span key={k} style={{ color: w.ok === null ? "var(--d-text)" : w.ok ? "var(--d-green)" : "var(--d-red)", marginRight: 8 }}>{w.word}</span>)}</p>
+      <div className="d-row"><button className="d-btn ghost" onClick={hear}>🔊 Hear it</button><button className="d-btn" disabled={rec} onClick={say}>{rec ? "Listening…" : "🎙 Say it"}</button>
+        <button className="d-btn ghost" onClick={() => { setI((i + 1) % ph.length); setRes(null); setHeard(""); }}>Next ›</button></div>
+      {heard && <p className="d-note">Heard: “{heard}”</p>}
+      {res && <p style={{ fontWeight: 800, color: res.accuracy >= 80 ? "var(--d-green)" : "var(--d-amber)" }}>{res.accuracy}% · {res.tip}</p>}
+    </Card>}
   </div>;
 }

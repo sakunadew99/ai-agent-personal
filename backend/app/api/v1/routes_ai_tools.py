@@ -67,3 +67,22 @@ def search_everything(q: str = Query(min_length=1, max_length=200), db: Session 
     """Search your tasks, notes, journal, videos, news, cards, jobs... by words, and by meaning when HF_TOKEN is set."""
     from app.services import search
     out = search.search(db, user.id, q); db.commit(); return out
+
+
+@router.get("/speaking/drill")
+def speaking_drill_phrases(lang: str = Query(default="de", pattern="^(de|en)$"), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Sentences to practise saying: your own German flashcards first, then built-in everyday phrases."""
+    from app.services import speaking
+    return {"lang": lang, "phrases": speaking.drill_phrases(db, user.id, lang)}
+
+
+@router.post("/speaking/drill", status_code=201)
+def speaking_drill(data: dto.DrillIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Say a sentence: compare what the phone heard with the target, word by word, and save the score."""
+    from app.services import speaking
+    res = speaking.compare_speech(data.target, data.heard)
+    row = SpeakingSession(user_id=user.id, lang=data.lang, topic=f"Say it: {data.target[:180]}", transcript=(data.heard or "(nothing heard)")[:20000],
+                          seconds=max(5, data.seconds), words=len(data.heard.split()), wpm=0, fillers=0, score=res["accuracy"],
+                          details={"kind": "drill", "target": data.target, **res}, source="device")
+    db.add(row); db.commit()
+    return {**res, "id": row.id}
