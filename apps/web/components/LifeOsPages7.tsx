@@ -63,7 +63,7 @@ export function MedicinesPage({ token }: { token: string }) {
   </div>;
 }
 
-function TrainerFrame({ kind, onResult, onClose }: { kind: "pitch" | "pose"; onResult: (r: Row) => void; onClose: () => void }) {
+function TrainerFrame({ kind, onResult, onClose }: { kind: "pitch" | "pose" | "skin"; onResult: (r: Row) => void; onClose: () => void }) {
   useEffect(() => {
     const h = (e: MessageEvent) => { if (e.origin !== window.location.origin) return; try { const r = JSON.parse(String(e.data)); if (r?.kind === kind) onResult(r); } catch { /* ignore */ } };
     window.addEventListener("message", h); return () => window.removeEventListener("message", h);
@@ -111,5 +111,30 @@ export function SkillsPage({ token }: { token: string }) {
       <div className="d-row"><input className="d-input" placeholder="e.g. Chess, Drawing, Negotiation" value={custom} onChange={e => setCustom(e.target.value)}/><button className="d-btn" disabled={!custom.trim()} onClick={() => { add({ name: custom.trim() }); setCustom(""); }}>Add</button></div>
     </Card>
     {trainer && <TrainerFrame kind={trainer.kind} onResult={onResult} onClose={() => setTrainer(null)}/>}
+  </div>;
+}
+
+export function SkinPage({ token }: { token: string }) {
+  const [v, setV] = useState<Row | null>(null);
+  const [scan, setScan] = useState(false);
+  const load = useCallback(() => { call<Row>("/skin", token).then(setV).catch(() => undefined); }, [token]);
+  useEffect(() => { load(); }, [load]);
+  const onResult = useCallback((r: Row) => { setScan(false); void call<Row>("/skin", token, postJson({ metrics: r })).then(setV); }, [token]);
+  if (!v) return <div className="d-empty">Loading…</div>;
+  const last: Row | null = v.latest, m: Row = last?.metrics || {};
+  return <div className="d-dash">
+    <Hero kicker="Skin & glow · daily check" title={last ? `${last.score}` : "Scan"} accent={last ? "glow score" : "your face"} sub={v.how}
+      right={<Ring value={last?.score ?? 0} size={120} label={last ? `${last.score}` : "—"} sub="glow"/>}>
+      <button className="d-btn" style={{ marginTop: 12 }} onClick={() => setScan(true)}>📷 Scan my face</button></Hero>
+    {last && <Card kicker="Latest numbers" title={new Date(last.created_at).toLocaleString()}>
+      <p className="d-note">Brightness {Math.round(m.brightness ?? 0)} · redness {m.redness} · evenness {m.evenness}% · shine {m.shine_pct}% · spots {m.spot_density}{m.lighting_note ? ` · 💡 ${m.lighting_note}` : ""}</p></Card>}
+    {(v.trend as Row[]).length > 1 && <Card kicker="Glow score" title="Over time"><Bars data={(v.trend as Row[]).map(t => ({ label: String(new Date(t.date).getDate()), value: Number(t.score) }))} height={110}/></Card>}
+    <Card kicker="Tips" title="From your numbers"><ul className="d-list">{(v.tips as string[]).map((t, i) => <li key={i}>{t}</li>)}</ul>
+      {v.sleep_link && <p className="d-note">😴 {v.sleep_link.text} ({v.sleep_link.pairs} checks)</p>}<p className="d-note">{v.disclaimer}</p></Card>
+    <Card kicker="History" title={`${(v.checks as Row[]).length} checks`}>{(v.checks as Row[]).slice(0, 15).map(c => <div key={c.id} className="d-row" style={{ justifyContent: "space-between" }}>
+      <span><b>{c.score}</b> · {new Date(c.created_at).toLocaleDateString()} {c.note ? `· ${c.note}` : ""}</span>
+      <span><button className="text-button" onClick={() => { const n = window.prompt("Note", c.note || ""); if (n !== null) void call<Row>(`/skin/${c.id}`, token, patchJson({ note: n })).then(setV); }}>✎</button>
+        <button className="danger-link" onClick={() => { if (window.confirm("Delete this check?")) void call(`/skin/${c.id}`, token, { method: "DELETE" }).then(load); }}>✕</button></span></div>)}</Card>
+    {scan && <TrainerFrame kind="skin" onResult={onResult} onClose={() => setScan(false)}/>}
   </div>;
 }

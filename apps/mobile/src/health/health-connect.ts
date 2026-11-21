@@ -11,6 +11,8 @@ const HEALTH_PERMISSIONS = [
   { accessType: "read" as const, recordType: "Steps" as const },
   { accessType: "read" as const, recordType: "HeartRate" as const },
   { accessType: "read" as const, recordType: "SleepSession" as const },
+  { accessType: "read" as const, recordType: "ExerciseSession" as const },   // workouts incl. swims
+  { accessType: "read" as const, recordType: "Distance" as const },          // swim / run distance
 ];
 
 async function healthConnectModule() {
@@ -30,7 +32,7 @@ export async function getHealthConnectStatus(): Promise<HealthConnectStatus> {
     const permissions = await getGrantedPermissions();
     const grantedTypes = new Set(permissions.filter(p => p.accessType === "read").map(p => p.recordType));
     const connected = HEALTH_PERMISSIONS.some(p => grantedTypes.has(p.recordType));
-    const missing = HEALTH_PERMISSIONS.filter(p => !grantedTypes.has(p.recordType)).map(p => ({ Steps: "steps", HeartRate: "heart rate", SleepSession: "sleep" }[p.recordType])).join(", ");
+    const missing = HEALTH_PERMISSIONS.filter(p => !grantedTypes.has(p.recordType)).map(p => ({ Steps: "steps", HeartRate: "heart rate", SleepSession: "sleep", ExerciseSession: "workouts & swims", Distance: "distance" } as Record<string, string>)[p.recordType]).join(", ");
     return { available: true, connected, reason: connected ? (missing ? `Connected. Allow ${missing} access for all available metrics.` : "Health Connect is connected.") : "Connect and allow steps, heart rate, and sleep access." };
   } catch {
     return { available: false, connected: false, reason: "Could not reach Health Connect. Check that it is installed and try again." };
@@ -85,6 +87,7 @@ export async function readTodayHealth(): Promise<TodayHealth> {
 export type RecentHealth = {
   days: { day: string; steps: number | null; heart_rate_avg: number | null }[];
   sleep: { start_at: string; end_at: string; stages: number[] }[];
+  workouts: { start_at: string; end_at: string; activity: string; distance_m: number | null }[];
 };
 
 const localDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -93,11 +96,11 @@ const localDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).pad
  *  Reading several days means a day you didn't open Sakuna is still filled in. */
 export async function readRecentHealth(days = 7): Promise<RecentHealth> {
   const status = await getHealthConnectStatus();
-  if (!status.available || !status.connected) return { days: [], sleep: [] };
-  const { aggregateRecord, readRecords, getGrantedPermissions } = await healthConnectModule();
+  if (!status.available || !status.connected) return { days: [], sleep: [], workouts: [] };
+  const { aggregateRecord, readRecords, getGrantedPermissions, ExerciseType } = await healthConnectModule();
   const granted = new Set((await getGrantedPermissions()).filter(p => p.accessType === "read").map(p => p.recordType));
   const now = new Date();
-  const out: RecentHealth = { days: [], sleep: [] };
+  const out: RecentHealth = { days: [], sleep: [], workouts: [] };
   for (let k = days - 1; k >= 0; k--) {
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - k);
     const end = k === 0 ? now : new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1);
@@ -121,6 +124,26 @@ export async function readRecentHealth(days = 7): Promise<RecentHealth> {
       const r = await readRecords("SleepSession", { timeRangeFilter: { operator: "between", startTime: from.toISOString(), endTime: now.toISOString() }, pageSize: 100 });
       out.sleep = r.records.filter(s => new Date(s.endTime).getTime() <= now.getTime())
         .map(s => ({ start_at: s.startTime, end_at: s.endTime, stages: s.stages?.map(x => x.stage) ?? [] }));
+    }
+  } catch { /* optional */ }
+  try {
+    if (granted.has("ExerciseSession")) {
+      // Workouts from Mi Fitness (swimming pool / open water, running, cycling...) with distance when allowed.
+      const names: Record<number, string> = {};
+      for (const [k, v] of Object.entries(ExerciseType as Record<string, number>)) names[v] = k.toLowerCase();
+      const from = new Date(now.getTime() - days * 86400000);
+      const r = await readRecords("ExerciseSession", { timeRangeFilter: { operator: "between", startTime: from.toISOString(), endTime: now.toISOString() }, pageSize: 100 });
+      for (const s of r.records) {
+        let distance: number | null = null;
+        if (granted.has("Distance")) {
+          try {
+            const d = await aggregateRecord({ recordType: "Distance", timeRangeFilter: { operator: "between", startTime: s.startTime, endTime: s.endTime } });
+            const m = Number((d as { DISTANCE?: { inMeters?: number } }).DISTANCE?.inMeters ?? 0);
+            distance = m > 0 ? Math.round(m) : null;
+          } catch { /* distance is optional */ }
+        }
+        out.workouts.push({ start_at: s.startTime, end_at: s.endTime, activity: names[s.exerciseType] || "workout", distance_m: distance });
+      }
     }
   } catch { /* optional */ }
   return out;

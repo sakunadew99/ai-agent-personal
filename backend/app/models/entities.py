@@ -1753,3 +1753,16 @@ class SkillSession(Base):
     metrics: Mapped[dict | None] = mapped_column(JsonDict, nullable=True)         # from the trainers: in_tune_pct, reps, hold_s
     source: Mapped[str] = mapped_column(String(8), default="manual")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class SkinCheck(Base):
+    """One face scan: only the numbers (brightness, redness, evenness, shine, spots, glow score). The photo is never stored."""
+    __tablename__ = "skin_checks"
+    __table_args__ = (CheckConstraint("score BETWEEN 0 AND 100", name="ck_skin_checks_score"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    score: Mapped[int] = mapped_column(Integer)
+    metrics: Mapped[dict] = mapped_column(JsonDict)
+    note: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)

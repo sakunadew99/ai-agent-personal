@@ -11,9 +11,9 @@ let running = false;
  *  updated, never duplicated, so missed days are filled in. Returns today's numbers for the screen. */
 export async function syncHealthNow(api: Api): Promise<{ saved: number; today: TodayHealth }> {
   const [today, recent] = await Promise.all([readTodayHealth(), readRecentHealth(7)]);
-  const out = await api<Row>("/health/sync", "POST", { days: recent.days.filter(d => d.steps !== null || d.heart_rate_avg !== null), sleep: recent.sleep.slice(0, 31) });
+  const out = await api<Row>("/health/sync", "POST", { days: recent.days.filter(d => d.steps !== null || d.heart_rate_avg !== null), sleep: recent.sleep.slice(0, 31), workouts: recent.workouts.slice(0, 100) });
   await SecureStore.setItemAsync(LAST_SYNC, String(Date.now())).catch(() => undefined);
-  return { saved: Number(out.saved || 0) + Number(out.updated || 0), today };
+  return { saved: Number(out.saved || 0) + Number(out.updated || 0) + Number(out.workouts || 0), today };
 }
 
 /** Quiet automatic sync: when the app opens or comes back, at most every 30 minutes, only if Health Connect is connected. */

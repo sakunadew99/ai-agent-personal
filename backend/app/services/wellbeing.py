@@ -300,3 +300,92 @@ def health_advice(db: Session, user_id, use_ai: bool = False) -> dict:
 def check_slot(m: Medicine, slot: str) -> None:
     if slot not in (m.times or []):
         raise HTTPException(422, "That time isn't one of this medicine's dose times.")
+
+
+# ------------------------------------------------------------------ skin / glow checks (numbers from the phone; no photos)
+
+def _pearson(xs: list[float], ys: list[float]) -> float | None:
+    if len(xs) < 5 or statistics.pstdev(xs) == 0 or statistics.pstdev(ys) == 0:
+        return None
+    mx, my = statistics.mean(xs), statistics.mean(ys)
+    cov = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / len(xs)
+    return round(cov / (statistics.pstdev(xs) * statistics.pstdev(ys)), 2)
+
+
+def skin_overview(db: Session, user_id) -> dict:
+    from app.models.entities import SkinCheck
+    tz = _tz(db, user_id)
+    rows = db.scalars(select(SkinCheck).where(SkinCheck.user_id == user_id).order_by(SkinCheck.created_at.desc()).limit(60)).all()
+    checks = [{"id": r.id, "score": r.score, "metrics": r.metrics, "note": r.note, "created_at": r.created_at,
+               "date": as_utc(r.created_at).astimezone(tz).date()} for r in rows]
+    tips: list[str] = []
+    if checks:
+        m = checks[0]["metrics"] or {}
+        prev = checks[1]["metrics"] if len(checks) > 1 else {}
+        if m.get("lighting_ok") is False:
+            tips.append("Lighting was uneven: face a window in daylight, no flash, same spot each time, so the numbers compare fairly.")
+        if (m.get("redness") or 0) >= 14:
+            tips.append("Redness is high: be gentle (lukewarm water, no harsh scrubs), and use a fragrance-free moisturiser.")
+        if prev and (m.get("redness") or 0) - (prev.get("redness") or 0) >= 3:
+            tips.append("Redness went up since your last check: think about new products, sun, spicy food or poor sleep.")
+        if (m.get("shine_pct") or 0) > 10:
+            tips.append("Quite shiny (oily T-zone): a gentle cleanser twice a day and oil-free sunscreen help.")
+        if (m.get("evenness") or 100) < 60:
+            tips.append("Tone looks uneven: daily sunscreen (SPF 30+) is the most proven way to even skin tone over weeks.")
+        if (m.get("spot_density") or 0) > 25:
+            tips.append("More spots than usual: don't pick them; keep pillowcases and phone screen clean. If painful or lasting, see a dermatologist.")
+        if not tips:
+            tips.append("Skin numbers look steady. Keep sleep, water and sunscreen consistent.")
+    # does sleep the night before go with a better glow score?
+    since = now_utc() - timedelta(days=70)
+    nights = {}
+    for s in db.scalars(select(SleepRecord).where(SleepRecord.user_id == user_id, SleepRecord.end_at >= since)).all():
+        nights[as_utc(s.end_at).astimezone(tz).date()] = (s.duration_minutes or 0) / 60
+    pairs = [(nights[c["date"]], c["score"]) for c in checks if c["date"] in nights]
+    r = _pearson([p[0] for p in pairs], [p[1] for p in pairs])
+    sleep_link = None
+    if r is not None:
+        sleep_link = {"r": r, "pairs": len(pairs), "text": ("More sleep goes with a better glow score for you" if r >= 0.3 else
+                      "More sleep goes with a lower score (other things may matter more)" if r <= -0.3 else "No clear link between your sleep and glow yet")}
+    week = [c for c in checks if c["date"] >= _today(db, user_id) - timedelta(days=6)]
+    return {"checks": checks, "latest": checks[0] if checks else None, "trend": [{"date": c["date"], "score": c["score"]} for c in reversed(checks[:20])],
+            "week_avg": round(sum(c["score"] for c in week) / len(week)) if week else None, "tips": tips, "sleep_link": sleep_link,
+            "how": "Same place, daylight from a window, no make-up, no flash. Scan once a day, e.g. after washing your face in the morning.",
+            "disclaimer": "A wellness tracker from camera colours, not a medical or skin diagnosis. Photos are not stored."}
+
+
+def save_skin(db: Session, user_id, metrics: dict, note: str | None):
+    from app.models.entities import SkinCheck
+    score = int(max(0, min(100, round(float(metrics.get("score") or 0)))))
+    keep = {k: metrics[k] for k in ("brightness", "redness", "evenness", "shine_pct", "spot_density", "lighting_ok", "lighting_note", "regions") if k in metrics}
+    row = SkinCheck(user_id=user_id, score=score, metrics=keep, note=(note or "").strip()[:300] or None)
+    db.add(row); db.flush()
+    return row
+
+
+# ------------------------------------------------------------------ workouts from Health Connect (Mi Band), swims -> Swimming skill
+
+def sync_workouts(db: Session, user_id, workouts: list[dict]) -> int:
+    from app.models.entities import Workout
+    tz = _tz(db, user_id)
+    swim_skill = next((s for s in db.scalars(select(Skill).where(Skill.user_id == user_id)).all() if s.name.lower().startswith("swim")), None)
+    saved = 0
+    for w in workouts:
+        st, en = as_utc(w["start_at"]), as_utc(w["end_at"])
+        minutes = int((en - st).total_seconds() // 60)
+        if minutes < 1:
+            continue
+        if db.scalar(select(Workout.id).where(Workout.user_id == user_id, Workout.started_at == st, Workout.source == "health_connect")):
+            continue
+        dist = w.get("distance_m")
+        note = f"{round(dist)} m" if dist else None
+        db.add(Workout(user_id=user_id, activity=str(w.get("activity") or "workout")[:100], duration_minutes=minutes, started_at=st,
+                       notes=note, source="health_connect", calories=w.get("calories")))
+        saved += 1
+        if swim_skill is not None and str(w.get("activity") or "").lower().startswith("swim"):
+            pace = round(minutes * 60 / (dist / 100)) if dist else None          # seconds per 100 m
+            db.add(SkillSession(user_id=user_id, skill_id=swim_skill.id, local_date=st.astimezone(tz).date(), minutes=min(600, minutes),
+                                metrics={"kind": "swim", "distance_m": round(dist) if dist else None, "pace_s_per_100m": pace,
+                                         "type": w.get("activity")}, source="watch", note="From Mi Band / Health Connect"))
+    db.flush()
+    return saved

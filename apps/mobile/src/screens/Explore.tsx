@@ -20,6 +20,7 @@ export const GROUPS: Group[] = [
   { name: "Body", emoji: "💪", color: "#3ee08f", items: [
     { key: "Health", icon: "❤️", title: "Health & Mi Band", hint: "Steps, sleep, heart rate", words: "mi fitness steps sleep heart health connect" },
     { key: "Gym", icon: "🏋️", title: "Gym", hint: "Sets, kg × reps, records", words: "workout exercise weights" },
+    { key: "Skin", icon: "✨", title: "Skin & glow", hint: "Daily face scan, glow score", words: "face skin glow pimple acne spots redness beauty selfie" },
     { key: "Meds", icon: "💊", title: "Medicines", hint: "Doses, reminders, refills", words: "medicine pills tablets vitamins supplements doctor reminder" },
     { key: "Day", icon: "⏱", title: "Day tracker", hint: "Hour by hour report", words: "time hours check-in" },
     { key: "Balance", icon: "☀️", title: "Life balance", hint: "Target vs actual", words: "areas wheel" },

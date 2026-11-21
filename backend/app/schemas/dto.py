@@ -1628,6 +1628,31 @@ class HealthSleepIn(BaseModel):
     stages: list[int] | None = Field(default=None, max_length=2000)
 
 
+class HealthWorkoutIn(BaseModel):
+    start_at: datetime
+    end_at: datetime
+    activity: str = Field(default="workout", max_length=60)
+    distance_m: float | None = Field(default=None, ge=0, le=500000)
+    calories: float | None = Field(default=None, ge=0, le=20000)
+
+
 class HealthSyncIn(BaseModel):
     days: list[HealthDayIn] = Field(default_factory=list, max_length=31)
     sleep: list[HealthSleepIn] = Field(default_factory=list, max_length=31)
+    workouts: list[HealthWorkoutIn] = Field(default_factory=list, max_length=100)
+
+
+class SkinIn(BaseModel):
+    metrics: dict
+    note: str | None = Field(default=None, max_length=300)
+
+    @field_validator("metrics")
+    @classmethod
+    def _small(cls, v: dict) -> dict:
+        if len(str(v)) > 3000 or "score" not in v:
+            raise ValueError("metrics must include a score and stay small")
+        return v
+
+
+class SkinNoteIn(BaseModel):
+    note: str | None = Field(default=None, max_length=300)

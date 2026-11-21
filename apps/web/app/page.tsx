@@ -38,7 +38,7 @@ import { HabitManager, InboxPage, JobFinder, LearnRadar, PlannerBoard, RewardsGa
 import { BrainGymPage, NewsAndWatch } from "@/components/LifeOsPages3";
 import { SearchPage, VideosPage } from "@/components/LifeOsPages5";
 import { SchedulePage, SpeakingPage } from "@/components/LifeOsPages6";
-import { HealthAdvicePanel, MedicinesPage, SkillsPage } from "@/components/LifeOsPages7";
+import { HealthAdvicePanel, MedicinesPage, SkillsPage, SkinPage } from "@/components/LifeOsPages7";
 import { DayPage, GymPage, LanguagesPage, ProgressPage } from "@/components/LifeOsPages4";
 import { NudgeBanner, TodayPlanCard } from "@/components/SmartCards";
 
@@ -72,6 +72,7 @@ const navigation = [
   { label: "Speaking coach", icon: "brain", hint: "Public speaking, English & German: pace, fillers, tips" },
   { label: "My schedule", icon: "check", hint: "Office, gym, sleep times (detected from your logs)" },
   { label: "Medicines", icon: "heart", hint: "Doses, reminders, refills" },
+  { label: "Skin & glow", icon: "heart", hint: "Daily face scan and glow score" },
   { label: "Skills & trainers", icon: "flame", hint: "Yoga, singing, guitar, boxing: pitch trainer and pose coach" },
   { label: "Rewards", icon: "flame", hint: "Points, streak, quests and treats" },
   { label: "Study abroad", icon: "arrow", hint: "Programs, checklist, costs, scholarships" },
@@ -439,6 +440,7 @@ export default function Home() {
       case "Speaking coach": return <SpeakingPage token={token} />;
       case "My schedule": return <SchedulePage token={token} />;
       case "Medicines": return <MedicinesPage token={token} />;
+      case "Skin & glow": return <SkinPage token={token} />;
       case "Skills & trainers": return <SkillsPage token={token} />;
       case "Day tracker": return <DayPage token={token} />;
       case "Languages": return <LanguagesPage token={token} />;

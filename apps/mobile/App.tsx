@@ -37,6 +37,7 @@ import { VideosScreen } from "./src/screens/VideosScreen";
 import { ScheduleScreen } from "./src/screens/ScheduleScreen";
 import { SpeakingScreen } from "./src/screens/SpeakingScreen";
 import { MedicinesScreen, SkillsScreen } from "./src/screens/WellbeingScreens";
+import { SkinScreen } from "./src/screens/SkinScreen";
 import { DayTrackerScreen, GymScreen, LanguageScreen, ProgressScreen, uploadUsage } from "./src/screens/LifeOs4Screens";
 import { BrowserHost } from "./src/browser";
 import { LockGate } from "./src/lock";
@@ -49,7 +50,7 @@ import { appendSpeech, MicButton } from "./src/voice";
 import { Hero, Ring, StatTile, TileRow, WeekDots } from "./src/charts";
 
 type Tab = "Home" | "Plan" | "Capture" | "Focus" | "More";
-const SUB_TITLES: Record<MoreTarget, string> = { Meds: "Medicines", Skills: "Skills & trainers", Speak: "Speaking coach", Schedule: "My schedule", Videos: "My videos", Day: "Day tracker", Gym: "Gym", Brain: "Brain gym", Assistant: "Assistant", Journal: "Journal", Invest: "Invest (CSE)", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
+const SUB_TITLES: Record<MoreTarget, string> = { Skin: "Skin & glow", Meds: "Medicines", Skills: "Skills & trainers", Speak: "Speaking coach", Schedule: "My schedule", Videos: "My videos", Day: "Day tracker", Gym: "Gym", Brain: "Brain gym", Assistant: "Assistant", Journal: "Journal", Invest: "Invest (CSE)", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
 
 export default function Root() {
   return <CrashGuard><App/></CrashGuard>;
@@ -243,6 +244,7 @@ function App() {
       {tab === "More" && sub === "Videos" && <VideosScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Schedule" && <ScheduleScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Meds" && <MedicinesScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "Skin" && <SkinScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Skills" && <SkillsScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Speak" && <SpeakingScreen api={api} upload={(path, file, fields) => apiUpload<Row>(path, token, file, fields)} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "You" && <AboutYouScreen api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/>}

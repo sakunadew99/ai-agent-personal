@@ -69,9 +69,41 @@ def test_health_sync_upserts_days_and_advice():
         first = a("POST", "/health/sync", {"days": days, "sleep": sleep}).json()
         assert first["saved"] == 15
         again = a("POST", "/health/sync", {"days": days, "sleep": sleep}).json()
-        assert again == {"saved": 0, "updated": 0}                                                    # no duplicates
+        assert again == {"saved": 0, "updated": 0, "workouts": 0}                                     # no duplicates
         days[0]["steps"] = 9000
         assert a("POST", "/health/sync", {"days": days[:1]}).json()["updated"] == 1
         adv = a("GET", "/health/advice?ai=true").json()
         assert adv["facts"]["avg_steps_7d"] and any(t["title"] == "Sleep is short" for t in adv["tips"]) and adv["ai_note"]
         assert b("GET", "/health/advice").json()["facts"]["avg_steps_7d"] is None                    # private
+
+
+def test_swims_sync_to_workouts_and_swimming_skill():
+    with TestClient(app) as client:
+        a, b = _user(client), _user(client)
+        sid = a("POST", "/skills", {"name": "Swimming", "category": "body", "icon": "🏊"}).json()["skills"][0]["id"]
+        swim = {"start_at": "2026-11-20T06:00:00+05:30", "end_at": "2026-11-20T06:40:00+05:30", "activity": "swimming_pool", "distance_m": 1000}
+        run = {"start_at": "2026-11-19T18:00:00+05:30", "end_at": "2026-11-19T18:30:00+05:30", "activity": "running"}
+        out = a("POST", "/health/sync", {"workouts": [swim, run]}).json()
+        assert out["workouts"] == 2
+        assert a("POST", "/health/sync", {"workouts": [swim, run]}).json()["workouts"] == 0            # no duplicates
+        s = next(x for x in a("GET", "/skills").json()["skills"] if x["id"] == sid)
+        assert s["recent"][0]["metrics"]["distance_m"] == 1000 and s["recent"][0]["metrics"]["pace_s_per_100m"] == 240 and s["recent"][0]["minutes"] == 40
+        assert len(s["recent"]) == 1                                                                   # running is not swimming
+        assert b("GET", "/skills").json()["skills"] == []
+
+
+def test_skin_checks_numbers_only_and_ownership():
+    with TestClient(app) as client:
+        a, b = _user(client), _user(client)
+        m = {"score": 71, "brightness": 62, "redness": 15.2, "evenness": 55, "shine_pct": 12, "spot_density": 30, "lighting_ok": True, "photo": "x" * 10}
+        ov = a("POST", "/skin", {"metrics": m, "note": "after gym"}).json()
+        latest = ov["latest"]
+        assert latest["score"] == 71 and "photo" not in latest["metrics"] and latest["note"] == "after gym"
+        assert any("Redness" in t for t in ov["tips"]) and any("sunscreen" in t for t in ov["tips"])
+        assert a("POST", "/skin", {"metrics": {"brightness": 1}}).status_code == 422
+        cid = latest["id"]
+        assert b("GET", "/skin").json()["checks"] == []
+        assert b("PATCH", f"/skin/{cid}", {"note": "x"}).status_code == 404
+        assert b("DELETE", f"/skin/{cid}").status_code == 404
+        assert a("PATCH", f"/skin/{cid}", {"note": "morning"}).json()["latest"]["note"] == "morning"
+        assert a("DELETE", f"/skin/{cid}").status_code == 204

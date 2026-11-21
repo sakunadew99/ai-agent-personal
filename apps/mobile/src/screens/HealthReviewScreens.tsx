@@ -68,6 +68,9 @@ export function HealthScreen({ api, onError, onNotice }: { api: Api; onError: (m
       right={<Ring value={score} size={104} label={`${score}`} sub="SCORE"/>}>
       {!status?.connected ? <Btn title="Connect Health Connect" onPress={() => void connect()} busy={busy}/>
         : <Btn kind="outline" title="Sync now ↻" onPress={() => void sync()} busy={busy}/>}
+      {status?.connected && /workouts/.test(status.reason) && <>
+        <Btn kind="outline" title="🏊 Allow workouts & swims" onPress={() => void connect()} busy={busy}/>
+        <Muted small>Lets Sakuna read Mi Band workouts (swimming, running…) and distance. Swims also log to your Swimming skill.</Muted></>}
     </Hero>
 
     <TileRow>
@@ -163,7 +166,7 @@ export function ReviewScreen({ api, onError, onNotice }: { api: Api; onError: (m
   </Screen>;
 }
 
-export type MoreTarget = "Meds" | "Skills" | "Speak" | "Schedule" | "Videos" | "Day" | "Gym" | "Brain" | "Assistant" | "Journal" | "Invest" | "News" | "You" | "Team" | "Exams" | "Life" | "Learning" | "Jobs" | "Money" | "Rewards" | "AI" | "Study" | "Balance" | "Vault" | "Finance" | "Health" | "Memory" | "Review" | "Approvals" | "Profile";
+export type MoreTarget = "Skin" | "Meds" | "Skills" | "Speak" | "Schedule" | "Videos" | "Day" | "Gym" | "Brain" | "Assistant" | "Journal" | "Invest" | "News" | "You" | "Team" | "Exams" | "Life" | "Learning" | "Jobs" | "Money" | "Rewards" | "AI" | "Study" | "Balance" | "Vault" | "Finance" | "Health" | "Memory" | "Review" | "Approvals" | "Profile";
 const MENU: { key: MoreTarget; icon: string; title: string; hint: string }[] = [
   { key: "Assistant", icon: "✳", title: "Assistant", hint: "Chat with Sakuna" },
   { key: "Journal", icon: "✍️", title: "Journal", hint: "Day, gratitude, lessons" },

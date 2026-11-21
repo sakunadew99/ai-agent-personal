@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, owned
-from app.models.entities import Medicine, Skill, SkillSession, User
+from app.models.entities import Medicine, Skill, SkillSession, SkinCheck, User
 from app.schemas import dto
 from app.services import wellbeing as wb
 
@@ -106,7 +106,34 @@ def skill_plan(skill_id: uuid.UUID, ai: bool = False, db: Session = Depends(get_
 @router.post("/health/sync")
 def health_sync(data: dto.HealthSyncIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Several days at once from the phone: one steps / heart-rate value per day (updated, not duplicated) and new sleep."""
-    out = wb.health_sync(db, user.id, [d.model_dump() for d in data.days], [s.model_dump() for s in data.sleep]); db.commit(); return out
+    out = wb.health_sync(db, user.id, [d.model_dump() for d in data.days], [s.model_dump() for s in data.sleep])
+    out["workouts"] = wb.sync_workouts(db, user.id, [w.model_dump() for w in data.workouts])
+    db.commit(); return out
+
+
+# ---------------- skin / glow checks
+
+@router.get("/skin")
+def skin(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Your glow-score trend, the latest numbers, tips and whether sleep goes with better skin. No photos are stored."""
+    return wb.skin_overview(db, user.id)
+
+
+@router.post("/skin", status_code=201)
+def skin_create(data: dto.SkinIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    wb.save_skin(db, user.id, data.metrics, data.note); db.commit(); return wb.skin_overview(db, user.id)
+
+
+@router.patch("/skin/{check_id}")
+def skin_note(check_id: uuid.UUID, data: dto.SkinNoteIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    row = owned(db, SkinCheck, user.id, check_id)
+    row.note = (data.note or "").strip() or None
+    db.commit(); return wb.skin_overview(db, user.id)
+
+
+@router.delete("/skin/{check_id}", status_code=204)
+def skin_delete(check_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    db.delete(owned(db, SkinCheck, user.id, check_id)); db.commit()
 
 
 @router.get("/health/advice")
