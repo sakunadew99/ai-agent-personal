@@ -81,3 +81,47 @@ export async function readTodayHealth(): Promise<TodayHealth> {
 
   return { steps: steps ? { value: Math.max(0, Math.round(Number(steps.COUNT_TOTAL ?? 0))), recordedAt: now.toISOString() } : null, heartRate, sleep };
 }
+
+export type RecentHealth = {
+  days: { day: string; steps: number | null; heart_rate_avg: number | null }[];
+  sleep: { start_at: string; end_at: string; stages: number[] }[];
+};
+
+const localDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** The last `days` days from Health Connect (Mi Fitness writes there): daily step totals, average heart rate, sleep sessions.
+ *  Reading several days means a day you didn't open Sakuna is still filled in. */
+export async function readRecentHealth(days = 7): Promise<RecentHealth> {
+  const status = await getHealthConnectStatus();
+  if (!status.available || !status.connected) return { days: [], sleep: [] };
+  const { aggregateRecord, readRecords, getGrantedPermissions } = await healthConnectModule();
+  const granted = new Set((await getGrantedPermissions()).filter(p => p.accessType === "read").map(p => p.recordType));
+  const now = new Date();
+  const out: RecentHealth = { days: [], sleep: [] };
+  for (let k = days - 1; k >= 0; k--) {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - k);
+    const end = k === 0 ? now : new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1);
+    const range = { operator: "between" as const, startTime: start.toISOString(), endTime: end.toISOString() };
+    let steps: number | null = null, hr: number | null = null;
+    try {
+      if (granted.has("Steps")) steps = Math.max(0, Math.round(Number((await aggregateRecord({ recordType: "Steps", timeRangeFilter: range })).COUNT_TOTAL ?? 0)));
+    } catch { /* keep going with other days */ }
+    try {
+      if (granted.has("HeartRate")) {
+        const r = await readRecords("HeartRate", { timeRangeFilter: range, pageSize: 5000 });
+        const bpm = r.records.flatMap(x => x.samples).map(s => s.beatsPerMinute).filter(v => v > 25 && v < 230);
+        if (bpm.length) hr = Math.round(bpm.reduce((a, b) => a + b, 0) / bpm.length);
+      }
+    } catch { /* optional */ }
+    out.days.push({ day: localDay(start), steps, heart_rate_avg: hr });
+  }
+  try {
+    if (granted.has("SleepSession")) {
+      const from = new Date(now.getTime() - (days + 1) * 86400000);
+      const r = await readRecords("SleepSession", { timeRangeFilter: { operator: "between", startTime: from.toISOString(), endTime: now.toISOString() }, pageSize: 100 });
+      out.sleep = r.records.filter(s => new Date(s.endTime).getTime() <= now.getTime())
+        .map(s => ({ start_at: s.startTime, end_at: s.endTime, stages: s.stages?.map(x => x.stage) ?? [] }));
+    }
+  } catch { /* optional */ }
+  return out;
+}

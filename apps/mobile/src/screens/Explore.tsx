@@ -20,11 +20,13 @@ export const GROUPS: Group[] = [
   { name: "Body", emoji: "💪", color: "#3ee08f", items: [
     { key: "Health", icon: "❤️", title: "Health & Mi Band", hint: "Steps, sleep, heart rate", words: "mi fitness steps sleep heart health connect" },
     { key: "Gym", icon: "🏋️", title: "Gym", hint: "Sets, kg × reps, records", words: "workout exercise weights" },
+    { key: "Meds", icon: "💊", title: "Medicines", hint: "Doses, reminders, refills", words: "medicine pills tablets vitamins supplements doctor reminder" },
     { key: "Day", icon: "⏱", title: "Day tracker", hint: "Hour by hour report", words: "time hours check-in" },
     { key: "Balance", icon: "☀️", title: "Life balance", hint: "Target vs actual", words: "areas wheel" },
   ] },
   { name: "Learning", emoji: "🎓", color: "#b18cff", items: [
     { key: "Learning", icon: "📚", title: "Learning", hint: "Languages, flashcards, tracker", words: "german english words leetcode course" },
+    { key: "Skills", icon: "🎯", title: "Skills & trainers", hint: "Yoga, singing, guitar, boxing, leadership", words: "yoga singing vocal guitar music kickboxing fighting swimming leadership soft skills hard skills pose pitch tuner practice" },
     { key: "Speak", icon: "🎙", title: "Speaking coach", hint: "Public speaking, English & German", words: "speech talk presentation pronunciation fluency confidence communication whisper" },
     { key: "Exams", icon: "📝", title: "Exam coach", hint: "IELTS & Goethe plan", words: "ielts goethe exam" },
     { key: "Brain", icon: "🧠", title: "Brain gym", hint: "Daily brain games", words: "games puzzle memory" },
@@ -133,7 +135,7 @@ export function ExploreScreen({ open, api, openAny }: { open: (t: MoreTarget) =>
 
 /** Home: a search pill plus six big shortcuts. */
 export function QuickLaunch({ open, onSearch }: { open: (t: MoreTarget) => void; onSearch: () => void }) {
-  const picks: MoreTarget[] = ["Invest", "Health", "Gym", "Learning", "Videos", "Journal"];
+  const picks: MoreTarget[] = ["Invest", "Health", "Skills", "Meds", "Learning", "Journal"];
   const items = picks.map(k => ALL.find(i => i.key === k)!);
   return <View style={{ gap: 12 }}>
     <TouchableOpacity onPress={onSearch} activeOpacity={0.8} style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: C.panel2, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 13, borderWidth: 1, borderColor: C.line }}>

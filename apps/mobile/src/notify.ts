@@ -198,3 +198,27 @@ export async function notifyStockAlerts(api: Api): Promise<number> {
     return todo.length;
   } catch { return 0; }
 }
+
+const MED_PREFIX = "med-";
+
+/** Medicine dose reminders for the next 2 days (doses already marked are skipped). Replaced on every sync. */
+export async function syncMedicineReminders(api: Api): Promise<number> {
+  try {
+    if (!(await ready())) return -1;
+    const data = await api<Row>("/medicines/reminders?days=2");
+    const items: Row[] = Array.isArray(data.items) ? data.items : [];
+    await cancelWhere(id => id.startsWith(MED_PREFIX));
+    let n = 0;
+    for (const m of items.slice(0, 40)) {
+      const at = new Date(String(m.at));
+      if (at.getTime() <= Date.now() + 5000) continue;
+      await Notifications.scheduleNotificationAsync({
+        identifier: `${MED_PREFIX}${m.id}`,
+        content: { title: `💊 ${m.name}${m.dose ? ` · ${m.dose}` : ""}`, body: `Time for your ${m.slot} dose${m.with_food ? " (with food)" : ""}. Open Sakuna to mark it taken.`, data: { medicine: m.medicine_id } },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at, channelId: CHANNEL },
+      });
+      n++;
+    }
+    return n;
+  } catch { return 0; }
+}

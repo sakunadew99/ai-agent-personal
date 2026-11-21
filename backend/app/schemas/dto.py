@@ -1535,3 +1535,99 @@ class MoneyUpdate(BaseModel):
     label: str | None = Field(default=None, max_length=40)        # expense category or income source
     notes: str | None = Field(default=None, max_length=2000)
     occurred_at: datetime | None = None
+
+
+HHMM = Annotated[str, Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")]
+
+
+class MedicineIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    dose: str | None = Field(default=None, max_length=60)
+    icon: str = Field(default="💊", min_length=1, max_length=8)
+    times: list[HHMM] = Field(min_length=1, max_length=8)
+    days: Annotated[list[int] | None, AfterValidator(lambda v: v if v is None else _week_days(v))] = None
+    with_food: bool = False
+    start_date: date | None = None
+    end_date: date | None = None
+    stock: int | None = Field(default=None, ge=0, le=100000)
+    per_dose: int = Field(default=1, ge=1, le=100)
+    refill_at: int = Field(default=7, ge=0, le=1000)
+    notes: str | None = Field(default=None, max_length=1000)
+    active: bool = True
+
+
+class MedicineUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    dose: str | None = Field(default=None, max_length=60)
+    icon: str | None = Field(default=None, min_length=1, max_length=8)
+    times: list[HHMM] | None = Field(default=None, min_length=1, max_length=8)
+    days: Annotated[list[int] | None, AfterValidator(lambda v: v if v is None else _week_days(v))] = None
+    with_food: bool | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    stock: int | None = Field(default=None, ge=0, le=100000)
+    per_dose: int | None = Field(default=None, ge=1, le=100)
+    refill_at: int | None = Field(default=None, ge=0, le=1000)
+    notes: str | None = Field(default=None, max_length=1000)
+    active: bool | None = None
+
+
+class DoseLogIn(BaseModel):
+    slot: HHMM
+    status: Literal["taken", "skipped"] | None = None          # None = undo
+    on: date | None = None
+
+
+class SkillIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    category: Literal["body", "fight", "music", "soft", "hard", "mind", "other"] = "other"
+    icon: str = Field(default="🎯", min_length=1, max_length=8)
+    level: int = Field(default=1, ge=1, le=10)
+    weekly_minutes: int = Field(default=90, ge=0, le=3000)
+    goal: str | None = Field(default=None, max_length=200)
+    trainer: Literal["pitch", "pose"] | None = None
+    active: bool = True
+
+
+class SkillUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=80)
+    category: Literal["body", "fight", "music", "soft", "hard", "mind", "other"] | None = None
+    icon: str | None = Field(default=None, min_length=1, max_length=8)
+    level: int | None = Field(default=None, ge=1, le=10)
+    weekly_minutes: int | None = Field(default=None, ge=0, le=3000)
+    goal: str | None = Field(default=None, max_length=200)
+    trainer: Literal["pitch", "pose"] | None = None
+    active: bool | None = None
+
+
+class SkillSessionIn(BaseModel):
+    minutes: int = Field(ge=1, le=600)
+    rating: int | None = Field(default=None, ge=1, le=5)
+    note: str | None = Field(default=None, max_length=500)
+    metrics: dict | None = None
+    source: Literal["manual", "pitch", "pose"] = "manual"
+    on: date | None = None
+
+    @field_validator("metrics")
+    @classmethod
+    def _small(cls, v: dict | None) -> dict | None:
+        if v is not None and len(str(v)) > 2000:
+            raise ValueError("metrics too large")
+        return v
+
+
+class HealthDayIn(BaseModel):
+    day: date
+    steps: int | None = Field(default=None, ge=0, le=200000)
+    heart_rate_avg: int | None = Field(default=None, ge=20, le=250)
+
+
+class HealthSleepIn(BaseModel):
+    start_at: datetime
+    end_at: datetime
+    stages: list[int] | None = Field(default=None, max_length=2000)
+
+
+class HealthSyncIn(BaseModel):
+    days: list[HealthDayIn] = Field(default_factory=list, max_length=31)
+    sleep: list[HealthSleepIn] = Field(default_factory=list, max_length=31)

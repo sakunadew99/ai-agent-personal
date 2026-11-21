@@ -10,7 +10,7 @@ import { ApprovalsScreen, FinanceScreen, MemoryScreen } from "./src/screens/Mone
 import { HealthScreen, ReviewScreen, type MoreTarget } from "./src/screens/HealthReviewScreens";
 import { ExploreScreen, GROUPS, QuickLaunch, rememberScreen } from "./src/screens/Explore";
 import { WeeklyHealthCard } from "./src/screens/WeeklyHealthCard";
-import { notifyStockAlerts } from "./src/notify";
+import { notifyStockAlerts, syncMedicineReminders } from "./src/notify";
 import { CrashGuard, installCrashRecorder } from "./src/crash";
 installCrashRecorder();
 import { ShieldPanel } from "./src/ShieldPanel";
@@ -36,6 +36,7 @@ import { BrainGymScreen, WatchScreen } from "./src/screens/LifeOs3Screens";
 import { VideosScreen } from "./src/screens/VideosScreen";
 import { ScheduleScreen } from "./src/screens/ScheduleScreen";
 import { SpeakingScreen } from "./src/screens/SpeakingScreen";
+import { MedicinesScreen, SkillsScreen } from "./src/screens/WellbeingScreens";
 import { DayTrackerScreen, GymScreen, LanguageScreen, ProgressScreen, uploadUsage } from "./src/screens/LifeOs4Screens";
 import { BrowserHost } from "./src/browser";
 import { LockGate } from "./src/lock";
@@ -48,7 +49,7 @@ import { appendSpeech, MicButton } from "./src/voice";
 import { Hero, Ring, StatTile, TileRow, WeekDots } from "./src/charts";
 
 type Tab = "Home" | "Plan" | "Capture" | "Focus" | "More";
-const SUB_TITLES: Record<MoreTarget, string> = { Speak: "Speaking coach", Schedule: "My schedule", Videos: "My videos", Day: "Day tracker", Gym: "Gym", Brain: "Brain gym", Assistant: "Assistant", Journal: "Journal", Invest: "Invest (CSE)", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
+const SUB_TITLES: Record<MoreTarget, string> = { Meds: "Medicines", Skills: "Skills & trainers", Speak: "Speaking coach", Schedule: "My schedule", Videos: "My videos", Day: "Day tracker", Gym: "Gym", Brain: "Brain gym", Assistant: "Assistant", Journal: "Journal", Invest: "Invest (CSE)", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
 
 export default function Root() {
   return <CrashGuard><App/></CrashGuard>;
@@ -131,7 +132,7 @@ function App() {
   useEffect(() => {
     if (!token) return;
     void loadQueue().then(() => flushQueue(token)).then(n => { if (n) showNotice(`Sent ${n} item${n === 1 ? "" : "s"} saved while offline`); });
-    void syncReminders(api); void syncHabitReminders(api); void autoSyncHealth(api); void notifyStockAlerts(api);
+    void syncReminders(api); void syncHabitReminders(api); void autoSyncHealth(api); void notifyStockAlerts(api); void syncMedicineReminders(api);
     void uploadUsage(api); void uploadUsage(api, new Date(Date.now() - 86400000));   // phone screen time for today and yesterday's report
   }, [token, api, showNotice]);
 
@@ -241,6 +242,8 @@ function App() {
       {tab === "More" && sub === "Gym" && <GymScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Videos" && <VideosScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Schedule" && <ScheduleScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "Meds" && <MedicinesScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "Skills" && <SkillsScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Speak" && <SpeakingScreen api={api} upload={(path, file, fields) => apiUpload<Row>(path, token, file, fields)} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "You" && <AboutYouScreen api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/>}
       {tab === "More" && sub === "Team" && <AiTeamScreen api={api} onError={showError} onNotice={showNotice}/>}

@@ -1681,3 +1681,75 @@ class TextVector(Base):
     model: Mapped[str] = mapped_column(String(80))
     vector: Mapped[list] = mapped_column(JsonDict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Medicine(Base):
+    """A medicine or supplement you take: when, how much, and stock for refill alerts. Sakuna never suggests doses."""
+    __tablename__ = "medicines"
+    __table_args__ = (CheckConstraint("per_dose > 0", name="ck_medicines_per_dose"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    name: Mapped[str] = mapped_column(String(120))
+    dose: Mapped[str | None] = mapped_column(String(60), nullable=True)          # as written on the label, e.g. "500 mg"
+    icon: Mapped[str] = mapped_column(String(8), default="💊")
+    times: Mapped[list] = mapped_column(JsonDict)                                 # ["08:00", "20:00"]
+    days: Mapped[list | None] = mapped_column(JsonDict, nullable=True)            # 1..7, null = every day
+    with_food: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    stock: Mapped[int | None] = mapped_column(Integer, nullable=True)             # doses left
+    per_dose: Mapped[int] = mapped_column(Integer, default=1)
+    refill_at: Mapped[int] = mapped_column(Integer, default=7)                   # warn when this many are left
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class MedicineLog(Base):
+    __tablename__ = "medicine_logs"
+    __table_args__ = (UniqueConstraint("medicine_id", "local_date", "slot", name="uq_medicine_logs_dose"),
+                      CheckConstraint("status IN ('taken','skipped')", name="ck_medicine_logs_status"))
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    medicine_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("medicines.id", ondelete="CASCADE"), index=True)
+    local_date: Mapped[date] = mapped_column(Date)
+    slot: Mapped[str] = mapped_column(String(5))                                  # the planned time, "08:00"
+    status: Mapped[str] = mapped_column(String(8))
+    logged_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Skill(Base):
+    """Something you are getting better at: yoga, singing, guitar, kickboxing, swimming, leadership and more."""
+    __tablename__ = "skills"
+    __table_args__ = (CheckConstraint("level BETWEEN 1 AND 10", name="ck_skills_level"),
+                      CheckConstraint("weekly_minutes BETWEEN 0 AND 3000", name="ck_skills_weekly"))
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    name: Mapped[str] = mapped_column(String(80))
+    category: Mapped[str] = mapped_column(String(20), default="other")
+    icon: Mapped[str] = mapped_column(String(8), default="🎯")
+    level: Mapped[int] = mapped_column(Integer, default=1)
+    weekly_minutes: Mapped[int] = mapped_column(Integer, default=90)
+    goal: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    trainer: Mapped[str | None] = mapped_column(String(10), nullable=True)        # "pitch", "pose" or none
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class SkillSession(Base):
+    __tablename__ = "skill_sessions"
+    __table_args__ = (CheckConstraint("minutes BETWEEN 1 AND 600", name="ck_skill_sessions_minutes"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    skill_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("skills.id", ondelete="CASCADE"), index=True)
+    local_date: Mapped[date] = mapped_column(Date, index=True)
+    minutes: Mapped[int] = mapped_column(Integer)
+    rating: Mapped[int | None] = mapped_column(Integer, nullable=True)            # 1..5, how it went
+    note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    metrics: Mapped[dict | None] = mapped_column(JsonDict, nullable=True)         # from the trainers: in_tune_pct, reps, hold_s
+    source: Mapped[str] = mapped_column(String(8), default="manual")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

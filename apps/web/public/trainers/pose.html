@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Pose coach</title>
+<style>
+:root{--bg:#070b09;--card:#0f1613;--line:#1d2a24;--text:#eef6f1;--muted:#8a9b92;--green:#3ee08f;--amber:#f5b65b;--red:#ff7a8a;--blue:#5aa8ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:12px;max-width:640px;margin:auto}
+h1{font-size:22px;margin:4px 0 2px}.muted{color:var(--muted);font-size:13px}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button{border:0;border-radius:14px;padding:10px 14px;font-weight:800;font-size:14px;background:var(--line);color:var(--text)}button.on{background:var(--blue);color:#06121f}
+.go{background:var(--green);color:#04170d}.fin{background:#b48cff;color:#120a20}
+.stage{position:relative;margin-top:10px;border-radius:20px;overflow:hidden;background:#000;aspect-ratio:3/4}
+video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.hud{position:absolute;left:10px;right:10px;top:10px;display:flex;justify-content:space-between;pointer-events:none}
+.pill{background:#000a;border-radius:14px;padding:8px 12px;font-weight:900;font-size:22px}#cue{position:absolute;left:10px;right:10px;bottom:10px;background:#000b;border-radius:14px;padding:10px;font-weight:700;text-align:center}
+</style></head><body>
+<h1>🧘 Pose coach</h1><div class="muted">Camera checks your form and counts. Video stays on this device (Google MediaPipe Pose).</div>
+<div class="row" style="margin-top:8px" id="modes"></div>
+<div class="stage"><video id="v" playsinline muted></video><canvas id="c"></canvas>
+  <div class="hud"><div class="pill" id="count">0</div><div class="pill" id="good">—</div></div><div id="cue">Pick an exercise, step back so your whole body is visible, then Start.</div></div>
+<div class="row" style="margin-top:10px"><button id="start" class="go" style="flex:1">📷 Start</button><button id="finish" class="fin" style="flex:1" disabled>✓ Finish & save</button></div>
+<div id="err" class="muted" style="color:var(--amber);margin-top:8px"></div>
+<script type="module">
+const MODES={squat:"🏋️ Squats",punch:"🥊 Punches",kick:"🦵 Kicks",tree:"🌳 Tree pose",warrior:"⚔️ Warrior II",plank:"🧱 Plank"};
+const HOLD=new Set(["tree","warrior","plank"]);
+let mode="squat",lm,video=document.getElementById("v"),cv=document.getElementById("c"),g=cv.getContext("2d"),run=false,started=0;
+let reps=0,phase="up",holdMs=0,goodFrames=0,frames=0,last=0,lastArm={l:0,r:0},armOut={l:false,r:false},kickUp=false;
+const $=id=>document.getElementById(id);
+function post(d){const s=JSON.stringify(d);if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(s);else if(window.parent!==window)window.parent.postMessage(s,"*");}
+const box=$("modes");for(const[k,v]of Object.entries(MODES)){const b=document.createElement("button");b.textContent=v;b.onclick=()=>{mode=k;reset();[...box.children].forEach(x=>x.classList.remove("on"));b.classList.add("on");};if(k===mode)b.classList.add("on");box.appendChild(b);}
+function reset(){reps=0;holdMs=0;goodFrames=0;frames=0;phase="up";$("count").textContent=HOLD.has(mode)?"0s":"0";$("good").textContent="—";}
+const ang=(a,b,c)=>{const ab=Math.atan2(a.y-b.y,a.x-b.x),cb=Math.atan2(c.y-b.y,c.x-b.x);let d=Math.abs((ab-cb)*180/Math.PI);return d>180?360-d:d;};
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+function judge(p,dt){const[ls,rs,le,re,lw,rw,lh,rh,lk,rk,la,ra]=[11,12,13,14,15,16,23,24,25,26,27,28].map(i=>p[i]);
+  const vis=[ls,rs,lh,rh].every(x=>x.visibility>0.5);if(!vis)return{good:false,cue:"Step back: shoulders and hips must be visible"};
+  const sw=dist(ls,rs)||0.1,kneeL=ang(lh,lk,la),kneeR=ang(rh,rk,ra);
+  if(mode==="squat"){const k=(kneeL+kneeR)/2;if(phase==="up"&&k<100){phase="down";}if(phase==="down"&&k>160){phase="up";reps++;}
+    return{good:k<100||k>160,cue:k<100?"Good depth, now stand up":k>160?"Squat down: hips back, chest up":"Lower… knees over toes"};}
+  if(mode==="punch"){let cue="Guard up, then jab and cross";for(const[s,w,key]of[[ls,lw,"l"],[rs,rw,"r"]]){const ext=dist(s,w)/sw;if(!armOut[key]&&ext>1.45){armOut[key]=true;reps++;}if(armOut[key]&&ext<0.9)armOut[key]=false;}
+    const guard=lw.y<ls.y+0.15&&rw.y<rs.y+0.15;return{good:guard,cue:guard?"Hands up. Nice guard":"Bring your hands back to your chin"};}
+  if(mode==="kick"){const up=la.y<lh.y+0.02||ra.y<rh.y+0.02;if(up&&!kickUp){reps++;}kickUp=up;return{good:true,cue:up?"High kick!":"Chamber the knee, then kick"};}
+  if(mode==="tree"){const standL=kneeL>165,standR=kneeR>165;const lifted=(standL&&la.y<lk.y+0.05)||(standR&&ra.y<rk.y+0.05);const tall=Math.abs(ls.y-rs.y)<0.05;
+    const ok=lifted&&tall;return{good:ok,cue:ok?"Hold it. Breathe slowly":"Stand on one straight leg, foot on the inner thigh or calf"};}
+  if(mode==="warrior"){const front=Math.min(kneeL,kneeR),back=Math.max(kneeL,kneeR);const arms=Math.abs(lw.y-ls.y)<0.08&&Math.abs(rw.y-rs.y)<0.08&&dist(lw,rw)>sw*2.5;
+    const ok=front>75&&front<120&&back>155&&arms;return{good:ok,cue:ok?"Strong warrior. Hold":(front>=120?"Bend the front knee to 90°":!arms?"Arms out straight at shoulder height":"Back leg straight")};}
+  if(mode==="plank"){const body=(ang(ls,lh,la)+ang(rs,rh,ra))/2;const flat=Math.abs(ls.y-la.y)<0.25;const ok=body>160&&flat;
+    return{good:ok,cue:ok?"Straight line. Hold":(body<=160?"Hips in line with shoulders and heels":"Get down into a plank, side-on to the camera")};}
+  return{good:false,cue:""};}
+function draw(p){g.clearRect(0,0,cv.width,cv.height);const L=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]];
+  g.lineWidth=6;g.strokeStyle="#3ee08f";g.lineCap="round";for(const[a,b]of L){g.beginPath();g.moveTo(p[a].x*cv.width,p[a].y*cv.height);g.lineTo(p[b].x*cv.width,p[b].y*cv.height);g.stroke();}
+  g.fillStyle="#fff";for(const i of[11,12,13,14,15,16,23,24,25,26,27,28]){g.beginPath();g.arc(p[i].x*cv.width,p[i].y*cv.height,6,0,7);g.fill();}}
+function tick(t){if(!run)return;requestAnimationFrame(tick);if(video.readyState<2)return;const dt=last?Math.min(200,t-last):16;last=t;
+  if(cv.width!==video.videoWidth){cv.width=video.videoWidth;cv.height=video.videoHeight;}
+  const r=lm.detectForVideo(video,t);const p=r.landmarks&&r.landmarks[0];if(!p){$("cue").textContent="I can't see you: step back into the frame";return;}
+  draw(p);const j=judge(p,dt);frames++;if(j.good){goodFrames++;if(HOLD.has(mode))holdMs+=dt;}
+  $("count").textContent=HOLD.has(mode)?Math.floor(holdMs/1000)+"s":String(reps);$("good").textContent=Math.round(goodFrames/frames*100)+"% form";$("cue").textContent=j.cue;$("cue").style.color=j.good?"#3ee08f":"#f5b65b";}
+async function start(){$("err").textContent="";$("cue").textContent="Loading the pose model…";
+  try{if(!lm){const v=await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14");
+      const files=await v.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+      lm=await v.PoseLandmarker.createFromOptions(files,{baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",delegate:"GPU"},runningMode:"VIDEO",numPoses:1});}
+    video.srcObject=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:640,height:480},audio:false});await video.play();
+    reset();run=true;started=Date.now();last=0;$("start").disabled=true;$("finish").disabled=false;requestAnimationFrame(tick);}
+  catch(e){$("err").textContent="Camera or model not available: "+e.message+". Allow the camera for Sakuna and check your internet.";}}
+function finish(){run=false;if(video.srcObject)video.srcObject.getTracks().forEach(t=>t.stop());$("start").disabled=false;$("finish").disabled=true;
+  post({kind:"pose",mode,minutes:Math.max(1,Math.round((Date.now()-started)/60000)),reps:HOLD.has(mode)?null:reps,hold_seconds:HOLD.has(mode)?Math.round(holdMs/1000):null,good_pct:frames?Math.round(goodFrames/frames*100):0});}
+$("start").onclick=start;$("finish").onclick=finish;
+</script></body></html>

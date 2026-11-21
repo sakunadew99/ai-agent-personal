@@ -38,6 +38,7 @@ import { HabitManager, InboxPage, JobFinder, LearnRadar, PlannerBoard, RewardsGa
 import { BrainGymPage, NewsAndWatch } from "@/components/LifeOsPages3";
 import { SearchPage, VideosPage } from "@/components/LifeOsPages5";
 import { SchedulePage, SpeakingPage } from "@/components/LifeOsPages6";
+import { HealthAdvicePanel, MedicinesPage, SkillsPage } from "@/components/LifeOsPages7";
 import { DayPage, GymPage, LanguagesPage, ProgressPage } from "@/components/LifeOsPages4";
 import { NudgeBanner, TodayPlanCard } from "@/components/SmartCards";
 
@@ -70,6 +71,8 @@ const navigation = [
   { label: "Search", icon: "compass", hint: "Find anything you saved, by words or meaning" },
   { label: "Speaking coach", icon: "brain", hint: "Public speaking, English & German: pace, fillers, tips" },
   { label: "My schedule", icon: "check", hint: "Office, gym, sleep times (detected from your logs)" },
+  { label: "Medicines", icon: "heart", hint: "Doses, reminders, refills" },
+  { label: "Skills & trainers", icon: "flame", hint: "Yoga, singing, guitar, boxing: pitch trainer and pose coach" },
   { label: "Rewards", icon: "flame", hint: "Points, streak, quests and treats" },
   { label: "Study abroad", icon: "arrow", hint: "Programs, checklist, costs, scholarships" },
   { label: "Documents", icon: "copy", hint: "Passport, visas, IDs and expiry reminders" },
@@ -435,6 +438,8 @@ export default function Home() {
       case "Search": return <SearchPage token={token} />;
       case "Speaking coach": return <SpeakingPage token={token} />;
       case "My schedule": return <SchedulePage token={token} />;
+      case "Medicines": return <MedicinesPage token={token} />;
+      case "Skills & trainers": return <SkillsPage token={token} />;
       case "Day tracker": return <DayPage token={token} />;
       case "Languages": return <LanguagesPage token={token} />;
       case "Progress": return <ProgressPage token={token} />;
@@ -445,7 +450,7 @@ export default function Home() {
       case "Study abroad": return <StudyPage token={token} />;
       case "Documents": return <><SubscriptionsPanel token={token} /><VaultPage token={token} /></>;
       case "Life balance": return <BalancePage token={token} />;
-      case "Health": return <Health records={toList(data.records)} workouts={toList(data.workouts)} sleep={toList(data.sleep)} submit={submit} token={token} />;
+      case "Health": return <><HealthAdvicePanel token={token}/><Health records={toList(data.records)} workouts={toList(data.workouts)} sleep={toList(data.sleep)} submit={submit} token={token} /></>;
       case "Focus": return <FocusPage sessions={toList(data.sessions)} tasks={toList(data.tasks)} />;
       case "Experiences": return <Experiences entries={toList(data.entries)} submit={submit} />;
       case "Memory": return <Memory memories={toList(data.memories)} query={memoryQuery} setQuery={setMemoryQuery} search={searchMemory} submit={submit} token={token} refresh={() => fetchPage()} />;

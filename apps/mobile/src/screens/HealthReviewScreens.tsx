@@ -5,6 +5,7 @@ import { peek, type ApiRecord as Row } from "../api";
 import { Bars, Hero, LineChart, Ring, StatTile, TileRow } from "../charts";
 import { connectHealthConnect, getHealthConnectStatus, type HealthConnectStatus, type TodayHealth } from "../health/health-connect";
 import { syncHealthNow } from "../health/autosync";
+import { HealthAdviceCard } from "./WellbeingScreens";
 import { Btn, C, Card, Empty, Field, H1, H2, Kicker, Muted, Progress, Row as Line, Screen } from "../ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
@@ -91,6 +92,7 @@ export function HealthScreen({ api, onError, onNotice }: { api: Api; onError: (m
     </>}
     <Muted small>{trends?.note || "Personal records, not medical advice."}</Muted>
 
+    <HealthAdviceCard api={api} onError={onError}/>
     <Card><TouchableOpacity onPress={() => setShowSetup(v => !v)}><Line style={{ justifyContent: "space-between" }}><Kicker>SET UP MI FITNESS (ONCE)</Kicker><Text style={{ color: C.green }}>{showSetup ? "Hide" : "Show"}</Text></Line></TouchableOpacity>
       {showSetup && <>
       {[
@@ -161,7 +163,7 @@ export function ReviewScreen({ api, onError, onNotice }: { api: Api; onError: (m
   </Screen>;
 }
 
-export type MoreTarget = "Speak" | "Schedule" | "Videos" | "Day" | "Gym" | "Brain" | "Assistant" | "Journal" | "Invest" | "News" | "You" | "Team" | "Exams" | "Life" | "Learning" | "Jobs" | "Money" | "Rewards" | "AI" | "Study" | "Balance" | "Vault" | "Finance" | "Health" | "Memory" | "Review" | "Approvals" | "Profile";
+export type MoreTarget = "Meds" | "Skills" | "Speak" | "Schedule" | "Videos" | "Day" | "Gym" | "Brain" | "Assistant" | "Journal" | "Invest" | "News" | "You" | "Team" | "Exams" | "Life" | "Learning" | "Jobs" | "Money" | "Rewards" | "AI" | "Study" | "Balance" | "Vault" | "Finance" | "Health" | "Memory" | "Review" | "Approvals" | "Profile";
 const MENU: { key: MoreTarget; icon: string; title: string; hint: string }[] = [
   { key: "Assistant", icon: "✳", title: "Assistant", hint: "Chat with Sakuna" },
   { key: "Journal", icon: "✍️", title: "Journal", hint: "Day, gratitude, lessons" },

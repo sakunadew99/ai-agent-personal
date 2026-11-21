@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Pitch trainer</title>
+<style>
+:root{--bg:#070b09;--card:#0f1613;--line:#1d2a24;--text:#eef6f1;--muted:#8a9b92;--green:#3ee08f;--amber:#f5b65b;--red:#ff7a8a;--violet:#b48cff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:16px;max-width:560px;margin:auto}
+h1{font-size:22px;margin:4px 0 2px}.muted{color:var(--muted);font-size:13px}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:16px;margin-top:12px}
+button{border:0;border-radius:14px;padding:12px 16px;font-weight:800;font-size:15px;background:var(--line);color:var(--text)}
+button.on,.primary{background:var(--violet);color:#120a20}.go{background:var(--green);color:#04170d}.stop{background:var(--red);color:#2a0a10}
+#note{font-size:84px;font-weight:900;text-align:center;letter-spacing:-2px;line-height:1}#hz{text-align:center;color:var(--muted)}
+.meter{position:relative;height:44px;border-radius:22px;background:linear-gradient(90deg,#3a2222,#3a2f1d 35%,#123222 45%,#123222 55%,#3a2f1d 65%,#3a2222);margin-top:14px}
+#needle{position:absolute;top:-6px;width:6px;height:56px;border-radius:3px;background:var(--text);left:calc(50% - 3px);transition:left .08s}
+.target{font-size:28px;font-weight:900;color:var(--violet)}.big{font-size:28px;font-weight:900}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.stat{background:#141d19;border-radius:14px;padding:10px;text-align:center}
+.stat b{display:block;font-size:22px}select{background:#141d19;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:10px;font-size:15px}
+</style></head><body>
+<h1>🎤 Pitch trainer</h1><div class="muted">Tuner for guitar and voice, and a singing scale trainer. Your sound stays on this device.</div>
+<div class="card"><div class="row">
+  <button id="mTune" class="on">🎸 Tuner</button><button id="mSing">🎤 Sing the scale</button>
+  <select id="key"><option value="48">Low voice (C3)</option><option value="55">Middle (G3)</option><option value="60" selected>High voice (C4)</option></select>
+</div>
+<div id="tuneBox" class="muted" style="margin-top:8px">Guitar strings: E2 A2 D3 G3 B3 E4. Play one string; get the needle to the middle.</div>
+<div id="singBox" style="display:none;margin-top:8px"><span class="muted">Sing this note (tap ▶ to hear it):</span> <span id="target" class="target">—</span>
+  <button id="play" style="padding:6px 12px;margin-left:6px">▶</button> <span id="hold" class="muted"></span></div>
+</div>
+<div class="card"><div id="note">—</div><div id="hz">tap Start and make a sound</div><div class="meter"><div id="needle"></div></div>
+<div class="row" style="justify-content:space-between;margin-top:6px" ><span class="muted">flat ◀</span><span id="cents" class="muted"></span><span class="muted">▶ sharp</span></div></div>
+<div class="stats"><div class="stat"><b id="sIn">0%</b><span class="muted">in tune</span></div><div class="stat"><b id="sHit">0</b><span class="muted">notes hit</span></div><div class="stat"><b id="sRange">—</b><span class="muted">range</span></div></div>
+<div class="row" style="margin-top:14px"><button id="start" class="go" style="flex:1">🎙 Start</button><button id="finish" class="primary" style="flex:1" disabled>✓ Finish & save</button></div>
+<div id="err" class="muted" style="color:var(--amber);margin-top:8px"></div>
+<script>
+const NAMES=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const name=m=>NAMES[(m%12+12)%12]+(Math.floor(m/12)-1);
+const midiOf=f=>69+12*Math.log2(f/440), freqOf=m=>440*Math.pow(2,(m-69)/12);
+const SCALE=[0,2,4,5,7,9,11,12];
+let ctx,an,buf,stream,raf,mode="tune",started=0,voiced=0,inTune=0,hits=0,lo=null,hi=null,step=0,holdMs=0,last=0;
+const $=id=>document.getElementById(id);
+function post(d){const s=JSON.stringify(d);if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(s);else if(window.parent!==window)window.parent.postMessage(s,"*");}
+function detect(b,sr){let rms=0;for(const v of b)rms+=v*v;rms=Math.sqrt(rms/b.length);if(rms<0.012)return -1;
+  let r1=0,r2=b.length-1;const t=0.2;for(let i=0;i<b.length/2;i++)if(Math.abs(b[i])<t){r1=i;break}
+  for(let i=1;i<b.length/2;i++)if(Math.abs(b[b.length-i])<t){r2=b.length-i;break}
+  const x=b.slice(r1,r2),n=x.length,c=new Float32Array(n);for(let i=0;i<n;i++)for(let j=0;j<n-i;j++)c[i]+=x[j]*x[j+i];
+  let d=0;while(d<n-1&&c[d]>c[d+1])d++;let mv=-1,mp=-1;for(let i=d;i<n;i++)if(c[i]>mv){mv=c[i];mp=i}
+  if(mp<1)return -1;const a=c[mp-1],bb=c[mp],cc=c[mp+1]||0,p=(a+cc-2*bb)/2,q=(cc-a)/2;const T=p?mp-q/(2*p):mp;return sr/T;}
+function target(){return Number($("key").value)+SCALE[step%SCALE.length]}
+function setMode(m){mode=m;$("mTune").classList.toggle("on",m==="tune");$("mSing").classList.toggle("on",m==="sing");
+  $("tuneBox").style.display=m==="tune"?"":"none";$("singBox").style.display=m==="sing"?"":"none";step=0;holdMs=0;$("target").textContent=name(target());}
+function beep(){if(!ctx)ctx=new AudioContext();const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=freqOf(target());o.type="triangle";
+  g.gain.setValueAtTime(0.25,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+1.2);o.connect(g).connect(ctx.destination);o.start();o.stop(ctx.currentTime+1.2);}
+function loop(t){raf=requestAnimationFrame(loop);an.getFloatTimeDomainData(buf);const f=detect(buf,ctx.sampleRate);const dt=last?t-last:16;last=t;
+  if(f<50||f>1500){$("hz").textContent="listening…";return}
+  const m=midiOf(f),near=Math.round(m),cents=Math.round((m-near)*100);voiced++;
+  lo=lo===null?near:Math.min(lo,near);hi=hi===null?near:Math.max(hi,near);
+  $("note").textContent=name(near);$("hz").textContent=f.toFixed(1)+" Hz";
+  let off=cents;if(mode==="sing"){off=Math.round((m-target())*100);$("cents").textContent=(off>0?"+":"")+off+" cents from "+name(target());}else $("cents").textContent=(cents>0?"+":"")+cents+" cents";
+  const ok=Math.abs(off)<=25;if(ok)inTune++;
+  $("needle").style.left=`calc(${50+Math.max(-50,Math.min(50,off/2))}% - 3px)`;$("needle").style.background=ok?"var(--green)":Math.abs(off)<60?"var(--amber)":"var(--red)";
+  if(mode==="sing"){if(ok){holdMs+=dt;$("hold").textContent="hold "+(holdMs/1000).toFixed(1)+"s";if(holdMs>1000){hits++;step++;holdMs=0;$("target").textContent=name(target());beep();}}else holdMs=Math.max(0,holdMs-dt/2);}
+  else if(ok&&Math.abs(cents)<=10){hits=Math.max(hits,0);}
+  $("sIn").textContent=Math.round(inTune/voiced*100)+"%";$("sHit").textContent=hits;$("sRange").textContent=lo===null?"—":name(lo)+"–"+name(hi);}
+async function start(){$("err").textContent="";try{ctx=ctx||new AudioContext();await ctx.resume();
+  stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+  an=ctx.createAnalyser();an.fftSize=2048;buf=new Float32Array(an.fftSize);ctx.createMediaStreamSource(stream).connect(an);
+  started=Date.now();voiced=inTune=hits=0;lo=hi=null;$("start").disabled=true;$("finish").disabled=false;loop(0);if(mode==="sing")beep();}
+  catch(e){$("err").textContent="Microphone not available: "+e.message+". Allow the microphone for Sakuna and try again.";}}
+function finish(){cancelAnimationFrame(raf);if(stream)stream.getTracks().forEach(t=>t.stop());$("start").disabled=false;$("finish").disabled=true;
+  const minutes=Math.max(1,Math.round((Date.now()-started)/60000));
+  post({kind:"pitch",mode,minutes,in_tune_pct:voiced?Math.round(inTune/voiced*100):0,notes_hit:hits,range_low:lo===null?null:name(lo),range_high:hi===null?null:name(hi)});}
+$("mTune").onclick=()=>setMode("tune");$("mSing").onclick=()=>setMode("sing");$("key").onchange=()=>setMode(mode);$("play").onclick=beep;
+$("start").onclick=start;$("finish").onclick=finish;setMode("tune");
+</script></body></html>
