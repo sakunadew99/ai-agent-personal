@@ -38,7 +38,7 @@ import { HabitManager, InboxPage, JobFinder, LearnRadar, PlannerBoard, RewardsGa
 import { BrainGymPage, NewsAndWatch } from "@/components/LifeOsPages3";
 import { SearchPage, VideosPage } from "@/components/LifeOsPages5";
 import { SchedulePage, SpeakingPage } from "@/components/LifeOsPages6";
-import { HealthAdvicePanel, MedicinesPage, SkillsPage, SkinPage } from "@/components/LifeOsPages7";
+import { HealthAdvicePanel, MedicinesPage, RitualsPage, SkillsPage, SkinPage } from "@/components/LifeOsPages7";
 import { DayPage, GymPage, LanguagesPage, ProgressPage } from "@/components/LifeOsPages4";
 import { NudgeBanner, TodayPlanCard } from "@/components/SmartCards";
 
@@ -72,6 +72,7 @@ const navigation = [
   { label: "Speaking coach", icon: "brain", hint: "Public speaking, English & German: pace, fillers, tips" },
   { label: "My schedule", icon: "check", hint: "Office, gym, sleep times (detected from your logs)" },
   { label: "Medicines", icon: "heart", hint: "Doses, reminders, refills" },
+  { label: "Morning & evening", icon: "sun", hint: "2-minute start and close of your day" },
   { label: "Skin & glow", icon: "heart", hint: "Daily face scan and glow score" },
   { label: "Skills & trainers", icon: "flame", hint: "Yoga, singing, guitar, boxing: pitch trainer and pose coach" },
   { label: "Rewards", icon: "flame", hint: "Points, streak, quests and treats" },
@@ -137,7 +138,7 @@ function niceDate(value: unknown) {
 }
 // Same groups as the phone's "All apps"; anything not listed lands in MORE so a new page is never hidden.
 const NAV_GROUPS: [string, string[]][] = [
-  ["TODAY", ["Home", "Focus", "Planner", "My day", "Day tracker", "My schedule", "Capture inbox", "Search"]],
+  ["TODAY", ["Home", "Morning & evening", "Focus", "Planner", "My day", "Day tracker", "My schedule", "Capture inbox", "Search"]],
   ["💰 MONEY", ["Finance", "Invest", "Documents"]],
   ["💪 BODY", ["Health", "Gym", "Medicines", "Skin & glow", "Skills & trainers"]],
   ["🎓 LEARNING", ["Learning", "Languages", "Exam coach", "Speaking coach", "Progress", "Study abroad", "Career", "My videos", "News", "Brain gym"]],
@@ -453,6 +454,7 @@ export default function Home() {
       case "Speaking coach": return <SpeakingPage token={token} />;
       case "My schedule": return <SchedulePage token={token} />;
       case "Medicines": return <MedicinesPage token={token} />;
+      case "Morning & evening": return <RitualsPage token={token} />;
       case "Skin & glow": return <SkinPage token={token} />;
       case "Skills & trainers": return <SkillsPage token={token} />;
       case "Day tracker": return <DayPage token={token} />;

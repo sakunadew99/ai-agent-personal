@@ -144,3 +144,42 @@ export function SkinPage({ token }: { token: string }) {
     {scan && <TrainerFrame kind="skin" onResult={onResult} onClose={() => setScan(false)}/>}
   </div>;
 }
+
+export function RitualsPage({ token }: { token: string }) {
+  const [m, setM] = useState<Row | null>(null);
+  const [e, setE] = useState<Row | null>(null);
+  const [mf, setMf] = useState({ energy: 3, mood: 3, focus: "" });
+  const [ef, setEf] = useState({ mood: 3, wins: "", lesson: "", tomorrow: "" });
+  const [note, setNote] = useState("");
+  const load = useCallback(() => {
+    call<Row>("/ritual/morning", token).then(x => { setM(x); setMf(f => ({ ...f, focus: x.saved?.focus || x.suggested_focus || "" })); }).catch(() => undefined);
+    call<Row>("/ritual/evening", token).then(setE).catch(() => undefined);
+  }, [token]);
+  useEffect(() => { load(); }, [load]);
+  const scale = (v: number, set: (n: number) => void, icons: string[]) => <div className="d-chips">{icons.map((ic, i) => <button key={i} className={`d-chip ${v === i + 1 ? "on" : ""}`} onClick={() => set(i + 1)}>{ic}</button>)}</div>;
+  const FACES = ["😫", "😕", "😐", "🙂", "😄"];
+  return <div className="d-dash">
+    <Hero kicker="2-minute rituals" title="Start and close" accent="your day" sub="Morning: energy, mood, one focus. Evening: wins, a lesson and tomorrow's top 3 (they become tasks)."/>
+    {note && <p className="d-note">{note}</p>}
+    <div className="d-grid-2">
+      <Card kicker={m?.done ? "☀️ Done today" : "☀️ Morning"} title={m?.greeting || "Good morning"}>
+        {m?.sleep_hours != null && <p className="d-note">😴 You slept {m.sleep_hours} h</p>}
+        {(m?.blocks as Row[] || []).map((b, i) => <small key={i} className="d-note" style={{ display: "block" }}>{b.start} · {b.title}</small>)}
+        <p className="d-note">Energy</p>{scale(mf.energy, n => setMf({ ...mf, energy: n }), ["🪫", "😴", "⚡", "⚡⚡", "🚀"])}
+        <p className="d-note">Mood</p>{scale(mf.mood, n => setMf({ ...mf, mood: n }), FACES)}
+        <input className="d-input" placeholder="One focus for today" value={mf.focus} onChange={x => setMf({ ...mf, focus: x.target.value })}/>
+        <button className="d-btn" onClick={() => void call("/ritual/morning", token, postJson(mf)).then(() => { setNote("Morning saved ☀️"); load(); })}>✓ Start my day</button>
+      </Card>
+      <Card kicker={e?.done ? "🌙 Done today" : "🌙 Evening"} title="Close your day">
+        {e && <p className="d-note">✅ {(e.tasks_done as string[]).length} done · 🎯 {e.focus_minutes} min focus · 👟 {Number(e.steps).toLocaleString()} steps · 🎵 {e.practice_minutes} min practice · 💊 {e.doses_taken}/{e.doses_total}</p>}
+        {e?.morning_focus && <p className="d-note" style={{ color: "var(--d-amber)" }}>Focus this morning: {e.morning_focus}</p>}
+        {scale(ef.mood, n => setEf({ ...ef, mood: n }), FACES)}
+        <input className="d-input" placeholder="Wins, separated by commas" value={ef.wins} onChange={x => setEf({ ...ef, wins: x.target.value })}/>
+        <input className="d-input" placeholder="One lesson" value={ef.lesson} onChange={x => setEf({ ...ef, lesson: x.target.value })}/>
+        <input className="d-input" placeholder="Tomorrow's top 3, separated by commas" value={ef.tomorrow} onChange={x => setEf({ ...ef, tomorrow: x.target.value })}/>
+        <button className="d-btn" onClick={() => void call<Row>("/ritual/evening", token, postJson({ mood: ef.mood, wins: ef.wins.split(",").map(s => s.trim()).filter(Boolean).slice(0, 5),
+          lesson: ef.lesson || null, tomorrow: ef.tomorrow.split(",").map(s => s.trim()).filter(Boolean).slice(0, 3) })).then(r => { setNote(`Day closed 🌙 · ${(r.tasks_created as string[]).length} tasks for tomorrow`); load(); })}>✓ Close my day</button>
+      </Card>
+    </div>
+  </div>;
+}

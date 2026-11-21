@@ -1656,3 +1656,16 @@ class SkinIn(BaseModel):
 
 class SkinNoteIn(BaseModel):
     note: str | None = Field(default=None, max_length=300)
+
+
+class MorningIn(BaseModel):
+    energy: int = Field(ge=1, le=5)
+    mood: int = Field(ge=1, le=5)
+    focus: str | None = Field(default=None, max_length=200)
+
+
+class EveningIn(BaseModel):
+    mood: int = Field(ge=1, le=5)
+    wins: list[str] = Field(default_factory=list, max_length=5)
+    lesson: str | None = Field(default=None, max_length=1000)
+    tomorrow: list[str] = Field(default_factory=list, max_length=3)

@@ -40,6 +40,7 @@ import { SpeakingScreen } from "./src/screens/SpeakingScreen";
 import { MedicinesScreen, SkillsScreen } from "./src/screens/WellbeingScreens";
 import { SkinScreen } from "./src/screens/SkinScreen";
 import { CoachTabs } from "./src/screens/CoachTabs";
+import { QuickAdd, RitualCard } from "./src/screens/Rituals";
 import { DayTrackerScreen, GymScreen, LanguageScreen, ProgressScreen, uploadUsage } from "./src/screens/LifeOs4Screens";
 import { BrowserHost } from "./src/browser";
 import { LockGate } from "./src/lock";
@@ -80,6 +81,7 @@ function App() {
   const [sub, setSub] = useState<MoreTarget | null>(null);
   const [checkinHour, setCheckinHour] = useState<number | null>(null);
   const keyboard = useKeyboard();          // tab bar hides while typing
+  const [quick, setQuick] = useState(false);   // long-press ＋ = quick add
   // One API helper for all screens (adds the signed-in token). While warm, calls wait for the renewed token.
   const api = useCallback(<T = Row,>(path: string, method = "GET", body?: unknown): Promise<T> => token
     ? request<T>(path, token, method, body)
@@ -216,7 +218,7 @@ function App() {
     <View style={[styles.screen, tab === "More" && sub === "Assistant" && keyboard === 0 && { marginBottom: 84 }]}>
       {tab === "Home" && <HomeScreen name={String(user.full_name || "").split(" ")[0]} life={life} dashboard={dashboard} finance={finance} health={health} onOpen={openTarget} onComplete={completeTask} onOpenPlan={() => setTab("Plan")}
         quick={<QuickLaunch open={openTarget} onSearch={() => { setTab("More"); setSub(null); }}/>}
-        top={<><NudgeBanner api={api} onOpen={openTarget}/><TodayPlanCard api={api} onOpen={openTarget}/>
+        top={<><RitualCard api={api} onError={showError} onNotice={showNotice}/><NudgeBanner api={api} onOpen={openTarget}/><TodayPlanCard api={api} onOpen={openTarget}/>
         <NowRoutineCard api={api} onOpen={() => { setPlanView("day"); setTab("Plan"); }}/><WeeklyHealthCard api={api} onOpen={() => openTarget("Health")}/></>}
         extra={<CoachTabs tabs={[
           { key: "team", label: "🤖 AI team", node: <TeamTodayCard api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/> },
@@ -264,8 +266,9 @@ function App() {
     </View>
     <BrowserHost api={api} onNotice={showNotice}/>
     {keyboard === 0 && <View style={styles.tabbarWrap}><View style={styles.tabbar}>{(["Home", "Plan", "Capture", "Focus", "More"] as Tab[]).map(item => item === "Capture"
-      ? <TouchableOpacity key={item} style={styles.tab} onPress={() => { setTab(item); setSub(null); setNotice(""); setError(""); }} accessibilityLabel="Capture"><View style={[styles.fab, tab === item && styles.fabOn]}><Text style={styles.fabIcon}>＋</Text></View></TouchableOpacity>
+      ? <TouchableOpacity key={item} style={styles.tab} onPress={() => { setTab(item); setSub(null); setNotice(""); setError(""); }} onLongPress={() => setQuick(true)} accessibilityLabel="Capture (hold for quick add)"><View style={[styles.fab, tab === item && styles.fabOn]}><Text style={styles.fabIcon}>＋</Text></View></TouchableOpacity>
       : <TouchableOpacity key={item} style={styles.tab} onPress={() => { setTab(item); setSub(null); setNotice(""); setError(""); }}><View style={[styles.tabPill, tab === item && styles.tabPillOn]}><Text style={[styles.tabIcon, tab === item && styles.tabIconActive]}>{({ Home: "🏠", Plan: "🗓", Capture: "＋", Focus: "🎯", More: "🧭" } as Record<Tab, string>)[item]}</Text></View><Text style={[styles.tabText, tab === item && styles.tabTextActive]}>{item}</Text></TouchableOpacity>)}</View></View>}
+    {quick && <QuickAdd api={api} onClose={() => setQuick(false)} onOpen={openTarget} onNotice={showNotice} onError={showError}/>}
   </KeyboardAvoidingView></SafeAreaView></LockGate>;
 }
 

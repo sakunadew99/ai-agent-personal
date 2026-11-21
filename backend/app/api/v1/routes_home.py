@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.entities import User
+from app.schemas import dto
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -38,3 +39,32 @@ def home_bundle(db: Session = Depends(get_db), user: User = Depends(get_current_
             db.rollback()
             out[path] = None
     return out
+
+
+# ---------------- 2-minute morning and evening rituals
+
+@router.get("/ritual/morning")
+def ritual_morning(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Today's plan, medicines due, top 3 tasks and last night's sleep, to start the day."""
+    from app.services import rituals
+    return rituals.morning(db, user.id)
+
+
+@router.post("/ritual/morning")
+def ritual_morning_save(data: dto.MorningIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services import rituals
+    rituals.save_morning(db, user.id, data.energy, data.mood, data.focus); db.commit(); return rituals.morning(db, user.id)
+
+
+@router.get("/ritual/evening")
+def ritual_evening(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """What today looked like (tasks done, focus, steps, practice, medicines, spending) to close the day."""
+    from app.services import rituals
+    return rituals.evening(db, user.id)
+
+
+@router.post("/ritual/evening")
+def ritual_evening_save(data: dto.EveningIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Mood, wins and a lesson go to today's journal; tomorrow's top 3 become tasks (you typed them)."""
+    from app.services import rituals
+    out = rituals.save_evening(db, user.id, data.mood, data.wins, data.lesson, data.tomorrow); db.commit(); return out
