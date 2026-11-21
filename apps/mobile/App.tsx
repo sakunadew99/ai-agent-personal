@@ -39,6 +39,7 @@ import { ScheduleScreen } from "./src/screens/ScheduleScreen";
 import { SpeakingScreen } from "./src/screens/SpeakingScreen";
 import { MedicinesScreen, SkillsScreen } from "./src/screens/WellbeingScreens";
 import { SkinScreen } from "./src/screens/SkinScreen";
+import { CoachTabs } from "./src/screens/CoachTabs";
 import { DayTrackerScreen, GymScreen, LanguageScreen, ProgressScreen, uploadUsage } from "./src/screens/LifeOs4Screens";
 import { BrowserHost } from "./src/browser";
 import { LockGate } from "./src/lock";
@@ -217,8 +218,11 @@ function App() {
         quick={<QuickLaunch open={openTarget} onSearch={() => { setTab("More"); setSub(null); }}/>}
         top={<><NudgeBanner api={api} onOpen={openTarget}/><TodayPlanCard api={api} onOpen={openTarget}/>
         <NowRoutineCard api={api} onOpen={() => { setPlanView("day"); setTab("Plan"); }}/><WeeklyHealthCard api={api} onOpen={() => openTarget("Health")}/></>}
-        extra={<><TeamTodayCard api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/><LifeCompass api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/>
-        <CoachCardMobile api={api} onError={showError}/><BrainCard api={api}/></>}/>}
+        extra={<CoachTabs tabs={[
+          { key: "team", label: "🤖 AI team", node: <TeamTodayCard api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/> },
+          { key: "coach", label: "💬 Coach", node: <CoachCardMobile api={api} onError={showError}/> },
+          { key: "compass", label: "🧭 Compass", node: <LifeCompass api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/> },
+          { key: "brain", label: "🧠 Brain", node: <BrainCard api={api}/> }]}/>}/>}
       {tab === "Plan" && planView === "day" && <PlanScreen plan={plan} busy={busy} generate={generatePlan}
         top={<><PlanSwitch value={planView} onChange={setPlanView}/><TodayRoutines api={api} onError={showError} onNotice={showNotice}/><Text style={styles.sectionTitle}>Time plan</Text></>}
         extra={<TimeCard api={api}/>}/>}
@@ -234,33 +238,27 @@ function App() {
       {tab === "More" && !sub && <ExploreScreen api={api} openAny={openTarget} open={target => { setError(""); setNotice(""); setSub(target); }}/>}
       {tab === "More" && sub === "Assistant" && <ChatScreen api={api}/>}
       {tab === "More" && sub === "Life" && <LifeScreen api={api} onError={showError} onNotice={showNotice}/>}
-      {tab === "More" && sub === "Learning" && <Switcher options={["lang", "radar", "progress", "study"] as const} labels={{ lang: "🗣 Lang", radar: "📡 Radar", progress: "📈 Track", study: "🎓 Cards" }} render={v => v === "radar" ? <RadarScreen api={api} onError={showError} onNotice={showNotice}/> : v === "lang" ? <LanguageScreen api={api} onError={showError} onNotice={showNotice}/> : v === "progress" ? <ProgressScreen api={api} onError={showError} onNotice={showNotice}/> : <LearningScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
+      {tab === "More" && (sub === "Learning" || sub === "Exams" || sub === "Speak") && <Switcher key={sub} initial={sub === "Exams" ? "exams" : sub === "Speak" ? "speak" : "lang"} options={["lang", "radar", "progress", "study", "exams", "speak"] as const} labels={{ lang: "🗣 Lang", radar: "📡 Radar", progress: "📈 Track", study: "🎓 Cards", exams: "📝 Exams", speak: "🎙 Speak" }} render={v => v === "exams" ? <ExamScreen api={api} onError={showError} onNotice={showNotice}/> : v === "speak" ? <SpeakingScreen api={api} upload={(path, file, fields) => apiUpload<Row>(path, token, file, fields)} onError={showError} onNotice={showNotice}/> : v === "radar" ? <RadarScreen api={api} onError={showError} onNotice={showNotice}/> : v === "lang" ? <LanguageScreen api={api} onError={showError} onNotice={showNotice}/> : v === "progress" ? <ProgressScreen api={api} onError={showError} onNotice={showNotice}/> : <LearningScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
       {tab === "More" && sub === "Jobs" && <Switcher options={["find", "track"] as const} labels={{ find: "🔎 Find jobs", track: "📋 My tracker" }} render={v => v === "find" ? <JobFinderScreen api={api} onError={showError} onNotice={showNotice}/> : <JobsScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
       {tab === "More" && sub === "Balance" && <BalanceScreen api={api} onError={showError} onNotice={showNotice}/>}
-      {tab === "More" && sub === "Vault" && <Switcher options={["renewals", "docs"] as const} labels={{ renewals: "💳 Renewals", docs: "🪪 Documents" }} render={v => v === "renewals" ? <SubscriptionsScreen api={api} onError={showError} onNotice={showNotice}/> : <VaultScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
       {tab === "More" && sub === "Journal" && <JournalScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Invest" && <InvestScreen api={api} upload={(path, file) => apiUpload<Row>(path, token, file)} onError={showError} onNotice={showNotice}/>}
-      {tab === "More" && sub === "News" && <Switcher options={["news", "watch"] as const} labels={{ news: "📰 News", watch: "▶ Watch" }} render={v => v === "news" ? <NewsScreen api={api} onError={showError} onNotice={showNotice}/> : <WatchScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
-      {tab === "More" && sub === "Brain" && <BrainGymScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && (sub === "News" || sub === "Brain") && <Switcher key={sub} initial={sub === "Brain" ? "brain" : "news"} options={["news", "watch", "brain"] as const} labels={{ news: "📰 News", watch: "▶ Watch", brain: "🧠 Brain gym" }} render={v => v === "brain" ? <BrainGymScreen api={api} onError={showError} onNotice={showNotice}/> : v === "news" ? <NewsScreen api={api} onError={showError} onNotice={showNotice}/> : <WatchScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
       {tab === "More" && sub === "Day" && <DayTrackerScreen key={`day-${checkinHour ?? "x"}`} api={api} onError={showError} onNotice={showNotice} initialHour={checkinHour}/>}
       {tab === "More" && sub === "Gym" && <GymScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Videos" && <VideosScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Schedule" && <ScheduleScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Meds" && <MedicinesScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Skin" && <SkinScreen api={api} onError={showError} onNotice={showNotice}/>}
-      {tab === "More" && sub === "Skills" && <SkillsScreen api={api} onError={showError} onNotice={showNotice}/>}
-      {tab === "More" && sub === "Speak" && <SpeakingScreen api={api} upload={(path, file, fields) => apiUpload<Row>(path, token, file, fields)} onError={showError} onNotice={showNotice}/>}
-      {tab === "More" && sub === "You" && <AboutYouScreen api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/>}
+      {tab === "More" && sub === "Skills" && <SkillsScreen api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/>}
       {tab === "More" && sub === "Team" && <AiTeamScreen api={api} onError={showError} onNotice={showNotice}/>}
-      {tab === "More" && sub === "Exams" && <ExamScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Study" && <StudyScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "AI" && <AiScreen api={api} onError={showError}/>}
       {tab === "More" && sub === "Rewards" && <Switcher options={["game", "manage"] as const} labels={{ game: "🎮 Game", manage: "⚙️ Manage" }} render={v => v === "game" ? <RewardsGameScreen api={api}/> : <RewardsScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
-      {tab === "More" && sub === "Money" && <MoneyListsScreen api={api} onError={showError} onNotice={showNotice}/>}
-      {tab === "More" && sub === "Finance" && <FinanceScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && (sub === "Money" || sub === "Finance" || sub === "Vault") && <Switcher key={sub} initial={sub === "Vault" ? "renewals" : sub === "Money" ? "lists" : "spend"} options={["spend", "lists", "renewals", "docs"] as const} labels={{ spend: "💳 Spending", lists: "👛 Lists", renewals: "🔁 Renewals", docs: "🪪 Docs" }} render={v => v === "spend" ? <FinanceScreen api={api} onError={showError} onNotice={showNotice}/> : v === "lists" ? <MoneyListsScreen api={api} onError={showError} onNotice={showNotice}/> : v === "renewals" ? <SubscriptionsScreen api={api} onError={showError} onNotice={showNotice}/> : <VaultScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
       {tab === "More" && sub === "Health" && <HealthScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Memory" && <MemoryScreen api={api} onError={showError}/>}
-      {tab === "More" && sub === "Review" && <ReviewScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && (sub === "Review" || sub === "You") && <Switcher key={sub} initial={sub === "You" ? "you" : "week"} options={["week", "you"] as const} labels={{ week: "🗓 Week", you: "🪞 About you" }} render={v => v === "you" ? <AboutYouScreen api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/> : <ReviewScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
       {tab === "More" && sub === "Approvals" && <ApprovalsScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Profile" && <ProfileScreen user={user} signOut={() => void signOut()} onHealth={() => setSub("Health")}/>}
     </View>
@@ -299,7 +297,7 @@ function HomeScreen({ name, life, dashboard, finance, health, onComplete, onOpen
       <WeekDots today={Number(life.weekday ?? 0)} rows={habits.slice(0, 5).map(h => ({ label: h.name, done: h.week as boolean[] }))}/></View>}
     <View style={styles.headingRow}><Text style={styles.sectionTitle}>Today’s priorities</Text><TouchableOpacity onPress={onOpenPlan}><Text style={styles.linkSmall}>Daily plan →</Text></TouchableOpacity></View>
     {tasks.length ? tasks.map(task => <View key={task.id} style={styles.task}><TouchableOpacity style={styles.check} onPress={() => onComplete(task.id)}><Text style={styles.checkText}>✓</Text></TouchableOpacity><View style={{ flex: 1 }}><Text style={styles.taskTitle}>{task.title}</Text><Text style={styles.muted}>{task.due_at ? new Date(task.due_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "any time"}</Text></View><View style={[styles.prio, { borderColor: PRIORITY[task.priority] || "#8a9b92" }]}><Text style={[styles.prioText, { color: PRIORITY[task.priority] || "#8a9b92" }]}>{task.priority}</Text></View></View>) : <Text style={styles.empty}>Nothing on your task list. Add tasks in My life or use Capture.</Text>}
-    {extra && <TouchableOpacity onPress={() => setMore(m => !m)} style={styles.moreToggle}><Text style={styles.moreToggleText}>{more ? "Hide extra cards ▲" : "✨ AI team, coach & brain cards ▼"}</Text></TouchableOpacity>}
+    {extra && <TouchableOpacity onPress={() => setMore(m => !m)} style={styles.moreToggle}><Text style={styles.moreToggleText}>{more ? "Hide coach ▲" : "✨ Today's coach ▼"}</Text></TouchableOpacity>}
     {more && extra}
     <Text style={styles.disclaimer}>Health and finance values show recorded data only. Sakuna does not provide medical or guaranteed financial advice.</Text>
   </KbScroll>;

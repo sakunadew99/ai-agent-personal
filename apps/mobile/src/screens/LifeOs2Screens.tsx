@@ -18,10 +18,14 @@ const open = (url?: string, title?: string, track?: Track) => openInApp(url, tit
 const chip = (on: boolean, color = C.green) => ({ borderColor: on ? color : C.line, borderWidth: 1, borderRadius: 99, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: on ? `${color}33` : "transparent" });
 
 /** Two views of one screen (e.g. "Find jobs | My tracker"). */
-export function Switcher<T extends string>({ options, labels, render }: { options: readonly T[]; labels: Record<T, string>; render: (v: T) => React.ReactNode }) {
-  const [v, setV] = useState<T>(options[0]);
+export function Switcher<T extends string>({ options, labels, render, initial }: { options: readonly T[]; labels: Record<T, string>; render: (v: T) => React.ReactNode; initial?: T }) {
+  const [v, setV] = useState<T>(initial && options.includes(initial) ? initial : options[0]);
   return <View style={{ flex: 1 }}>
-    <View style={{ paddingHorizontal: 16, paddingTop: 10 }}><Segments options={options} value={v} onChange={setV} labels={labels}/></View>
+    {options.length <= 3 ? <View style={{ paddingHorizontal: 16, paddingTop: 10 }}><Segments options={options} value={v} onChange={setV} labels={labels}/></View>
+      : <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 10, gap: 8 }}>
+        {options.map(o => <TouchableOpacity key={o} onPress={() => setV(o)} style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 99, borderWidth: 1,
+          borderColor: v === o ? C.green : C.line, backgroundColor: v === o ? C.greenSoft : "transparent" }}>
+          <Text style={{ color: v === o ? C.green : C.muted, fontWeight: "800" }}>{labels[o]}</Text></TouchableOpacity>)}</ScrollView>}
     <View style={{ flex: 1 }}>{render(v)}</View>
   </View>;
 }

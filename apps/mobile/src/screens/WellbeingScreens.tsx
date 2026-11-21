@@ -115,7 +115,7 @@ function metricText(m: Row | null | undefined) {
   return "";
 }
 
-export function SkillsScreen({ api, onError, onNotice }: { api: Api; onError: (m: string) => void; onNotice: (m: string) => void }) {
+export function SkillsScreen({ api, onError, onNotice, onOpen }: { api: Api; onError: (m: string) => void; onNotice: (m: string) => void; onOpen?: (t: string) => void }) {
   const [v, setV] = useState<Row | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [log, setLog] = useState<Row | null>(null);
@@ -181,6 +181,9 @@ export function SkillsScreen({ api, onError, onNotice }: { api: Api; onError: (m
             { text: "Remove", style: "destructive", onPress: () => void api(`/skills/${s.id}`, "DELETE").then(load).catch(e => onError(msg(e))) }])}/>
         </View>}
       </Card>; })}
+    {onOpen && <TouchableOpacity onPress={() => onOpen("Gym")} style={{ flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: C.panel, borderRadius: 20, padding: 14, borderWidth: 1, borderColor: "#3ee08f44" }}>
+      <Text style={{ fontSize: 26 }}>🏋️</Text><View style={{ flex: 1 }}><Text style={{ color: C.text, fontWeight: "900" }}>Gym log</Text><Muted small>Sets, kg × reps, records: your strength practice</Muted></View>
+      <Text style={{ color: C.green, fontSize: 18 }}>›</Text></TouchableOpacity>}
     <Card><Kicker>ADD A SKILL</Kicker>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>{(v.templates as Row[]).map(t => <TouchableOpacity key={t.name} onPress={() => add(t)} style={[chip(false), { flexDirection: "row", gap: 6, alignItems: "center" }]}>
         <Text>{t.icon}</Text><Text style={{ color: C.text, fontWeight: "700" }}>{t.name}</Text>{t.trainer && <Text style={{ color: "#b48cff", fontSize: 11 }}>{t.trainer === "pitch" ? "🎤" : "📷"}</Text>}</TouchableOpacity>)}</View>

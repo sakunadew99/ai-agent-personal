@@ -135,13 +135,23 @@ function niceDate(value: unknown) {
   const date = new Date(String(value));
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
 }
-function groupNavigation() {
-  const groups: { title: string; items: typeof navigation }[] = [];
-  navigation.forEach(item => {
-    if (item.group || groups.length === 0) groups.push({ title: item.group || "LIFE OS", items: [] });
-    groups[groups.length - 1].items.push(item);
-  });
-  return groups;
+// Same groups as the phone's "All apps"; anything not listed lands in MORE so a new page is never hidden.
+const NAV_GROUPS: [string, string[]][] = [
+  ["TODAY", ["Home", "Focus", "Planner", "My day", "Day tracker", "My schedule", "Capture inbox", "Search"]],
+  ["💰 MONEY", ["Finance", "Invest", "Documents"]],
+  ["💪 BODY", ["Health", "Gym", "Medicines", "Skin & glow", "Skills & trainers"]],
+  ["🎓 LEARNING", ["Learning", "Languages", "Exam coach", "Speaking coach", "Progress", "Study abroad", "Career", "My videos", "News", "Brain gym"]],
+  ["🌱 LIFE", ["My life", "Journal", "Life balance", "Experiences", "Rewards", "Weekly review", "About you", "Insights"]],
+  ["✨ AI & SETTINGS", ["Assistant", "AI team", "Memory", "Approvals", "Settings"]],
+];
+function groupNavigation(query = "") {
+  const q = query.trim().toLowerCase();
+  const byLabel = new Map(navigation.map(item => [item.label, item]));
+  const used = new Set<string>();
+  const groups = NAV_GROUPS.map(([title, labels]) => ({ title, items: labels.map(l => { used.add(l); return byLabel.get(l); }).filter(Boolean) as typeof navigation }));
+  const rest = navigation.filter(item => !used.has(item.label));
+  if (rest.length) groups.push({ title: "MORE", items: rest });
+  return groups.map(g => ({ ...g, items: g.items.filter(item => !q || `${item.label} ${item.hint || ""}`.toLowerCase().includes(q)) })).filter(g => g.items.length);
 }
 
 function Panel({ children, className = "" }: { children: ReactNode; className?: string }) {
@@ -214,6 +224,7 @@ export default function Home() {
   const [pendingApprovals, setPendingApprovals] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [navQuery, setNavQuery] = useState("");
 
   useEffect(() => { setToken(localStorage.getItem("sakuna-access") || ""); setPage(pageFromHash()); }, []);
   // Hash routing: pages are bookmarkable (#focus) and browser back/forward works.
@@ -387,7 +398,7 @@ export default function Home() {
   const profile = data.profile || {};
   const tasks = toList(data.tasks || dashboard.tasks);
   const goals = toList(data.goals || dashboard.goals);
-  const navGroups = groupNavigation();
+  const navGroups = groupNavigation(navQuery);
   const current = navigation.find(item => item.label === page) || navigation[0];
   const displayName = String(user.full_name || user.email || "Your account");
   const paletteActions: PaletteAction[] = navigation.map(item => ({ id: `go-${item.label}`, label: item.label, hint: item.hint, icon: item.icon, run: () => navigate(item.label) }));
@@ -396,6 +407,8 @@ export default function Home() {
     <aside className={`sidebar ${moreOpen ? "open" : ""}`}>
       <div className="brand"><BrandMark small/><BrandName/><button className="icon-button sidebar-close" aria-label="Close menu" onClick={() => setMoreOpen(false)}><Icon name="close"/></button></div>
       <button className="capture-launch" onClick={() => { setMoreOpen(false); setPaletteOpen(true); }}><Icon name="plus" size={16}/>Quick capture<kbd>Ctrl K</kbd></button>
+      <input className="nav-search" aria-label="Find a page" placeholder="🔍 Find a page…" value={navQuery} onChange={e => setNavQuery(e.target.value)}
+        onKeyDown={e => { if (e.key === "Enter" && navGroups[0]?.items[0]) { navigate(navGroups[0].items[0].label); setNavQuery(""); } if (e.key === "Escape") setNavQuery(""); }}/>
       <nav aria-label="Main navigation">{navGroups.map(group => <div key={group.title} className="nav-group"><p className="eyebrow nav-title">{group.title}</p>{group.items.map(item => <button key={item.label} aria-current={page === item.label ? "page" : undefined} className={`nav-item ${page === item.label ? "active" : ""}`} onClick={() => navigate(item.label)}><span className="nav-dot"><Icon name={item.icon} size={17}/></span>{item.label}{item.label === "Approvals" && pendingApprovals > 0 && <span className="nav-count">{pendingApprovals}</span>}</button>)}</div>)}</nav>
       <div className="side-bottom"><div className="avatar">{displayName.slice(0, 1).toUpperCase()}</div><div className="user-label"><b>{displayName}</b><button onClick={signOut}>Sign out</button></div></div>
     </aside>

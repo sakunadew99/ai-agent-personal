@@ -13,9 +13,7 @@ type Group = { name: string; emoji: string; color: string; items: Item[] };
 export const GROUPS: Group[] = [
   { name: "Money", emoji: "💰", color: "#5aa8ff", items: [
     { key: "Invest", icon: "📈", title: "Invest (CSE)", hint: "Portfolio, review, alerts", words: "shares stock cse aspi atrad dividend portfolio" },
-    { key: "Money", icon: "👛", title: "Money hub", hint: "Balance, wishes, buy list", words: "wallet net worth savings" },
-    { key: "Finance", icon: "💳", title: "Spending", hint: "Spending & income", words: "expense income budget finance" },
-    { key: "Vault", icon: "🗂", title: "Renewals & docs", hint: "Subscriptions, bills, expiry", words: "passport visa bills subscriptions documents" },
+    { key: "Finance", icon: "👛", title: "Money", hint: "Spending, lists, renewals, documents", words: "wallet net worth savings expense income budget finance passport visa bills subscriptions documents renewals buy list wishes" },
   ] },
   { name: "Body", emoji: "💪", color: "#3ee08f", items: [
     { key: "Health", icon: "❤️", title: "Health & Mi Band", hint: "Steps, sleep, heart rate", words: "mi fitness steps sleep heart health connect" },
@@ -26,13 +24,13 @@ export const GROUPS: Group[] = [
     { key: "Balance", icon: "☀️", title: "Life balance", hint: "Target vs actual", words: "areas wheel" },
   ] },
   { name: "Learning", emoji: "🎓", color: "#b18cff", items: [
-    { key: "Learning", icon: "📚", title: "Learning", hint: "Languages, flashcards, tracker", words: "german english words leetcode course" },
+    { key: "Learning", icon: "📚", title: "Learning", hint: "Languages, cards, exams, speaking", words: "german english words leetcode course ielts goethe exam speaking speech presentation pronunciation" },
     { key: "Skills", icon: "🎯", title: "Skills & trainers", hint: "Yoga, singing, guitar, boxing, leadership", words: "yoga singing vocal guitar music kickboxing fighting swimming leadership soft skills hard skills pose pitch tuner practice" },
     { key: "Speak", icon: "🎙", title: "Speaking coach", hint: "Public speaking, English & German", words: "speech talk presentation pronunciation fluency confidence communication whisper" },
-    { key: "Exams", icon: "📝", title: "Exam coach", hint: "IELTS & Goethe plan", words: "ielts goethe exam" },
-    { key: "Brain", icon: "🧠", title: "Brain gym", hint: "Daily brain games", words: "games puzzle memory" },
+
+
     { key: "Videos", icon: "🎬", title: "My videos", hint: "Drive & YouTube in-app", words: "google drive youtube lectures" },
-    { key: "News", icon: "📰", title: "News & watch", hint: "Digest + must-watch", words: "news youtube" },
+    { key: "News", icon: "📰", title: "Feed", hint: "News, videos, brain games", words: "news youtube watch brain gym games puzzle memory" },
     { key: "Study", icon: "✈️", title: "Study abroad", hint: "DAAD, programs, checklist", words: "germany daad masters university" },
   ] },
   { name: "Life", emoji: "🌱", color: "#f5b65b", items: [
@@ -41,8 +39,7 @@ export const GROUPS: Group[] = [
     { key: "Journal", icon: "✍️", title: "Journal", hint: "Day, gratitude, lessons", words: "diary notes" },
     { key: "Jobs", icon: "💼", title: "Jobs", hint: "Find jobs, tracker", words: "linkedin topjobs career cv" },
     { key: "Rewards", icon: "🎮", title: "Rewards game", hint: "Level, badges, missions", words: "points streak" },
-    { key: "Review", icon: "🗓", title: "Weekly review", hint: "Plan vs actual", words: "week insights" },
-    { key: "You", icon: "🪞", title: "About you", hint: "Patterns & one change", words: "insights habits" },
+    { key: "Review", icon: "🗓", title: "Review", hint: "Weekly review & about you", words: "week insights patterns about you reflect" },
   ] },
   { name: "AI & settings", emoji: "✨", color: "#ff7a8a", items: [
     { key: "Assistant", icon: "💬", title: "Assistant", hint: "Chat with Sakuna", words: "chat ask ai" },

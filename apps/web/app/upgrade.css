@@ -655,3 +655,8 @@ h1 { font-size: 30px; font-weight: 700; }
 .compass-action div { flex: 1; min-width: 0; }
 .compass-action b { display: block; font-size: 13px; }
 .compass-action small { color: var(--muted); font-size: 11px; }
+
+/* sidebar page finder */
+.nav-search { width: 100%; margin: 0 0 12px; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--line); background: var(--c-0e1411, #0e1411); color: var(--text); font-size: 12.5px; outline: none; }
+.nav-search:focus { border-color: var(--green); }
+@media (max-width: 760px) { .nav-search { display: none; } }
