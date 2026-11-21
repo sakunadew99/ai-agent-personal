@@ -1522,3 +1522,16 @@ class PortfolioFileIn(BaseModel):
     """A portfolio file sent as base64 JSON (phones: avoids multipart upload problems)."""
     filename: str = Field(default="portfolio.pdf", max_length=200)
     data_base64: str = Field(min_length=8, max_length=7_200_000)       # ~5 MB file
+
+
+class HoldingSetIn(BaseModel):
+    """Set one share to exactly this quantity and average cost (replaces its buy/sell history)."""
+    quantity: Decimal = Field(gt=0, le=Decimal("1000000000"))
+    avg_price: Decimal = Field(gt=0, le=Decimal("10000000"))
+
+
+class MoneyUpdate(BaseModel):
+    amount: Decimal | None = Field(default=None, gt=0)
+    label: str | None = Field(default=None, max_length=40)        # expense category or income source
+    notes: str | None = Field(default=None, max_length=2000)
+    occurred_at: datetime | None = None

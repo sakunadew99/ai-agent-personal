@@ -13,16 +13,26 @@ const API_ORIGIN = process.env.NEXT_PUBLIC_API_URL || "";
 const ACTION: Record<string, string> = { "Add on dips": "var(--d-green)", "Accumulate slowly": "var(--d-green)", Hold: "var(--d-blue)", "Watch closely": "var(--d-amber)",
   "Trim / take some profit": "var(--d-amber)", "Review / consider stop-loss": "var(--d-red)" };
 
-export function HoldingsTable({ items }: { items: Row[] }) {
+export function HoldingsTable({ items, token, onChanged }: { items: Row[]; token?: string; onChanged?: () => void }) {
+  const edit = (h: Row) => {
+    const q = window.prompt(`${root(h.symbol)}: shares you hold`, String(Number(h.quantity)));
+    if (q === null) return;
+    const a = window.prompt(`${root(h.symbol)}: average cost per share`, Number(h.avg_cost).toFixed(2));
+    if (a === null || !token) return;
+    const body = JSON.stringify({ quantity: Number(q), avg_price: Number(a) });
+    void call(`/invest/holdings/${encodeURIComponent(h.symbol)}`, token, Number(q) > 0 ? { method: "PUT", body } : { method: "DELETE" }).then(() => onChanged?.()).catch(e => window.alert(errText(e)));
+  };
+  const remove = (h: Row) => { if (token && window.confirm(`Remove ${root(h.symbol)} from your portfolio? Dividends stay.`)) void call(`/invest/holdings/${encodeURIComponent(h.symbol)}`, token, { method: "DELETE" }).then(() => onChanged?.()).catch(e => window.alert(errText(e))); };
   if (!items.length) return null;
   return <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", color: "var(--d-text)", fontSize: 13 }}>
-    <thead><tr style={{ color: "var(--d-muted)", textAlign: "right" }}>{["Share", "Qty", "Avg", "Price", "Today", "Value", "Unrealised", "%", "After fees", "B.E.S", "Weight"].map((h, i) =>
+    <thead><tr style={{ color: "var(--d-muted)", textAlign: "right" }}>{["Share", "Qty", "Avg", "Price", "Today", "Value", "Unrealised", "%", "After fees", "B.E.S", "Weight", ""].map((h, i) =>
       <th key={h} style={{ padding: "6px 8px", textAlign: i ? "right" : "left", borderBottom: "1px solid var(--d-line)" }}>{h}</th>)}</tr></thead>
     <tbody>{items.map(h => <tr key={h.symbol} style={{ textAlign: "right" }}>
       <td style={{ textAlign: "left", padding: "6px 8px", fontWeight: 800 }}>{root(h.symbol)}</td><td>{Number(h.quantity).toLocaleString()}</td><td>{Number(h.avg_cost).toFixed(2)}</td>
       <td>{h.price ?? "—"}{h.price_change != null && <small style={{ display: "block", color: col(h.price_change) }}>{sg(h.price_change)}</small>}</td><td style={{ color: col(h.day_change) }}>{sg(h.day_change)} <small>({sg(h.change_pct, "%")})</small></td><td>{rs(h.value)}</td>
       <td style={{ color: col(h.unrealised), fontWeight: 800 }}>{sg(h.unrealised)}</td><td style={{ color: col(h.unrealised_pct), fontWeight: 800 }}>{sg(h.unrealised_pct, "%")}</td>
-      <td style={{ color: col(h.net_gain_after_fees) }}>{sg(h.net_gain_after_fees)}</td><td>{h.break_even_price ?? "—"}</td><td>{h.weight_pct}%</td></tr>)}</tbody></table></div>;
+      <td style={{ color: col(h.net_gain_after_fees) }}>{sg(h.net_gain_after_fees)}</td><td>{h.break_even_price ?? "—"}</td><td>{h.weight_pct}%</td>
+      <td style={{ whiteSpace: "nowrap" }}>{token && <><button className="text-button" onClick={() => edit(h)}>✎</button> <button className="danger-link" onClick={() => remove(h)}>✕</button></>}</td></tr>)}</tbody></table></div>;
 }
 
 export function PortfolioTools({ token, onChanged }: { token: string; onChanged: () => void }) {

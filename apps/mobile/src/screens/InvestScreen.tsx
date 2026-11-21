@@ -1,5 +1,6 @@
 import * as DocumentPicker from "expo-document-picker";
 import { InvestInsights } from "./InvestInsights";
+import { EditHolding } from "./EditKit";
 import React, { useCallback, useEffect, useState } from "react";
 import { Linking, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
@@ -52,6 +53,7 @@ export function InvestScreen({ api, upload, onError, onNotice }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [modal, setModal] = useState<"trade" | "paste" | "import" | "holding" | "review" | null>(null);
   const [symbol, setSymbol] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Row | null>(null);
   const [watchAdd, setWatchAdd] = useState("");
   const load = useCallback(() => { api<Row>("/invest").then(setV).catch(r => onError(msg(r))); }, [api, onError]);
   useEffect(() => { load(); }, [load]);
@@ -107,7 +109,7 @@ export function InvestScreen({ api, upload, onError, onNotice }: Props) {
 
     <Card>
       <Kicker>{`HOLDINGS · ${held.length}`}</Kicker>
-      {held.length ? <View style={{ gap: 8 }}>{held.map(h => <HoldingRow key={h.symbol} h={h} onPress={() => setSymbol(h.symbol)}/>)}</View> : <Muted>No holdings yet. Add a trade, or upload your broker's trade history (CSV / Excel with Date, Symbol, Buy/Sell, Qty, Price).</Muted>}
+      {held.length ? <View style={{ gap: 8 }}>{held.map(h => <HoldingRow key={h.symbol} h={h} onPress={() => setSymbol(h.symbol)} onEdit={() => setEditing(h)}/>)}</View> : <Muted>No holdings yet. Add a trade, or upload your broker's trade history (CSV / Excel with Date, Symbol, Buy/Sell, Qty, Price).</Muted>}
       {(p.sectors as Row[]).length > 1 && <Muted small>{"Sectors: " + (p.sectors as Row[]).map(x => `${x.sector} ${x.pct}%`).join(" · ")}</Muted>}
     </Card>
 
@@ -131,6 +133,7 @@ export function InvestScreen({ api, upload, onError, onNotice }: Props) {
     {modal === "import" && <ImportPortfolio api={api} upload={upload} onClose={() => setModal(null)} onError={onError} onDone={next => { setV(next); setModal(null); onNotice(`Portfolio imported: ${next.saved} holdings`); }}/>}
     {modal === "holding" && <AddHolding api={api} onClose={() => setModal(null)} onError={onError} onDone={next => { setV(next); setModal(null); onNotice("Share added"); }}
       picker={(val, set) => <SymbolPicker api={api} value={val} onChange={set}/>}/>}
+    {editing && <EditHolding api={api} h={editing} onClose={() => setEditing(null)} onError={onError} onDone={(next, note) => { setV(next); setEditing(null); onNotice(note); }}/>}
     {modal === "review" && <PortfolioReview api={api} onClose={() => setModal(null)} onError={onError}/>}
     {modal === "paste" && <PasteModal api={api} onClose={() => setModal(null)} onSaved={(text) => { setModal(null); onNotice(text); load(); }} onError={onError}/>}
     {symbol && <SymbolSheet api={api} symbol={symbol} watch={(v.watchlist as Row[]).find(w => w.symbol === symbol)} holding={held.find(h => h.symbol === symbol)}

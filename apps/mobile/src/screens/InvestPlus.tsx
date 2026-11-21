@@ -26,10 +26,12 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
 }
 
 /** One holding row: value, today, unrealised (Rs and %), after-fee value and break-even price, weight. */
-export function HoldingRow({ h, onPress }: { h: Row; onPress: () => void }) {
+export function HoldingRow({ h, onPress, onEdit }: { h: Row; onPress: () => void; onEdit?: () => void }) {
   return <TouchableOpacity onPress={onPress} style={{ borderRadius: 18, padding: 12, gap: 6, backgroundColor: C.panel2, borderLeftWidth: 4, borderLeftColor: col(h.unrealised) }}>
     <Line><Text style={{ color: C.text, fontSize: 17, fontWeight: "900" }}>{root(h.symbol)}</Text><Muted small>{`${Number(h.quantity).toLocaleString()} sh @ ${Number(h.avg_cost).toFixed(2)}`}</Muted>
-      <View style={{ flex: 1 }}/><Text style={{ color: C.text, fontWeight: "900", fontSize: 16 }}>{rs(h.value)}</Text></Line>
+      <View style={{ flex: 1 }}/><Text style={{ color: C.text, fontWeight: "900", fontSize: 16 }}>{rs(h.value)}</Text>
+      {onEdit && <TouchableOpacity onPress={onEdit} hitSlop={10} style={{ marginLeft: 8, width: 30, height: 30, borderRadius: 15, backgroundColor: C.greenSoft, alignItems: "center", justifyContent: "center" }}>
+        <Text style={{ color: C.green, fontWeight: "900" }}>✎</Text></TouchableOpacity>}</Line>
     <Line><Text style={{ color: C.text, fontSize: 15, fontWeight: "900" }}>{`LKR ${h.price ?? "—"}`}</Text>
       <Text style={{ color: col(h.price_change), fontWeight: "900", fontSize: 13 }}>{`  ${sg(h.price_change)}  ${sg(h.change_pct, "%")}`}</Text>
       <View style={{ flex: 1 }}/><Text style={{ color: C.muted, fontSize: 12 }}>{"today "}<Text style={{ color: col(h.day_change), fontWeight: "900" }}>{`${sg(h.day_change, "", 0)} Rs`}</Text></Text></Line>

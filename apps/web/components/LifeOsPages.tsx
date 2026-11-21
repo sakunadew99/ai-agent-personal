@@ -633,7 +633,7 @@ export function InvestPage({ token }: { token: string }) {
         .then(o => { n.ok(`${o.kind === "trades" ? "Trades" : "Prices"}: ${o.saved} saved`); setPaste(""); setPanel(""); load(); }).catch(n.fail)}>Import</button></div>
     </Card>}
     {panel === "tools" && <PortfolioTools token={token} onChanged={load}/>}
-    {held.length > 0 && <Card kicker="Holdings · today and since you bought" title="Value, gain/loss and break-even after fees"><HoldingsTable items={held}/></Card>}
+    {held.length > 0 && <Card kicker="Holdings · today and since you bought" title="Value, gain/loss and break-even after fees"><HoldingsTable items={held} token={token} onChanged={load}/></Card>}
     {held.length > 0 && <PortfolioInsights token={token}/>}
     {held.length > 0 && <WhatIfCard held={held}/>}
     {alerts.length > 0 && <Card kicker="Rule alerts" title="From your own rules" action={<button className="text-button" onClick={() => void call("/invest/alerts/seen", token, postJson({})).then(load)}>Mark seen</button>}>

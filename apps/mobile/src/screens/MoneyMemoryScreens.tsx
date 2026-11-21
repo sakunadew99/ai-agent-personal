@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Alert, Text, TouchableOpacity, View } from "react-native";
 import { peek, type ApiRecord as Row } from "../api";
 import { NetWorthCard } from "./SmartCards";
+import { MoneyEntries } from "./EditKit";
 import { Bars, Hero, LineChart, Ring, Segments, SplitBar, StatTile, TileRow } from "../charts";
 import { Badge, Btn, C, Card, Chips, Empty, Field, H1, H2, Kicker, Muted, money, niceDate, Row as Line, Screen } from "../ui";
 
@@ -98,6 +99,7 @@ export function FinanceScreen({ api, onError, onNotice }: { api: Api; onError: (
         <View style={{ flex: 1 }}><Text style={{ color: C.text, fontWeight: "700", textTransform: "capitalize" }}>{b.merchant || b.notes || b.category}</Text><Muted small>{`${b.category} · ${b.date}`}</Muted></View>
         <Text style={{ color: C.red, fontWeight: "800" }}>{`−${money(b.amount, cur)}`}</Text></Line>)}
     </Card>}
+    <MoneyEntries api={api} onError={onError} onChanged={() => void load()}/>
     <Muted small>{`Charts use your display currency (${cur}); ${trends?.other_currency_records ? `${trends.other_currency_records} record(s) in other currencies are kept separately, ` : ""}never converted by guess.`}</Muted>
   </Screen>;
 }
@@ -111,6 +113,8 @@ export function MemoryScreen({ api, onError }: { api: Api; onError: (m: string) 
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [duplicate, setDuplicate] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
   const load = useCallback(async () => { try { setRows(await api<Row[]>("/memories")); } catch (reason) { onError(reason instanceof Error ? reason.message : "Could not load"); } }, [api, onError]);
   useEffect(() => { void load(); }, [load]);
 
@@ -128,6 +132,11 @@ export function MemoryScreen({ api, onError }: { api: Api; onError: (m: string) 
       onError(msg);
     } finally { setBusy(false); }
   }
+  async function saveEdit(row: Row) {
+    if (!draft.trim()) return;
+    try { await api(`/memories/${row.id}`, "PATCH", { content: draft.trim() }); setEditing(null); await load(); } catch (e) { onError(e instanceof Error ? e.message : "Could not save"); }
+  }
+  const pin = (row: Row) => void api(`/memories/${row.id}`, "PATCH", { pinned: !row.pinned }).then(load).catch(e => onError(String(e)));
   function remove(row: Row) {
     Alert.alert("Delete memory?", String(row.content).slice(0, 120), [{ text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: () => void api(`/memories/${row.id}`, "DELETE").then(load).catch(e => onError(String(e))) }]);
@@ -143,8 +152,13 @@ export function MemoryScreen({ api, onError }: { api: Api; onError: (m: string) 
     <Card><Kicker>MEMORIES · {rows.length}</Kicker>
       {rows.length ? rows.map(row => <View key={row.id} style={{ gap: 4, paddingVertical: 6, borderBottomColor: C.line, borderBottomWidth: 1 }}>
         <Line><Badge>{row.category}</Badge>{row.intent_type && row.intent_type !== "fact" && <Badge tone="amber">{`${row.intent_type}${row.topic ? ` · ${row.topic}` : ""}`}</Badge>}{row.sensitivity === "sensitive" && <Badge tone="amber">sensitive</Badge>}<View style={{ flex: 1 }}/>
-          <TouchableOpacity onPress={() => remove(row)}><Text style={{ color: "#f18c80" }}>Delete</Text></TouchableOpacity></Line>
-        <Text style={{ color: C.text, lineHeight: 20 }}>{row.content}</Text><Muted small>{niceDate(row.updated_at)}</Muted>
+          <TouchableOpacity onPress={() => pin(row)} style={{ paddingHorizontal: 6 }}><Text style={{ color: row.pinned ? C.amber : C.muted }}>{row.pinned ? "★" : "☆"}</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => { setEditing(editing === row.id ? null : row.id); setDraft(row.content); }} style={{ paddingHorizontal: 6 }}><Text style={{ color: C.green, fontWeight: "700" }}>✎ Edit</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => remove(row)}><Text style={{ color: "#f18c80" }}>🗑</Text></TouchableOpacity></Line>
+        {editing === row.id ? <View style={{ gap: 6 }}><Field voice value={draft} onChangeText={setDraft} multiline/>
+          <Line><Btn title="💾 Save" onPress={() => void saveEdit(row)} disabled={!draft.trim()} style={{ flex: 1 }}/><Btn kind="outline" title="Cancel" onPress={() => setEditing(null)} style={{ flex: 1 }}/></Line></View>
+          : <TouchableOpacity onLongPress={() => { setEditing(row.id); setDraft(row.content); }}><Text style={{ color: C.text, lineHeight: 20 }}>{row.content}</Text></TouchableOpacity>}
+        <Muted small>{niceDate(row.updated_at)}</Muted>
       </View>) : <Empty>No memories yet.</Empty>}
     </Card>
   </Screen>;
