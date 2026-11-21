@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Sing-along</title>
+<style>
+:root{--bg:#070b09;--card:#0f1613;--line:#1d2a24;--text:#eef6f1;--muted:#8a9b92;--green:#3ee08f;--amber:#f5b65b;--red:#ff7a8a;--violet:#b48cff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:12px;max-width:640px;margin:auto}
+h1{font-size:21px;margin:2px 0}.muted{color:var(--muted);font-size:12.5px}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px;margin-top:10px}
+button{border:0;border-radius:13px;padding:11px 14px;font-weight:800;font-size:14px;background:var(--line);color:var(--text)}
+.go{background:var(--violet);color:#120a20}.ok{background:var(--green);color:#04170d}.stop{background:var(--red);color:#2a0a10}
+select,input[type=file]{background:#141d19;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:9px;font-size:14px;max-width:100%}
+canvas{width:100%;height:260px;border-radius:16px;background:#0b110e;display:block;margin-top:10px}
+#lyric{font-size:26px;font-weight:900;text-align:center;min-height:36px;margin-top:8px}#lyric span{color:var(--violet)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}.stat{background:#141d19;border-radius:12px;padding:9px;text-align:center}.stat b{display:block;font-size:20px}
+#score{font-size:58px;font-weight:900;text-align:center;line-height:1}ul{padding-left:18px;margin:6px 0}li{margin:4px 0}
+label{font-size:13px;color:var(--muted)}
+</style></head><body>
+<h1>🎶 Sing-along vocal trainer</h1><div class="muted">Follow the bars, sing the lyric. Your line turns green when you're in tune. Headphones help if the guide melody is on.</div>
+<div class="card">
+  <div class="row"><select id="song" style="flex:1"></select></div>
+  <div id="own" style="display:none;margin-top:8px">
+    <div class="muted">Your own song: record a teacher or yourself singing the line (one voice), or load a vocal-only / acapella file (max 60 s). Full songs with instruments don't work well.</div>
+    <div class="row" style="margin-top:6px"><button id="refRec">⏺ Record reference</button><input type="file" id="refFile" accept="audio/*"></div>
+    <div id="refInfo" class="muted"></div>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <label>Key <select id="tr"></select></label><label>Speed <select id="tempo"><option value="0.7">70%</option><option value="0.85">85%</option><option value="1" selected>100%</option><option value="1.15">115%</option></select></label>
+    <label><input type="checkbox" id="oct" checked> any octave</label><label><input type="checkbox" id="guide"> guide while singing</label>
+  </div>
+</div>
+<canvas id="cv"></canvas><div id="lyric">&nbsp;</div>
+<div class="row" style="margin-top:8px"><button id="listen" style="flex:1">▶ Listen</button><button id="sing" class="go" style="flex:1">🎤 Sing</button><button id="stopB" class="stop" style="flex:1" disabled>■ Stop</button></div>
+<div id="res" class="card" style="display:none">
+  <div id="score">—</div><div class="muted" style="text-align:center">match score</div>
+  <div class="grid"><div class="stat"><b id="rIn">—</b><span class="muted">in tune</span></div><div class="stat"><b id="rHit">—</b><span class="muted">notes hit</span></div><div class="stat"><b id="rOff">—</b><span class="muted">avg off</span></div>
+    <div class="stat"><b id="rTend">—</b><span class="muted">tendency</span></div><div class="stat"><b id="rTime">—</b><span class="muted">timing</span></div><div class="stat"><b id="rStab">—</b><span class="muted">steadiness</span></div></div>
+  <b style="display:block;margin-top:10px">Coach tips</b><ul id="tips"></ul>
+  <button id="save" class="ok" style="width:100%">✓ Save & get AI advice</button>
+</div>
+<div id="err" class="muted" style="color:var(--amber);margin-top:8px"></div>
+<script>
+const $=id=>document.getElementById(id);
+function post(d){const s=JSON.stringify(d);if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(s);else if(window.parent!==window)window.parent.postMessage(s,"*");}
+const NAMES=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"],nm=m=>NAMES[((Math.round(m)%12)+12)%12]+(Math.floor(Math.round(m)/12)-1);
+const fq=m=>440*Math.pow(2,(m-69)/12),mid=f=>69+12*Math.log2(f/440);
+function parse(s){return s.trim().split(/\s+/).map(x=>{const[m,b,w]=x.split(":");return{m:+m,b:+b,w:(w||"").replace(/_/g," ")}});}
+function rep(a,n){let o=[];for(let i=0;i<n;i++)o=o.concat(a);return o;}
+const SOL=["Do","Re","Mi","Fa","Sol","La","Ti","Do"];
+const SONGS={
+ scale:{name:"🎼 Warm-up: major scale",bpm:80,tr:0,notes:parse("60:1:Do 62:1:Re 64:1:Mi 65:1:Fa 67:1:Sol 69:1:La 71:1:Ti 72:2:Do 71:1:Ti 69:1:La 67:1:Sol 65:1:Fa 64:1:Mi 62:1:Re 60:2:Do")},
+ five:{name:"🎼 Warm-up: 5-note slides (rising)",bpm:96,tr:0,notes:[0,1,2,3].flatMap(k=>[0,2,4,5,7,5,4,2,0].map((s,i)=>({m:60+k+s,b:i===8?2:1,w:["Ma","me","mi","mo","mu","mo","mi","me","ma"][i]})))},
+ twinkle:{name:"⭐ Twinkle Twinkle Little Star",bpm:92,tr:0,notes:parse(
+  "60:1:Twin 60:1:kle 67:1:twin 67:1:kle 69:1:lit 69:1:tle 67:2:star 65:1:how 65:1:I 64:1:won 64:1:der 62:1:what 62:1:you 60:2:are "+
+  "67:1:up 67:1:a 65:1:bove 65:1:the 64:1:world 64:1:so 62:2:high 67:1:like 67:1:a 65:1:dia 65:1:mond 64:1:in 64:1:the 62:2:sky "+
+  "60:1:twin 60:1:kle 67:1:twin 67:1:kle 69:1:lit 69:1:tle 67:2:star 65:1:how 65:1:I 64:1:won 64:1:der 62:1:what 62:1:you 60:2:are")},
+ frere:{name:"🔔 Frère Jacques",bpm:100,tr:0,notes:parse(
+  "60:1:Frè 62:1:re 64:1:Jac 60:1:ques 60:1:Frè 62:1:re 64:1:Jac 60:1:ques 64:1:dor 65:1:mez 67:2:vous 64:1:dor 65:1:mez 67:2:vous "+
+  "67:0.5:son 69:0.5:nez 67:0.5:les 65:0.5:ma 64:1:ti 60:1:nes 67:0.5:son 69:0.5:nez 67:0.5:les 65:0.5:ma 64:1:ti 60:1:nes "+
+  "60:1:ding 55:1:dang 60:2:dong 60:1:ding 55:1:dang 60:2:dong")},
+ bday:{name:"🎂 Happy Birthday",bpm:90,tr:-5,notes:parse(
+  "67:0.75:Hap 67:0.25:py 69:1:birth 67:1:day 72:1:to 71:2:you 67:0.75:Hap 67:0.25:py 69:1:birth 67:1:day 74:1:to 72:2:you "+
+  "67:0.75:Hap 67:0.25:py 79:1:birth 76:1:day 72:1:dear 71:1:frie 69:2:end 77:0.75:Hap 77:0.25:py 76:1:birth 72:1:day 74:1:to 72:2:you")},
+ ode:{name:"🎻 Ode to Joy (solfège)",bpm:100,tr:0,notes:parse(
+  "64:1:Mi 64:1:Mi 65:1:Fa 67:1:Sol 67:1:Sol 65:1:Fa 64:1:Mi 62:1:Re 60:1:Do 60:1:Do 62:1:Re 64:1:Mi 64:1.5:Mi 62:0.5:Re 62:2:Re "+
+  "64:1:Mi 64:1:Mi 65:1:Fa 67:1:Sol 67:1:Sol 65:1:Fa 64:1:Mi 62:1:Re 60:1:Do 60:1:Do 62:1:Re 64:1:Mi 62:1.5:Re 60:0.5:Do 60:2:Do")},
+ own:{name:"🎙 My own song (reference or vocal file)",bpm:60,tr:0,notes:[]}};
+for(const[k,s]of Object.entries(SONGS)){const o=document.createElement("option");o.value=k;o.textContent=s.name;$("song").appendChild(o);}
+for(let t=-12;t<=12;t++){const o=document.createElement("option");o.value=t;o.textContent=(t>0?"+":"")+t;$("tr").appendChild(o);}
+try{const saved=JSON.parse(localStorage.getItem("sakuna.ownSong")||"null");if(saved&&saved.notes)SONGS.own.notes=saved.notes,SONGS.own.secs=true;}catch(e){}
+
+// YIN pitch detector (free, classic algorithm; accurate to a few cents)
+function yin(buf,sr){const W=Math.round(sr*0.021),maxT=Math.min(Math.floor(sr/65),buf.length-W-1),minT=Math.floor(sr/1100);
+  let rms=0;for(let i=0;i<W;i++)rms+=buf[i]*buf[i];rms=Math.sqrt(rms/W);if(rms<0.012)return -1;
+  const d=new Float32Array(maxT+1);for(let t=1;t<=maxT;t++){let s=0;for(let i=0;i<W;i++){const x=buf[i]-buf[i+t];s+=x*x}d[t]=s}
+  const cm=new Float32Array(maxT+1);cm[0]=1;let run=0;for(let t=1;t<=maxT;t++){run+=d[t];cm[t]=run?d[t]*t/run:1}
+  let tau=-1;for(let t=minT;t<=maxT;t++){if(cm[t]<0.12){while(t+1<=maxT&&cm[t+1]<cm[t])t++;tau=t;break}}
+  if(tau<0){let b=minT;for(let t=minT;t<=maxT;t++)if(cm[t]<cm[b])b=t;if(cm[b]>0.3)return -1;tau=b}
+  const a=cm[tau-1]??cm[tau],b=cm[tau],c=cm[tau+1]??cm[tau],den=a+c-2*b;return sr/(tau+(den?(a-c)/(2*den):0));}
+
+let ctx,an,buf,stream,timer,raf,state="idle",t0=0,frames=[],tl=[],refFrames=null,guideNodes=[];
+function song(){const s=SONGS[$("song").value];return s;}
+function timeline(){const s=song(),sp=+$("tempo").value,tr=+$("tr").value,spb=60/(s.bpm*sp);let t=0;const out=[];
+  for(const n of s.notes){const dur=n.sec!=null?n.sec/sp:n.b*spb;if(n.m)out.push({m:n.m+tr,start:n.start!=null?n.start/sp:t,dur:dur*0.95,w:n.w});t=(n.start!=null?n.start/sp:t)+dur;}
+  return out;}
+function setSong(){const k=$("song").value;$("own").style.display=k==="own"?"":"none";$("tr").value=SONGS[k].tr||0;tl=timeline();draw(0);
+  $("refInfo").textContent=k==="own"?(SONGS.own.notes.length?`${SONGS.own.notes.length} notes ready. Tap Sing.`:"No reference yet."):"";}
+$("song").onchange=setSong;$("tr").onchange=()=>{tl=timeline();draw(0)};$("tempo").onchange=()=>{tl=timeline();draw(0)};
+async function mic(){ctx=ctx||new AudioContext();await ctx.resume();if(!stream)stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:false,autoGainControl:false}});
+  if(!an){an=ctx.createAnalyser();an.fftSize=2048;buf=new Float32Array(2048);ctx.createMediaStreamSource(stream).connect(an);}}
+function tone(m,at,dur,vol){const o=ctx.createOscillator(),g=ctx.createGain();o.type="triangle";o.frequency.value=fq(m);g.gain.setValueAtTime(0,at);g.gain.linearRampToValueAtTime(vol,at+0.03);
+  g.gain.setValueAtTime(vol,at+Math.max(0.05,dur-0.06));g.gain.linearRampToValueAtTime(0,at+dur);o.connect(g).connect(ctx.destination);o.start(at);o.stop(at+dur+0.05);guideNodes.push(o);}
+function click(at,hi){const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=hi?1500:1000;g.gain.setValueAtTime(0.3,at);g.gain.exponentialRampToValueAtTime(0.001,at+0.08);o.connect(g).connect(ctx.destination);o.start(at);o.stop(at+0.1);}
+function stopGuide(){guideNodes.forEach(o=>{try{o.stop()}catch(e){}});guideNodes=[];}
+const pps=110;
+function draw(t){const cv=$("cv"),g=cv.getContext("2d"),W=cv.width=cv.clientWidth*devicePixelRatio,H=cv.height=260*devicePixelRatio,dp=devicePixelRatio;g.clearRect(0,0,W,H);
+  const ms=tl.map(n=>n.m);const lo=(ms.length?Math.min(...ms):55)-4,hi=(ms.length?Math.max(...ms):72)+4,y=m=>H-((m-lo)/(hi-lo))*H,nowX=W*0.28,X=s=>nowX+(s-t)*pps*dp;
+  g.strokeStyle="#1d2a24";g.lineWidth=1;for(let m=Math.ceil(lo);m<=hi;m++){g.beginPath();g.moveTo(0,y(m));g.lineTo(W,y(m));g.stroke();}
+  for(const n of tl){const x0=X(n.start),x1=X(n.start+n.dur);if(x1<0||x0>W)continue;const active=t>=n.start&&t<=n.start+n.dur;
+    g.fillStyle=n.hit===true?"#2f8f5f":n.hit===false?"#5a3036":active?"#b48cff":"#4a3b6b";const h=Math.max(8,H/(hi-lo)*0.8);g.beginPath();g.roundRect(x0,y(n.m)-h/2,Math.max(6,x1-x0),h,h/2);g.fill();
+    g.fillStyle="#eef6f1";g.font=`${11*dp}px system-ui`;g.fillText(n.w||nm(n.m),x0+3*dp,y(n.m)-h/2-4*dp);}
+  g.strokeStyle="#ffffff55";g.lineWidth=2*dp;g.beginPath();g.moveTo(nowX,0);g.lineTo(nowX,H);g.stroke();
+  for(const f of frames){if(f.m==null||f.t<t-3)continue;const x=X(f.t);if(x>nowX+2)continue;g.fillStyle=f.ok?"#3ee08f":f.ok===false?"#f5b65b":"#8a9b92";g.beginPath();g.arc(x,y(f.show??f.m),3.2*dp,0,7);g.fill();}}
+function target(t){return tl.find(n=>t>=n.start&&t<=n.start+n.dur);}
+function fold(um,tm){let dd=um-tm;if($("oct").checked)dd-=12*Math.round(dd/12);return dd;}
+function lyricAt(t){const i=tl.findIndex(n=>t<n.start+n.dur);if(i<0){$("lyric").innerHTML="&nbsp;";return}const ws=tl.slice(Math.max(0,i-2),i+4);
+  $("lyric").innerHTML=ws.map(n=>n===tl[i]&&t>=n.start?`<span>${n.w||nm(n.m)}</span>`:(n.w||nm(n.m))).join(" ");}
+function loop(){raf=requestAnimationFrame(loop);const t=ctx.currentTime-t0;draw(t);lyricAt(t);
+  if(state==="listen"&&t>(tl.length?tl[tl.length-1].start+tl[tl.length-1].dur+0.5:0))stop();}
+function sample(){if(!an)return;an.getFloatTimeDomainData(buf);const t=ctx.currentTime-t0-0.06;const f=yin(buf,ctx.sampleRate);
+  if(state==="ref"){frames.push({t,m:f>0?mid(f):null});return;}
+  if(t<-0.2)return;const n=target(t);let m=f>0?mid(f):null,ok=null,show=m;
+  if(m!=null&&n){const dd=fold(m,n.m);ok=Math.abs(dd)<=0.5;show=n.m+dd;}frames.push({t,m,ok,show});
+  if(t>(tl.length?tl[tl.length-1].start+tl[tl.length-1].dur+0.8:0))stop();}
+async function start(mode){$("err").textContent="";try{await mic();}catch(e){$("err").textContent="Microphone not available: "+e.message+". Allow the microphone for Sakuna.";return}
+  tl=timeline();if(mode!=="ref"&&!tl.length){$("err").textContent="Record or load a reference first.";return}
+  frames=[];tl.forEach(n=>delete n.hit);$("res").style.display="none";state=mode;stopGuide();const beat=60/(song().bpm*+$("tempo").value);
+  const now=ctx.currentTime+0.1;if(mode==="ref"){t0=now;}else{for(let i=0;i<4;i++)click(now+i*beat,i===0);t0=now+4*beat;}
+  if(mode==="listen"||(mode==="sing"&&$("guide").checked))for(const n of tl)tone(n.m,t0+n.start,n.dur,mode==="listen"?0.22:0.1);
+  if(mode!=="listen")timer=setInterval(sample,20);
+  $("listen").disabled=$("sing").disabled=true;$("stopB").disabled=false;$("refRec").textContent=mode==="ref"?"⏹ Stop recording":"⏺ Record reference";loop();}
+function stop(){const was=state;state="idle";clearInterval(timer);cancelAnimationFrame(raf);stopGuide();$("listen").disabled=$("sing").disabled=false;$("stopB").disabled=true;$("refRec").textContent="⏺ Record reference";
+  if(was==="sing")analyse();if(was==="ref")useReference(frames);}
+$("listen").onclick=()=>start("listen");$("sing").onclick=()=>start("sing");$("stopB").onclick=stop;
+$("refRec").onclick=()=>state==="ref"?stop():(($("song").value="own"),setSong(),start("ref"));
+
+// reference -> notes (one voice): smooth, cut where the pitch jumps or stops, keep notes >= 0.15 s
+function toNotes(fr){const sm=fr.map((f,i)=>{const w=fr.slice(Math.max(0,i-1),i+2).map(x=>x.m).filter(x=>x!=null).sort((a,b)=>a-b);return{t:f.t,m:f.m==null?null:w[Math.floor(w.length/2)]}});
+  const notes=[];let cur=null;for(const f of sm){if(f.m==null){if(cur&&f.t-cur.last>0.08){notes.push(cur);cur=null}continue}
+    if(cur&&Math.abs(f.m-cur.sum/cur.n)<0.6&&f.t-cur.last<=0.08){cur.sum+=f.m;cur.n++;cur.last=f.t}else{if(cur)notes.push(cur);cur={start:f.t,last:f.t,sum:f.m,n:1}}}
+  if(cur)notes.push(cur);const t0=notes.length?notes[0].start:0;
+  return notes.filter(n=>n.last-n.start>=0.15).slice(0,400).map(n=>({m:Math.round(n.sum/n.n),start:+(n.start-t0).toFixed(2),sec:+(n.last-n.start+0.02).toFixed(2),b:1,w:nm(n.sum/n.n)}));}
+function useReference(fr){const notes=toNotes(fr);if(notes.length<3){$("refInfo").textContent="Couldn't find a clear melody. Sing louder, one voice only, and try again.";return}
+  SONGS.own.notes=notes;try{localStorage.setItem("sakuna.ownSong",JSON.stringify({notes}))}catch(e){};setSong();}
+$("refFile").onchange=async e=>{const file=e.target.files[0];if(!file)return;$("refInfo").textContent="Reading the melody…";
+  try{const raw=await file.arrayBuffer();const tmp=new (window.AudioContext||window.webkitAudioContext)();const dec=await tmp.decodeAudioData(raw);tmp.close();
+    const secs=Math.min(60,dec.duration),sr=16000,off=new OfflineAudioContext(1,Math.ceil(secs*sr),sr),src=off.createBufferSource();src.buffer=dec;src.connect(off.destination);src.start();
+    const pcm=(await off.startRendering()).getChannelData(0),hop=sr*0.02,fr=[];for(let i=0;i+2048<pcm.length;i+=hop){const f=yin(pcm.subarray(i,i+2048),sr);fr.push({t:i/sr,m:f>0?mid(f):null});}
+    $("song").value="own";useReference(fr);}catch(err){$("refInfo").textContent="Couldn't read that file: "+err.message;}};
+
+function analyse(){const lagScore=lag=>{let ok=0,v=0;for(const f of frames){if(f.m==null)continue;const n=target(f.t-lag);if(!n)continue;v++;if(Math.abs(fold(f.m,n.m))<=0.5)ok++}return v?ok/v:0};
+  let best=0,bs=-1;for(let l=-0.3;l<=0.4;l+=0.02){const s=lagScore(l);if(s>bs){bs=s;best=l}}
+  let voiced=0,inT=0,signed=0,abs=0,cnt=0;const per=tl.map(()=>({v:0,ok:0,c:[]}));
+  for(const f of frames){if(f.m==null)continue;const i=tl.findIndex(n=>f.t-best>=n.start&&f.t-best<=n.start+n.dur);if(i<0)continue;const dd=fold(f.m,tl[i].m)*100;
+    voiced++;per[i].v++;per[i].c.push(dd);if(Math.abs(dd)<=50){inT++;per[i].ok++}if(Math.abs(dd)<=150){signed+=dd;abs+=Math.abs(dd);cnt++}}
+  tl.forEach((n,i)=>{n.hit=per[i].v>=3?per[i].ok/per[i].v>=0.5:false});
+  const hits=tl.filter(n=>n.hit).length,sung=per.filter(p=>p.v>=3).length,coverage=tl.length?sung/tl.length:0;
+  const stab=per.filter(p=>p.c.length>=5).map(p=>{const m=p.c.reduce((a,b)=>a+b,0)/p.c.length;return Math.sqrt(p.c.reduce((a,b)=>a+(b-m)**2,0)/p.c.length)});
+  const stability=stab.length?Math.round(stab.reduce((a,b)=>a+b,0)/stab.length):null;
+  const q=Math.max(1,Math.ceil(tl.length/4)),sections=[0,1,2,3].map(k=>{const s=tl.slice(k*q,(k+1)*q);return s.length?Math.round(s.filter(n=>n.hit).length/s.length*100):null}).filter(x=>x!=null);
+  const weakest=sections.length?sections.indexOf(Math.min(...sections))+1:null;
+  const inPct=voiced?Math.round(inT/voiced*100):0,tend=cnt?Math.round(signed/cnt):0,avgOff=cnt?Math.round(abs/cnt):null,timing=Math.round(best*1000);
+  const score=Math.round(Math.min(100,0.55*inPct+0.3*(tl.length?hits/tl.length*100:0)+0.15*coverage*100));
+  const tips=[];
+  if(coverage<0.6)tips.push("You missed parts of the song: sing every note, even quietly; louder helps the microphone hear you.");
+  if(tend<=-20)tips.push(`You were flat (about ${-tend} cents low). Breathe from the belly, lift your eyebrows slightly and aim at the top of each note.`);
+  else if(tend>=20)tips.push(`You were sharp (about ${tend} cents high). Relax your jaw and neck; don't push air, let the note sit.`);
+  if(stability!=null&&stability>35)tips.push("Notes wobble: practise long tones (hold one note 8 seconds) with steady breath.");
+  if(timing>=120)tips.push(`You came in ~${timing} ms late: breathe before each phrase and start on the beat.`);
+  else if(timing<=-120)tips.push(`You rushed ~${-timing} ms early: listen to the count-in and wait for the bar.`);
+  if(weakest&&sections.length>1&&sections[weakest-1]<70)tips.push(`Part ${weakest} of 4 was hardest (${sections[weakest-1]}% notes). Loop that part slowly at 85% speed.`);
+  if(!tips.length)tips.push("Great control. Try a faster speed, a higher key, or turn off 'any octave'.");
+  $("res").style.display="";$("score").textContent=score;$("score").style.color=score>=75?"var(--green)":score>=50?"var(--amber)":"var(--red)";
+  $("rIn").textContent=inPct+"%";$("rHit").textContent=hits+"/"+tl.length;$("rOff").textContent=avgOff!=null?avgOff+"¢":"—";$("rTend").textContent=Math.abs(tend)<20?"on pitch":tend<0?"flat":"sharp";
+  $("rTime").textContent=Math.abs(timing)<80?"on time":timing>0?"late":"early";$("rStab").textContent=stability!=null?(stability<=25?"steady":stability<=35?"ok":"wobbly"):"—";
+  $("tips").innerHTML=tips.map(t=>`<li>${t}</li>`).join("");draw(ctx.currentTime-t0);
+  window.__result={kind:"karaoke",song:song().name.replace(/^\S+\s/,""),minutes:Math.max(1,Math.round((ctx.currentTime-t0)/60)),score,in_tune_pct:inPct,notes_hit:hits,notes_total:tl.length,
+    avg_cents_off:avgOff,tendency_cents:tend,timing_ms:timing,stability_cents:stability,sections,weakest_section:weakest,transpose:+$("tr").value,tempo:+$("tempo").value,any_octave:$("oct").checked,tips};}
+$("save").onclick=()=>{if(window.__result){post(window.__result);$("save").disabled=true;$("save").textContent="Saved ✓";}};
+window.addEventListener("resize",()=>draw(0));setSong();
+</script></body></html>

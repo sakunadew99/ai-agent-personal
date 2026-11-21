@@ -389,3 +389,42 @@ def sync_workouts(db: Session, user_id, workouts: list[dict]) -> int:
                                          "type": w.get("activity")}, source="watch", note="From Mi Band / Health Connect"))
     db.flush()
     return saved
+
+
+# ------------------------------------------------------------------ advice for one practice session (vocal / karaoke first)
+
+def session_advice(db: Session, user_id, s: SkillSession, use_ai: bool) -> dict:
+    m = s.metrics or {}
+    tips = list(m.get("tips") or [])
+    if not tips and m.get("kind") == "pitch":
+        pct = m.get("in_tune_pct") or 0
+        tips.append("Great tuning, try the sing-along songs next." if pct >= 75 else "Practise slow scales with the tuner; hold each note until the needle is centred.")
+    # compare with your earlier sessions of the same song
+    history = db.scalars(select(SkillSession).where(SkillSession.user_id == user_id, SkillSession.skill_id == s.skill_id, SkillSession.id != s.id,
+                                                    SkillSession.created_at < s.created_at).order_by(SkillSession.created_at.desc()).limit(20)).all()
+    same = [h.metrics for h in history if (h.metrics or {}).get("kind") == m.get("kind") and (h.metrics or {}).get("song") == m.get("song")]
+    progress = None
+    if same and m.get("score") is not None and same[0].get("score") is not None:
+        diff = int(m["score"]) - int(same[0]["score"])
+        progress = {"previous": same[0]["score"], "now": m["score"], "change": diff, "times": len(same) + 1,
+                    "text": f"{'+' if diff >= 0 else ''}{diff} points vs your last try of this song ({len(same) + 1} tries)."}
+    out = {"tips": tips, "progress": progress, "ai_text": None, "ai_note": None}
+    if use_ai:
+        from app.services.ai_client import ai_enabled, cached_complete, model_for
+        if not ai_enabled():
+            out["ai_note"] = "AI is off. The tips above come from your scores."
+        else:
+            skill = db.get(Skill, s.skill_id)
+            facts = {k: m.get(k) for k in ("kind", "song", "score", "in_tune_pct", "notes_hit", "notes_total", "avg_cents_off", "tendency_cents",
+                                         "timing_ms", "stability_cents", "sections", "weakest_section", "transpose", "tempo", "any_octave", "range_low", "range_high")}
+            facts["previous_scores_same_song"] = [x.get("score") for x in same[:5]]
+            system = ("You are a warm, expert vocal coach. From these measured singing numbers (cents: 100 = one semitone; negative tendency = flat; "
+                      "positive timing = late), give: 1) one sentence on what went well, 2) the 2 most important fixes with a concrete exercise each "
+                      "(breath, support, vowel shape, ear training, rhythm), 3) a 10-minute practice plan for tomorrow. Plain text, max 150 words. "
+                      "No medical claims; if the voice hurts, rest.")
+            text = cached_complete(db, user_id, "coach", model_for("balanced"),
+                                   [{"role": "system", "content": system}, {"role": "user", "content": f"Skill: {skill.name if skill else 'singing'}\n{facts}"}], ttl_hours=24)
+            out["ai_text"] = text.strip() if text else None
+            if not text:
+                out["ai_note"] = "AI could not answer right now; try again later."
+    return out

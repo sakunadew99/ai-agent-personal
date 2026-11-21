@@ -109,6 +109,8 @@ const CAT_COLOR: Record<string, string> = { body: "#3ee08f", fight: "#ff7a8a", m
 function metricText(m: Row | null | undefined) {
   if (!m) return "";
   if (m.kind === "pitch") return `🎤 ${m.in_tune_pct}% in tune · ${m.notes_hit} notes${m.range_low ? ` · ${m.range_low}–${m.range_high}` : ""}`;
+  if (m.kind === "karaoke") return `🎶 ${m.song}: ${m.score}/100 · ${m.in_tune_pct}% in tune · ${m.notes_hit}/${m.notes_total} notes`;
+  if (m.kind === "swim") return `🏊 ${m.distance_m ?? "?"} m${m.pace_s_per_100m ? ` · ${Math.floor(m.pace_s_per_100m / 60)}:${String(m.pace_s_per_100m % 60).padStart(2, "0")}/100 m` : ""}`;
   if (m.kind === "pose") return `🧘 ${m.mode} · ${m.reps != null ? `${m.reps} reps` : `${m.hold_seconds}s hold`} · ${m.good_pct}% good form`;
   return "";
 }
@@ -118,7 +120,10 @@ export function SkillsScreen({ api, onError, onNotice }: { api: Api; onError: (m
   const [open, setOpen] = useState<string | null>(null);
   const [log, setLog] = useState<Row | null>(null);
   const [mins, setMins] = useState("20"); const [rating, setRating] = useState(4); const [note, setNote] = useState("");
-  const [trainer, setTrainer] = useState<{ kind: "pitch" | "pose"; skill: Row } | null>(null);
+  const [trainer, setTrainer] = useState<{ kind: "pitch" | "pose" | "karaoke"; skill: Row } | null>(null);
+  const [advice, setAdvice] = useState<Row | null>(null);
+  const loadAdvice = (sessionId: string, ai = false) => void api<Row>(`/skills/sessions/${sessionId}/advice${ai ? "?ai=true" : ""}`, "POST")
+    .then(a => setAdvice({ ...a, sessionId })).catch(e => onError(msg(e)));
   const [plan, setPlan] = useState<Row | null>(null);
   const [custom, setCustom] = useState(""); const [cat, setCat] = useState("other");
   const load = useCallback(() => { api<Row>("/skills").then(setV).catch(e => onError(msg(e))); }, [api, onError]);
@@ -128,7 +133,11 @@ export function SkillsScreen({ api, onError, onNotice }: { api: Api; onError: (m
   const saveLog = () => void api<Row>(`/skills/${log!.id}/sessions`, "POST", { minutes: Number(mins) || 10, rating, note: note.trim() || null }).then(x => { setV(x); setLog(null); setNote(""); onNotice("Practice logged 💪"); }).catch(e => onError(msg(e)));
   const onTrainer = (r: TrainerResult) => {
     const s = trainer!.skill; setTrainer(null);
-    void api<Row>(`/skills/${s.id}/sessions`, "POST", { minutes: Math.max(1, Math.round(Number(r.minutes) || 1)), source: r.kind, metrics: r, rating: null }).then(x => { setV(x); onNotice(`Saved: ${metricText(r)}`); }).catch(e => onError(msg(e)));
+    void api<Row>(`/skills/${s.id}/sessions`, "POST", { minutes: Math.max(1, Math.round(Number(r.minutes) || 1)), source: r.kind, metrics: r, rating: null }).then(x => {
+      setV(x); onNotice(`Saved: ${metricText(r)}`);
+      const latest = (x.skills as Row[]).find(k => k.id === s.id)?.recent?.[0];
+      if (latest && r.kind === "karaoke") loadAdvice(String(latest.id));            // show the coach right after a song
+    }).catch(e => onError(msg(e)));
   };
   const skills: Row[] = v.skills;
   return <Screen onRefresh={load}>
@@ -149,8 +158,12 @@ export function SkillsScreen({ api, onError, onNotice }: { api: Api; onError: (m
         </TouchableOpacity>
         <Line>
           <Btn title="＋ Log practice" onPress={() => setLog(s)} style={{ flex: 1 }}/>
-          {s.trainer && <Btn kind="outline" title={s.trainer === "pitch" ? "🎤 Pitch trainer" : "🧘 Pose coach"} onPress={() => setTrainer({ kind: s.trainer, skill: s })} style={{ flex: 1 }}/>}
+          {s.trainer && s.trainer !== "karaoke" && <Btn kind="outline" title={s.trainer === "pitch" ? "🎤 Tuner" : "🧘 Pose coach"} onPress={() => setTrainer({ kind: s.trainer, skill: s })} style={{ flex: 1 }}/>}
         </Line>
+        {(s.category === "music" || s.trainer === "pitch" || s.trainer === "karaoke") && <TouchableOpacity onPress={() => setTrainer({ kind: "karaoke", skill: s })}
+          style={{ borderRadius: 16, padding: 12, backgroundColor: "#b48cff22", borderWidth: 1, borderColor: "#b48cff66", flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <Text style={{ fontSize: 26 }}>🎶</Text><View style={{ flex: 1 }}><Text style={{ color: C.text, fontWeight: "900" }}>Sing-along (karaoke)</Text>
+            <Muted small>Sing a song, see your voice on the notes, get a match score and coach advice</Muted></View><Text style={{ color: "#b48cff", fontSize: 18 }}>›</Text></TouchableOpacity>}
         {isOpen && <View style={{ gap: 8 }}>
           {!!s.goal && <Muted>{`🎯 ${s.goal}`}</Muted>}
           <Line><Btn kind="outline" title="📋 Today's plan" onPress={() => void api<Row>(`/skills/${s.id}/plan`, "POST").then(setPlan).catch(e => onError(msg(e)))} style={{ flex: 1 }}/>
@@ -160,10 +173,10 @@ export function SkillsScreen({ api, onError, onNotice }: { api: Api; onError: (m
             <Btn kind="link" title="Level +1" disabled={s.level >= 10} onPress={() => void api<Row>(`/skills/${s.id}`, "PATCH", { level: s.level + 1 }).then(setV)}/>
             <Btn kind="link" title="Goal −30m" onPress={() => void api<Row>(`/skills/${s.id}`, "PATCH", { weekly_minutes: Math.max(0, s.weekly_minutes - 30) }).then(setV)}/>
             <Btn kind="link" title="+30m" onPress={() => void api<Row>(`/skills/${s.id}`, "PATCH", { weekly_minutes: s.weekly_minutes + 30 }).then(setV)}/></Line>
-          {(s.recent as Row[]).map(r => <TouchableOpacity key={r.id} onLongPress={() => Alert.alert("Delete this practice?", "", [{ text: "Cancel", style: "cancel" },
+          {(s.recent as Row[]).map(r => <TouchableOpacity key={r.id} onPress={() => r.metrics && loadAdvice(String(r.id))} onLongPress={() => Alert.alert("Delete this practice?", "", [{ text: "Cancel", style: "cancel" },
             { text: "Delete", style: "destructive", onPress: () => void api(`/skills/sessions/${r.id}`, "DELETE").then(load).catch(e => onError(msg(e))) }])}>
             <Muted small>{`${r.date} · ${r.minutes} min${r.rating ? ` · ${"★".repeat(r.rating)}` : ""}${r.metrics ? ` · ${metricText(r.metrics)}` : ""}${r.note ? ` · ${r.note}` : ""}`}</Muted></TouchableOpacity>)}
-          {(s.recent as Row[]).length > 0 && <Muted small>Long-press a session to delete it.</Muted>}
+          {(s.recent as Row[]).length > 0 && <Muted small>Tap a session for coach advice · long-press to delete it.</Muted>}
           <Btn kind="danger" title="Remove skill" onPress={() => Alert.alert(`Remove ${s.name}?`, "All its practice history is deleted.", [{ text: "Cancel", style: "cancel" },
             { text: "Remove", style: "destructive", onPress: () => void api(`/skills/${s.id}`, "DELETE").then(load).catch(e => onError(msg(e))) }])}/>
         </View>}
@@ -192,6 +205,16 @@ export function SkillsScreen({ api, onError, onNotice }: { api: Api; onError: (m
       <Muted small>{plan.source === "ai" ? "AI coach plan from your recent sessions." : plan.ai_note || "Built-in plan. Turn on AI for a personal plan."}</Muted>
     </Sheet>}
     {trainer && <Trainer kind={trainer.kind} onClose={() => setTrainer(null)} onResult={onTrainer}/>}
+    {advice && <Sheet title="🎙 Your coach" onClose={() => setAdvice(null)}>
+      {advice.progress && <View style={{ backgroundColor: advice.progress.change >= 0 ? C.greenSoft : "#3a2222", borderRadius: 14, padding: 12 }}>
+        <Text style={{ color: advice.progress.change >= 0 ? C.green : C.red, fontWeight: "900", fontSize: 16 }}>{`${advice.progress.previous} → ${advice.progress.now}`}</Text>
+        <Muted small>{advice.progress.text}</Muted></View>}
+      <Kicker>FROM YOUR SCORES</Kicker>
+      {(advice.tips as string[]).map((t, i) => <Text key={i} style={{ color: C.text, lineHeight: 21 }}>{`• ${t}`}</Text>)}
+      {advice.ai_text ? <View style={{ backgroundColor: "#b48cff18", borderRadius: 14, padding: 12 }}><Kicker>✨ AI VOCAL COACH</Kicker><Text style={{ color: C.text, lineHeight: 21 }}>{advice.ai_text}</Text></View>
+        : <Btn title="✨ AI vocal coach advice" onPress={() => loadAdvice(advice.sessionId, true)}/>}
+      {!!advice.ai_note && <Muted small>{advice.ai_note}</Muted>}
+    </Sheet>}
   </Screen>;
 }
 

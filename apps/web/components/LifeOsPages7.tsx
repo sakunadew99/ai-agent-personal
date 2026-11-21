@@ -63,7 +63,7 @@ export function MedicinesPage({ token }: { token: string }) {
   </div>;
 }
 
-function TrainerFrame({ kind, onResult, onClose }: { kind: "pitch" | "pose" | "skin"; onResult: (r: Row) => void; onClose: () => void }) {
+function TrainerFrame({ kind, onResult, onClose }: { kind: "pitch" | "pose" | "skin" | "karaoke"; onResult: (r: Row) => void; onClose: () => void }) {
   useEffect(() => {
     const h = (e: MessageEvent) => { if (e.origin !== window.location.origin) return; try { const r = JSON.parse(String(e.data)); if (r?.kind === kind) onResult(r); } catch { /* ignore */ } };
     window.addEventListener("message", h); return () => window.removeEventListener("message", h);
@@ -77,7 +77,7 @@ function TrainerFrame({ kind, onResult, onClose }: { kind: "pitch" | "pose" | "s
 
 export function SkillsPage({ token }: { token: string }) {
   const [v, setV] = useState<Row | null>(null);
-  const [trainer, setTrainer] = useState<{ kind: "pitch" | "pose"; id: string } | null>(null);
+  const [trainer, setTrainer] = useState<{ kind: "pitch" | "pose" | "karaoke"; id: string } | null>(null);
   const [plan, setPlan] = useState<Row | null>(null);
   const [custom, setCustom] = useState("");
   const [note, setNote] = useState("");
@@ -86,7 +86,12 @@ export function SkillsPage({ token }: { token: string }) {
   const onResult = useCallback((r: Row) => {
     if (!trainer) return;
     const id = trainer.id; setTrainer(null);
-    void call<Row>(`/skills/${id}/sessions`, token, postJson({ minutes: Math.max(1, Math.round(Number(r.minutes) || 1)), source: r.kind, metrics: r })).then(setV).catch(e => setNote(errText(e)));
+    void call<Row>(`/skills/${id}/sessions`, token, postJson({ minutes: Math.max(1, Math.round(Number(r.minutes) || 1)), source: r.kind, metrics: r })).then(x => {
+      setV(x);
+      const latest = (x.skills as Row[]).find(k => k.id === id)?.recent?.[0];
+      if (latest && r.kind === "karaoke") void call<Row>(`/skills/sessions/${latest.id}/advice?ai=true`, token, postJson({})).then(a => setPlan({ skill: `${r.song}: ${r.score}/100`, source: a.ai_text ? "ai" : "plan",
+        text: [a.progress?.text, ...(a.tips || []), a.ai_text].filter(Boolean).join("\n\n"), steps: [] }));
+    }).catch(e => setNote(errText(e)));
   }, [trainer, token]);
   if (!v) return <div className="d-empty">Loading skills…</div>;
   const add = (t: Row) => void call<Row>("/skills", token, postJson({ name: t.name, icon: t.icon || "🎯", category: t.category || "other", trainer: t.trainer || null, goal: t.goal || null })).then(setV).catch(e => setNote(errText(e)));
@@ -99,7 +104,8 @@ export function SkillsPage({ token }: { token: string }) {
       action={<button className="danger-link" onClick={() => { if (window.confirm(`Remove ${s.name}?`)) void call(`/skills/${s.id}`, token, { method: "DELETE" }).then(load); }}>✕</button>}>
       <Meter value={Math.min(100, s.week_pct || 0)}/><p className="d-note">{s.week_minutes}/{s.weekly_minutes} min this week{s.goal ? ` · 🎯 ${s.goal}` : ""}</p>
       <div className="d-row"><button className="d-btn" onClick={() => logMin(s)}>＋ Log</button>
-        {s.trainer && <button className="d-btn ghost" onClick={() => setTrainer({ kind: s.trainer, id: s.id })}>{s.trainer === "pitch" ? "🎤 Pitch trainer" : "🧘 Pose coach"}</button>}
+        {s.trainer && s.trainer !== "karaoke" && <button className="d-btn ghost" onClick={() => setTrainer({ kind: s.trainer, id: s.id })}>{s.trainer === "pitch" ? "🎤 Tuner" : "🧘 Pose coach"}</button>}
+        {(s.category === "music" || s.trainer === "pitch") && <button className="d-btn ghost" onClick={() => setTrainer({ kind: "karaoke", id: s.id })}>🎶 Sing-along</button>}
         <button className="d-btn ghost" onClick={() => void call<Row>(`/skills/${s.id}/plan?ai=true`, token, postJson({})).then(setPlan)}>📋 Plan</button>
         <button className="text-button" onClick={() => void call<Row>(`/skills/${s.id}`, token, patchJson({ level: Math.min(10, s.level + 1) })).then(setV)}>Level +1</button></div>
       {(s.recent as Row[]).slice(0, 4).map(r => <small key={r.id} className="d-note" style={{ display: "block" }}>{r.date} · {r.minutes} min{r.metrics ? ` · ${r.metrics.kind === "pitch" ? `${r.metrics.in_tune_pct}% in tune` : `${r.metrics.reps ?? r.metrics.hold_seconds + "s"} · ${r.metrics.good_pct}% form`}` : ""}</small>)}

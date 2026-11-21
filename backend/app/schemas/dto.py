@@ -1585,7 +1585,7 @@ class SkillIn(BaseModel):
     level: int = Field(default=1, ge=1, le=10)
     weekly_minutes: int = Field(default=90, ge=0, le=3000)
     goal: str | None = Field(default=None, max_length=200)
-    trainer: Literal["pitch", "pose"] | None = None
+    trainer: Literal["pitch", "pose", "karaoke"] | None = None
     active: bool = True
 
 
@@ -1596,7 +1596,7 @@ class SkillUpdate(BaseModel):
     level: int | None = Field(default=None, ge=1, le=10)
     weekly_minutes: int | None = Field(default=None, ge=0, le=3000)
     goal: str | None = Field(default=None, max_length=200)
-    trainer: Literal["pitch", "pose"] | None = None
+    trainer: Literal["pitch", "pose", "karaoke"] | None = None
     active: bool | None = None
 
 
@@ -1605,7 +1605,7 @@ class SkillSessionIn(BaseModel):
     rating: int | None = Field(default=None, ge=1, le=5)
     note: str | None = Field(default=None, max_length=500)
     metrics: dict | None = None
-    source: Literal["manual", "pitch", "pose"] = "manual"
+    source: Literal["manual", "pitch", "pose", "karaoke"] = "manual"
     on: date | None = None
 
     @field_validator("metrics")

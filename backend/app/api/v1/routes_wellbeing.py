@@ -140,3 +140,9 @@ def skin_delete(check_id: uuid.UUID, db: Session = Depends(get_db), user: User =
 def health_advice(ai: bool = False, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Tips from your last two weeks (plain code), plus AI advice when AI is on and you allow health data."""
     out = wb.health_advice(db, user.id, ai); db.commit(); return out
+
+
+@router.post("/skills/sessions/{session_id}/advice")
+def skill_session_advice(session_id: uuid.UUID, ai: bool = False, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Tips for one practice (e.g. a sing-along): from its scores, progress on the same song, and an AI vocal coach when AI is on."""
+    out = wb.session_advice(db, user.id, owned(db, SkillSession, user.id, session_id), ai); db.commit(); return out

@@ -107,3 +107,16 @@ def test_skin_checks_numbers_only_and_ownership():
         assert b("DELETE", f"/skin/{cid}").status_code == 404
         assert a("PATCH", f"/skin/{cid}", {"note": "morning"}).json()["latest"]["note"] == "morning"
         assert a("DELETE", f"/skin/{cid}").status_code == 204
+
+
+def test_karaoke_session_advice_progress_and_ownership():
+    with TestClient(app) as client:
+        a, b = _user(client), _user(client)
+        sid = a("POST", "/skills", {"name": "Vocal training", "category": "music", "trainer": "pitch"}).json()["skills"][0]["id"]
+        base = {"kind": "karaoke", "song": "Twinkle Twinkle Little Star", "in_tune_pct": 60, "tendency_cents": -30, "timing_ms": 150, "tips": ["You were flat"]}
+        a("POST", f"/skills/{sid}/sessions", {"minutes": 2, "source": "karaoke", "metrics": {**base, "score": 55}})
+        s = a("POST", f"/skills/{sid}/sessions", {"minutes": 2, "source": "karaoke", "metrics": {**base, "score": 68}}).json()["skills"][0]
+        latest = s["recent"][0]["id"]
+        adv = a("POST", f"/skills/sessions/{latest}/advice?ai=true").json()
+        assert adv["tips"] == ["You were flat"] and adv["progress"]["change"] == 13 and adv["progress"]["times"] == 2 and adv["ai_note"]
+        assert b("POST", f"/skills/sessions/{latest}/advice").status_code == 404
