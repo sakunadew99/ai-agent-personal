@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { KeyboardAvoidingView, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { KbScroll } from "../keyboard";
 import * as DocumentPicker from "expo-document-picker";
 import { readAsStringAsync } from "expo-file-system/legacy";
 import type { ApiRecord as Row } from "../api";
@@ -16,13 +17,13 @@ const col = (v: unknown) => (v == null ? C.muted : Number(v) >= 0 ? C.green : C.
 const root = (s: string) => { const [r, c] = String(s).split("."); return c && c[0] !== "N" ? `${r}.${c[0]}` : r; };
 
 function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return <Modal visible animationType="slide" onRequestClose={onClose}>
+  return <Modal visible animationType="slide" onRequestClose={onClose}><KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <View style={{ flexDirection: "row", alignItems: "center", padding: 14, borderBottomColor: C.line, borderBottomWidth: 1 }}>
         <TouchableOpacity onPress={onClose} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.panel2, alignItems: "center", justifyContent: "center" }}><Text style={{ color: C.text, fontSize: 18 }}>✕</Text></TouchableOpacity>
         <Text style={{ color: C.text, fontSize: 18, fontWeight: "900", marginLeft: 12 }}>{title}</Text></View>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">{children}</ScrollView>
-    </View></Modal>;
+      <KbScroll contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">{children}</KbScroll>
+    </View></KeyboardAvoidingView></Modal>;
 }
 
 /** One holding row: value, today, unrealised (Rs and %), after-fee value and break-even price, weight. */

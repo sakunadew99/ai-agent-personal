@@ -41,7 +41,7 @@ export function LoginScreen({ onSignedIn, initialError = "" }: { onSignedIn: (pa
   return <View style={s.root}>
     <StatusBar barStyle="light-content"/>
     <View style={[s.glow, s.glowGreen]}/><View style={[s.glow, s.glowBlue]}/>
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
         <View style={s.brandRow}><View style={s.logo}><Text style={s.logoText}>S</Text></View>
           <Text style={s.brand}>Sakuna<Text style={{ color: C.green }}> AI</Text></Text></View>

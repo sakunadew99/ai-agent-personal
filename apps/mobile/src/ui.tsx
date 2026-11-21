@@ -2,6 +2,7 @@ import React, { ReactNode } from "react";
 import { ActivityIndicator, ScrollView, StyleProp, StyleSheet, Text, TextInput, TextInputProps, TouchableOpacity, View, ViewStyle } from "react-native";
 
 import { appendSpeech, MicButton } from "./voice";
+import { KbScroll } from "./keyboard";
 
 /** Shared look for all mobile screens (matches the web app's dark theme). */
 export const C = {
@@ -10,7 +11,7 @@ export const C = {
 };
 
 export function Screen({ children, onRefresh }: { children: ReactNode; onRefresh?: () => void }) {
-  return <ScrollView contentContainerStyle={u.scroll} keyboardShouldPersistTaps="handled">{children}{onRefresh && <View style={{ height: 8 }}/>}</ScrollView>;
+  return <KbScroll contentContainerStyle={u.scroll}>{children}{onRefresh && <View style={{ height: 8 }}/>}</KbScroll>;
 }
 export function Card({ children, style, accent }: { children: ReactNode; style?: StyleProp<ViewStyle>; accent?: boolean }) {
   return <View style={[u.card, accent && u.cardAccent, style]}>{children}</View>;

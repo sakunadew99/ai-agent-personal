@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { KbScroll } from "../keyboard";
 import type { ApiRecord as Row } from "../api";
 import { Bars, Hero, Ring } from "../charts";
 import { syncMedicineReminders } from "../notify";
@@ -11,14 +12,14 @@ const msg = (r: unknown) => (r instanceof Error ? r.message : "Something went wr
 const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
 function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+  return <Modal visible animationType="slide" transparent onRequestClose={onClose}><KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
     <View style={{ flex: 1, backgroundColor: "#000a", justifyContent: "flex-end" }}>
       <View style={{ backgroundColor: C.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: "92%", borderTopWidth: 1, borderColor: C.line }}>
         <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 18, paddingVertical: 14 }}>
           <Text style={{ color: C.text, fontSize: 20, fontWeight: "900", flex: 1 }}>{title}</Text>
           <TouchableOpacity onPress={onClose}><Text style={{ color: C.muted, fontSize: 22 }}>✕</Text></TouchableOpacity></View>
-        <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 0, gap: 12, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">{children}</ScrollView>
-      </View></View></Modal>;
+        <KbScroll contentContainerStyle={{ padding: 16, paddingTop: 0, gap: 12, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">{children}</KbScroll>
+      </View></View></KeyboardAvoidingView></Modal>;
 }
 const input = { color: C.text, backgroundColor: C.panel2, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: C.line, fontSize: 15 } as const;
 const chip = (on: boolean, color = C.green) => ({ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 99, borderWidth: 1, borderColor: on ? color : C.line, backgroundColor: on ? `${color}22` : "transparent" });

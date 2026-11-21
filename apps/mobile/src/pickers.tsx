@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { KeyboardAvoidingView, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import { C } from "./ui";
 
@@ -35,7 +35,7 @@ function CalendarModal({ value, min, onClose, onPick }: { value: string | null; 
   const cells = [...Array(first).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)];
   const move = (months: number) => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + months, 1));
   const quick = (days: number, months = 0) => { const d = new Date(); d.setMonth(d.getMonth() + months); d.setDate(d.getDate() + days); onPick(isoDate(d)); };
-  return <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+  return <Modal visible transparent animationType="fade" onRequestClose={onClose}><KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
     <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={onClose}>
       <TouchableOpacity style={s.sheet} activeOpacity={1}>
         <View style={s.headRow}>
@@ -60,7 +60,7 @@ function CalendarModal({ value, min, onClose, onPick }: { value: string | null; 
         <TouchableOpacity style={s.done} onPress={onClose}><Text style={s.doneText}>Close</Text></TouchableOpacity>
       </TouchableOpacity>
     </TouchableOpacity>
-  </Modal>;
+  </KeyboardAvoidingView></Modal>;
 }
 
 export function TimeField({ label, value, onChange, placeholder = "Pick a time", allowClear, step = 5 }: {
@@ -90,7 +90,7 @@ function ClockModal({ value, step, onClose, onPick }: { value: string | null; st
     return () => clearTimeout(t);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const ampm = (x: number) => (x === 0 ? "12 am" : x < 12 ? `${x} am` : x === 12 ? "12 pm" : `${x - 12} pm`);
-  return <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+  return <Modal visible transparent animationType="fade" onRequestClose={onClose}><KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
     <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={onClose}>
       <TouchableOpacity style={s.sheet} activeOpacity={1}>
         <Text style={s.bigTime}>{pad(h)}:{pad(m)}</Text>
@@ -108,7 +108,7 @@ function ClockModal({ value, step, onClose, onPick }: { value: string | null; st
         <TouchableOpacity style={s.done} onPress={() => onPick(`${pad(h)}:${pad(m)}`)}><Text style={s.doneText}>Set {pad(h)}:{pad(m)}</Text></TouchableOpacity>
       </TouchableOpacity>
     </TouchableOpacity>
-  </Modal>;
+  </KeyboardAvoidingView></Modal>;
 }
 
 const s = StyleSheet.create({

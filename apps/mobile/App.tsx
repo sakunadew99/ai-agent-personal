@@ -12,6 +12,7 @@ import { ExploreScreen, GROUPS, QuickLaunch, rememberScreen } from "./src/screen
 import { WeeklyHealthCard } from "./src/screens/WeeklyHealthCard";
 import { notifyStockAlerts, syncMedicineReminders } from "./src/notify";
 import { CrashGuard, installCrashRecorder } from "./src/crash";
+import { KbScroll, useKeyboard } from "./src/keyboard";
 installCrashRecorder();
 import { ShieldPanel } from "./src/ShieldPanel";
 import { MonthAgenda } from "./src/screens/PlanExtras";
@@ -77,6 +78,7 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [sub, setSub] = useState<MoreTarget | null>(null);
   const [checkinHour, setCheckinHour] = useState<number | null>(null);
+  const keyboard = useKeyboard();          // tab bar hides while typing
   // One API helper for all screens (adds the signed-in token). While warm, calls wait for the renewed token.
   const api = useCallback(<T = Row,>(path: string, method = "GET", body?: unknown): Promise<T> => token
     ? request<T>(path, token, method, body)
@@ -203,13 +205,13 @@ function App() {
     onSignInAgain={() => { void clearSession(); setBootProblem(""); setBooting(false); }}/>;
   if (!token && !warm) return <LoginScreen onSignedIn={onSignedIn} initialError={authNote}/>;
 
-  return <LockGate><SafeAreaView style={styles.safe}><StatusBar barStyle="light-content"/><View style={styles.app}>
+  return <LockGate><SafeAreaView style={styles.safe}><StatusBar barStyle="light-content"/><KeyboardAvoidingView behavior="padding" style={styles.app}>
     <View style={styles.topbar}>{tab === "More" && sub
       ? <TouchableOpacity onPress={() => setSub(null)}><Text style={styles.kicker}>‹ ALL APPS</Text><Text style={styles.topTitle}>{SUB_TITLES[sub]}</Text></TouchableOpacity>
       : <View><Text style={styles.kicker}>SAKUNA AI</Text><Text style={styles.topTitle}>{tab === "Home" ? "Your day, in focus." : tab === "More" ? "All apps" : tab}</Text></View>}
       {!token && <Text style={{ color: "#8a9b92", fontSize: 11 }}>connecting…</Text>}{!(tab === "More" && sub) && <TouchableOpacity onPress={() => void (token ? loadTab(tab) : restore())}><View style={styles.refreshBtn}><Text style={styles.refresh}>↻</Text></View></TouchableOpacity>}</View>
     {!!error && <Text style={styles.errorBox}>{error}</Text>}{!!notice && <TouchableOpacity onPress={() => setNotice("")}><Text style={styles.notice}>{notice}  ×</Text></TouchableOpacity>}
-    <View style={[styles.screen, tab === "More" && sub === "Assistant" && { marginBottom: 84 }]}>
+    <View style={[styles.screen, tab === "More" && sub === "Assistant" && keyboard === 0 && { marginBottom: 84 }]}>
       {tab === "Home" && <HomeScreen name={String(user.full_name || "").split(" ")[0]} life={life} dashboard={dashboard} finance={finance} health={health} onOpen={openTarget} onComplete={completeTask} onOpenPlan={() => setTab("Plan")}
         quick={<QuickLaunch open={openTarget} onSearch={() => { setTab("More"); setSub(null); }}/>}
         top={<><NudgeBanner api={api} onOpen={openTarget}/><TodayPlanCard api={api} onOpen={openTarget}/>
@@ -219,15 +221,15 @@ function App() {
       {tab === "Plan" && planView === "day" && <PlanScreen plan={plan} busy={busy} generate={generatePlan}
         top={<><PlanSwitch value={planView} onChange={setPlanView}/><TodayRoutines api={api} onError={showError} onNotice={showNotice}/><Text style={styles.sectionTitle}>Time plan</Text></>}
         extra={<TimeCard api={api}/>}/>}
-      {tab === "Plan" && planView === "week" && <ScrollView contentContainerStyle={styles.scroll}><PlanSwitch value={planView} onChange={setPlanView}/><WeekPlan api={api} onError={showError} onNotice={showNotice}/></ScrollView>}
-      {tab === "Plan" && planView === "board" && <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled"><PlanSwitch value={planView} onChange={setPlanView}/><PlanBoard api={api} onError={showError} onNotice={showNotice}/></ScrollView>}
-      {tab === "Plan" && planView === "month" && <ScrollView contentContainerStyle={styles.scroll}><PlanSwitch value={planView} onChange={setPlanView}/><MonthRoutines api={api} onError={showError}/><Text style={styles.sectionTitle}>Tasks and deadlines</Text><MonthAgenda api={api}/></ScrollView>}
+      {tab === "Plan" && planView === "week" && <KbScroll contentContainerStyle={styles.scroll}><PlanSwitch value={planView} onChange={setPlanView}/><WeekPlan api={api} onError={showError} onNotice={showNotice}/></KbScroll>}
+      {tab === "Plan" && planView === "board" && <KbScroll contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled"><PlanSwitch value={planView} onChange={setPlanView}/><PlanBoard api={api} onError={showError} onNotice={showNotice}/></KbScroll>}
+      {tab === "Plan" && planView === "month" && <KbScroll contentContainerStyle={styles.scroll}><PlanSwitch value={planView} onChange={setPlanView}/><MonthRoutines api={api} onError={showError}/><Text style={styles.sectionTitle}>Tasks and deadlines</Text><MonthAgenda api={api}/></KbScroll>}
       {tab === "Capture" && <InboxScreen api={api} onError={showError} onNotice={showNotice} top={<CommandCard api={api} onError={showError}/>}/>}
-      {tab === "Focus" && <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      {tab === "Focus" && <KbScroll contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <FocusEngine api={api} onError={showError} onNotice={showNotice}/>
         <View style={{ height: 14 }}/><ShieldPanel/>
         <Text style={styles.disclaimer}>The focus timer runs from the session's end time, so it keeps going if you switch tabs or close Sakuna; a phone alarm rings at the end. It is not an emergency or safety control.</Text>
-      </ScrollView>}
+      </KbScroll>}
       {tab === "More" && !sub && <ExploreScreen api={api} openAny={openTarget} open={target => { setError(""); setNotice(""); setSub(target); }}/>}
       {tab === "More" && sub === "Assistant" && <ChatScreen api={api}/>}
       {tab === "More" && sub === "Life" && <LifeScreen api={api} onError={showError} onNotice={showNotice}/>}
@@ -262,10 +264,10 @@ function App() {
       {tab === "More" && sub === "Profile" && <ProfileScreen user={user} signOut={() => void signOut()} onHealth={() => setSub("Health")}/>}
     </View>
     <BrowserHost api={api} onNotice={showNotice}/>
-    <View style={styles.tabbarWrap}><View style={styles.tabbar}>{(["Home", "Plan", "Capture", "Focus", "More"] as Tab[]).map(item => item === "Capture"
+    {keyboard === 0 && <View style={styles.tabbarWrap}><View style={styles.tabbar}>{(["Home", "Plan", "Capture", "Focus", "More"] as Tab[]).map(item => item === "Capture"
       ? <TouchableOpacity key={item} style={styles.tab} onPress={() => { setTab(item); setSub(null); setNotice(""); setError(""); }} accessibilityLabel="Capture"><View style={[styles.fab, tab === item && styles.fabOn]}><Text style={styles.fabIcon}>＋</Text></View></TouchableOpacity>
-      : <TouchableOpacity key={item} style={styles.tab} onPress={() => { setTab(item); setSub(null); setNotice(""); setError(""); }}><View style={[styles.tabPill, tab === item && styles.tabPillOn]}><Text style={[styles.tabIcon, tab === item && styles.tabIconActive]}>{({ Home: "🏠", Plan: "🗓", Capture: "＋", Focus: "🎯", More: "🧭" } as Record<Tab, string>)[item]}</Text></View><Text style={[styles.tabText, tab === item && styles.tabTextActive]}>{item}</Text></TouchableOpacity>)}</View></View>
-  </View></SafeAreaView></LockGate>;
+      : <TouchableOpacity key={item} style={styles.tab} onPress={() => { setTab(item); setSub(null); setNotice(""); setError(""); }}><View style={[styles.tabPill, tab === item && styles.tabPillOn]}><Text style={[styles.tabIcon, tab === item && styles.tabIconActive]}>{({ Home: "🏠", Plan: "🗓", Capture: "＋", Focus: "🎯", More: "🧭" } as Record<Tab, string>)[item]}</Text></View><Text style={[styles.tabText, tab === item && styles.tabTextActive]}>{item}</Text></TouchableOpacity>)}</View></View>}
+  </KeyboardAvoidingView></SafeAreaView></LockGate>;
 }
 
 function HomeScreen({ name, life, dashboard, finance, health, onComplete, onOpenPlan, onOpen, top, quick, extra }: { name: string; life: Row; dashboard: Row; finance: Row; health: Row; onComplete: (id: string) => void; onOpenPlan: () => void; onOpen: (target: string) => void; top?: React.ReactNode; quick?: React.ReactNode; extra?: React.ReactNode }) {
@@ -278,7 +280,7 @@ function HomeScreen({ name, life, dashboard, finance, health, onComplete, onOpen
   const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const short = (n: number) => Math.abs(n) >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : Math.abs(n) >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(Math.round(n));
   const PRIORITY: Record<string, string> = { high: "#ff7a8a", medium: "#f5b65b", low: "#3ee08f" };
-  return <ScrollView contentContainerStyle={[styles.scroll, { gap: 12 }]}>
+  return <KbScroll contentContainerStyle={[styles.scroll, { gap: 12 }]}>
     <Hero kicker={new Date().toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" }).toUpperCase()} title={`${greet},`} accent={name ? `${name}.` : ""}
       sub={life.tasks ? `${life.tasks.due_today ?? 0} due today · ${life.tasks.done_this_week ?? 0} done this week${life.tasks.overdue ? ` · ${life.tasks.overdue} overdue` : ""}` : "Let's build momentum today."}
       right={<Ring value={Number(life.score ?? 0)} size={96} label={`${life.score ?? "—"}`} sub="DAY SCORE"/>}/>
@@ -299,17 +301,17 @@ function HomeScreen({ name, life, dashboard, finance, health, onComplete, onOpen
     {extra && <TouchableOpacity onPress={() => setMore(m => !m)} style={styles.moreToggle}><Text style={styles.moreToggleText}>{more ? "Hide extra cards ▲" : "✨ AI team, coach & brain cards ▼"}</Text></TouchableOpacity>}
     {more && extra}
     <Text style={styles.disclaimer}>Health and finance values show recorded data only. Sakuna does not provide medical or guaranteed financial advice.</Text>
-  </ScrollView>;
+  </KbScroll>;
 }
 
 function PlanScreen({ plan, busy, generate, extra, top }: { plan: Row; busy: boolean; generate: () => void; extra?: React.ReactNode; top?: React.ReactNode }) {
   const items: Row[] = Array.isArray(plan.items) ? plan.items : [];
-  return <ScrollView contentContainerStyle={styles.scroll}>{top}<View style={styles.card}><Text style={styles.kicker}>DAILY PLANNER</Text><Text style={styles.sectionTitle}>{plan.plan_date || "Your day"}</Text><Text style={styles.muted}>{plan.summary || "Build a plan around your routine and open tasks."}</Text><TouchableOpacity style={styles.primary} onPress={generate} disabled={busy}><Text style={styles.primaryText}>{busy ? "Planning…" : "Build today’s plan"}</Text></TouchableOpacity></View>{items.length ? items.map(item => <View key={item.id} style={styles.planItem}><Text style={styles.time}>{new Date(item.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text><View style={styles.planBlock}><Text style={styles.taskTitle}>{item.title}</Text><Text style={styles.muted}>{item.kind} · {new Date(item.ends_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text></View></View>) : <Text style={styles.empty}>Generate a plan to see today’s time blocks.</Text>}{Array.isArray(plan.unscheduled) && plan.unscheduled.length > 0 && <Text style={styles.warning}>Could not schedule: {plan.unscheduled.join(", ")}</Text>}{extra}</ScrollView>;
+  return <KbScroll contentContainerStyle={styles.scroll}>{top}<View style={styles.card}><Text style={styles.kicker}>DAILY PLANNER</Text><Text style={styles.sectionTitle}>{plan.plan_date || "Your day"}</Text><Text style={styles.muted}>{plan.summary || "Build a plan around your routine and open tasks."}</Text><TouchableOpacity style={styles.primary} onPress={generate} disabled={busy}><Text style={styles.primaryText}>{busy ? "Planning…" : "Build today’s plan"}</Text></TouchableOpacity></View>{items.length ? items.map(item => <View key={item.id} style={styles.planItem}><Text style={styles.time}>{new Date(item.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text><View style={styles.planBlock}><Text style={styles.taskTitle}>{item.title}</Text><Text style={styles.muted}>{item.kind} · {new Date(item.ends_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text></View></View>) : <Text style={styles.empty}>Generate a plan to see today’s time blocks.</Text>}{Array.isArray(plan.unscheduled) && plan.unscheduled.length > 0 && <Text style={styles.warning}>Could not schedule: {plan.unscheduled.join(", ")}</Text>}{extra}</KbScroll>;
 }
 
 
 function ProfileScreen({ user, signOut, onHealth }: { user: Row; signOut: () => void; onHealth: () => void }) {
-  return <ScrollView contentContainerStyle={styles.scroll}><View style={styles.profileCard}><View style={styles.avatar}><Text style={styles.avatarText}>{String(user.full_name || user.email || "S").slice(0, 1).toUpperCase()}</Text></View><Text style={styles.sectionTitle}>{user.full_name || "Your profile"}</Text><Text style={styles.muted}>{user.email || ""}</Text></View><View style={styles.card}><Text style={styles.kicker}>YOUR SPACE</Text><Text style={styles.taskTitle}>Privacy and control</Text><Text style={styles.muted}>Review saved memories, profile preferences, finance records, and approvals in the web workspace.</Text></View><TouchableOpacity style={styles.rowButton} onPress={onHealth}><Text style={styles.taskTitle}>Health Connect</Text><Text style={styles.linkSmall}>Manage →</Text></TouchableOpacity><TouchableOpacity style={styles.signout} onPress={signOut}><Text style={styles.signoutText}>Sign out</Text></TouchableOpacity></ScrollView>;
+  return <KbScroll contentContainerStyle={styles.scroll}><View style={styles.profileCard}><View style={styles.avatar}><Text style={styles.avatarText}>{String(user.full_name || user.email || "S").slice(0, 1).toUpperCase()}</Text></View><Text style={styles.sectionTitle}>{user.full_name || "Your profile"}</Text><Text style={styles.muted}>{user.email || ""}</Text></View><View style={styles.card}><Text style={styles.kicker}>YOUR SPACE</Text><Text style={styles.taskTitle}>Privacy and control</Text><Text style={styles.muted}>Review saved memories, profile preferences, finance records, and approvals in the web workspace.</Text></View><TouchableOpacity style={styles.rowButton} onPress={onHealth}><Text style={styles.taskTitle}>Health Connect</Text><Text style={styles.linkSmall}>Manage →</Text></TouchableOpacity><TouchableOpacity style={styles.signout} onPress={signOut}><Text style={styles.signoutText}>Sign out</Text></TouchableOpacity></KbScroll>;
 }
 
 const styles = StyleSheet.create({

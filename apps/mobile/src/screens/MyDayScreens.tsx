@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import { peek, type ApiRecord as Row } from "../api";
 import { syncRoutineReminders } from "../notify";
@@ -148,7 +148,7 @@ function RoutinePlayer({ r, day, onTick, onMode, onClose, onEdit }: { r: Row; da
   const queue = steps.filter(st => needed.has(st.id) && !done.has(st.id));
   const next = queue.find(st => !later.includes(st.id)) ?? queue[0];
   const finished = r.status === "done";
-  return <Modal visible animationType="slide" onRequestClose={onClose}>
+  return <Modal visible animationType="slide" onRequestClose={onClose}><KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
     <View style={s.modal}>
       <View style={s.modalTop}>
         <TouchableOpacity style={s.nav} onPress={onClose}><Text style={s.navText}>✕</Text></TouchableOpacity>
@@ -183,7 +183,7 @@ function RoutinePlayer({ r, day, onTick, onMode, onClose, onEdit }: { r: Row; da
         <Muted small>★ = essential (the short version). Faded steps are optional while the short version is on.</Muted>
       </ScrollView>
     </View>
-  </Modal>;
+  </KeyboardAvoidingView></Modal>;
 }
 
 const RULES: [string, string][] = [["fixed", "Chosen days"], ["gym", "Gym days"], ["work", "Work days"], ["off", "Days off"]];
@@ -211,7 +211,7 @@ function RoutineEditor({ api, initial, onClose, onSaved, onError }: { api: Api; 
       { text: "Delete", style: "destructive", onPress: () => void api(`/routines/${initial!.id}`, "DELETE").then(onSaved).catch(r => onError(msg(r))) }]);
   }
 
-  return <Modal visible animationType="slide" onRequestClose={onClose}>
+  return <Modal visible animationType="slide" onRequestClose={onClose}><KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
     <View style={s.modal}>
       <View style={s.modalTop}><TouchableOpacity style={s.nav} onPress={onClose}><Text style={s.navText}>✕</Text></TouchableOpacity>
         <Text style={s.modalTitle}>{initial ? "Edit routine" : "New routine"}</Text><View style={{ width: 40 }}/></View>
@@ -245,7 +245,7 @@ function RoutineEditor({ api, initial, onClose, onSaved, onError }: { api: Api; 
       </ScrollView>
       <View style={s.footer}>{!!error && <Text style={{ color: C.red }}>{error}</Text>}<Btn title={initial ? "Save" : "Create routine"} onPress={() => void save()}/></View>
     </View>
-  </Modal>;
+  </KeyboardAvoidingView></Modal>;
 }
 
 function DayPicker({ value, onChange }: { value: number[]; onChange: (v: number[]) => void }) {
@@ -268,7 +268,7 @@ function MealCard({ api, rules, meals, onClose, onSaved, onError }: { api: Api; 
     snack: ["Fruit", "Nuts", "Biscuits", "Short eats", "Yoghurt", "Tea", "Coffee", "Iramusu", "Chocolate"],
   };
   const checks: [string, string][] = [["slow", "Ate slowly, chewed well"], ["no_screen", "No phone, TV or laptop"], ["upright", "Sat upright"], ["stopped_80", "Stopped at 80% full"], ["walked_after", "Short walk after"]];
-  return <Modal visible animationType="slide" onRequestClose={onClose}>
+  return <Modal visible animationType="slide" onRequestClose={onClose}><KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
     <View style={s.modal}>
       <View style={s.modalTop}><TouchableOpacity style={s.nav} onPress={onClose}><Text style={s.navText}>✕</Text></TouchableOpacity><Text style={s.modalTitle}>🍽 Mindful eating</Text><View style={{ width: 40 }}/></View>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 40 }}>
@@ -301,7 +301,7 @@ function MealCard({ api, rules, meals, onClose, onSaved, onError }: { api: Api; 
           </View>)}</Card>}
       </ScrollView>
     </View>
-  </Modal>;
+  </KeyboardAvoidingView></Modal>;
 }
 
 // =====================================================================================================================

@@ -73,7 +73,7 @@ export function ChatScreen({ api }: { api: Api }) {
   }
 
   const err = status?.ai_enabled && status.last_error;
-  return <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+  return <KeyboardAvoidingView style={{ flex: 1 }} behavior={undefined}>
     <View style={m.head}>
       <TouchableOpacity onPress={() => void openList()}><Text style={m.link}>☰ Chats</Text></TouchableOpacity>
       <Text style={[m.pill, status?.ai_enabled ? m.pillOn : null]}>{status?.ai_enabled ? `● AI · ${status.model}` : "● Basic mode"}</Text>

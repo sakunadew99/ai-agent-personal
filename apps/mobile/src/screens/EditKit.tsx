@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { KbScroll } from "../keyboard";
 import type { ApiRecord as Row } from "../api";
 import { Segments } from "../charts";
 import { Btn, C, Card, Kicker, Muted, Row as Line } from "../ui";
@@ -11,16 +12,16 @@ const rs = (n: number) => `Rs ${n.toLocaleString(undefined, { maximumFractionDig
 const num = (s: string) => Number(String(s).replace(/,/g, "")) || 0;
 
 function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+  return <Modal visible animationType="slide" transparent onRequestClose={onClose}><KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
     <View style={{ flex: 1, backgroundColor: "#000a", justifyContent: "flex-end" }}>
       <View style={{ backgroundColor: C.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: "92%", borderTopWidth: 1, borderColor: C.line }}>
         <View style={{ alignItems: "center", paddingTop: 8 }}><View style={{ width: 44, height: 5, borderRadius: 3, backgroundColor: C.line }}/></View>
         <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 18, paddingVertical: 10 }}>
           <Text style={{ color: C.text, fontSize: 20, fontWeight: "900", flex: 1 }}>{title}</Text>
           <TouchableOpacity onPress={onClose}><Text style={{ color: C.muted, fontSize: 22 }}>✕</Text></TouchableOpacity></View>
-        <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, gap: 12, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">{children}</ScrollView>
+        <KbScroll contentContainerStyle={{ padding: 16, paddingTop: 4, gap: 12, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">{children}</KbScroll>
       </View></View>
-  </Modal>;
+  </KeyboardAvoidingView></Modal>;
 }
 
 function BigInput({ label, value, onChange, color = C.text }: { label: string; value: string; onChange: (s: string) => void; color?: string }) {

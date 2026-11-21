@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { KeyboardAvoidingView, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { KbScroll } from "../keyboard";
 
 import { peek, type ApiRecord as Row } from "../api";
 import { Badge, Btn, C, Card, Empty, H2, Kicker, Muted, Progress, Row as Line, Screen } from "../ui";
@@ -103,12 +104,12 @@ export function ExamScreen({ api, onError, onNotice }: Props) {
 }
 
 function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return <Modal visible animationType="slide" onRequestClose={onClose}>
+  return <Modal visible animationType="slide" onRequestClose={onClose}><KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
     <View style={s.modal}>
       <View style={s.modalTop}><TouchableOpacity style={s.close} onPress={onClose}><Text style={s.closeText}>✕</Text></TouchableOpacity><Text style={s.modalTitle}>{title}</Text><View style={{ width: 40 }}/></View>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">{children}</ScrollView>
+      <KbScroll contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">{children}</KbScroll>
     </View>
-  </Modal>;
+  </KeyboardAvoidingView></Modal>;
 }
 
 function Pills<T extends string>({ options, value, onChange, labels }: { options: T[]; value: T; onChange: (v: T) => void; labels?: Record<string, string> }) {
