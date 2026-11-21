@@ -56,7 +56,36 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const newKey = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 const SERVER_BUSY = "The server is waking up or restarting. Please try again in a few seconds.";
 
+// ---------- Home in one request: /home returns every card's data; cards then read it here instead of calling the server ----------
+const HOME_CARDS = ["/nudge", "/today/plan", "/routines/today", "/health/trends?days=14"];
+const primed = new Map<string, { at: number; value: unknown }>();
+let homeInflight: Promise<void> | null = null;
+
+/** Load Home in one request. Cards asking for their part get it from this answer (once, within 45 s). */
+export function loadHome<T = ApiRecord>(token: string): Promise<T> {
+  const p = rawRequest<ApiRecord>("/home", token).then(out => {
+    for (const [path, value] of Object.entries(out)) {
+      if (value == null) continue;
+      if (CACHEABLE.test(path)) remember(path, value);
+      if (HOME_CARDS.includes(path)) primed.set(path, { at: Date.now(), value });
+    }
+    return out as T;
+  });
+  homeInflight = p.then(() => undefined, () => undefined).finally(() => { homeInflight = null; });
+  return p;
+}
+
 export async function apiRequest<T = ApiRecord>(path: string, token = "", method = "GET", body?: unknown): Promise<T> {
+  if (method !== "GET") primed.clear();
+  else if (HOME_CARDS.includes(path)) {
+    if (homeInflight) await homeInflight;
+    const hit = primed.get(path);
+    if (hit) { primed.delete(path); if (Date.now() - hit.at < 45000) return hit.value as T; }
+  }
+  return rawRequest<T>(path, token, method, body);
+}
+
+async function rawRequest<T = ApiRecord>(path: string, token = "", method = "GET", body?: unknown): Promise<T> {
   const key = path === "/chat" && method === "POST" ? newKey() : "";
   const send = (bearer: string) => fetch(`${baseUrl}/api/v1${path}`, {
     method,

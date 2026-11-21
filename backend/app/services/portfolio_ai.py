@@ -453,6 +453,8 @@ def daily_fetch(db: Session) -> int:
         try:
             invest.fetch_cse(db, uid)
             invest.evaluate(db, uid)
+            from app.core import cache
+            cache.bump(uid)                     # new prices: drop cached pages
             db.commit(); done += 1
         except HTTPException:
             db.rollback()

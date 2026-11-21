@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { apiRequest as request, apiUpload, clearScreenCache, flushQueue, loadQueue, loadScreenCache, loadServerUrl, peek, prefetchScreens, setAccessToken, setRefresher, type ApiRecord as Row } from "./src/api";
+import { apiRequest as request, apiUpload, loadHome, clearScreenCache, flushQueue, loadQueue, loadScreenCache, loadServerUrl, peek, prefetchScreens, setAccessToken, setRefresher, type ApiRecord as Row } from "./src/api";
 import { clearSession, endSession, hasSession, onSessionExpired, refreshAccess, saveSession, storedUser } from "./src/session";
 import { LoginScreen, SplashScreen } from "./src/screens/LoginScreen";
 import { ChatScreen } from "./src/screens/ChatScreen";
@@ -92,11 +92,12 @@ function App() {
     setError("");
     try {
       if (selected === "Home") {
-        const [dash, money, activity, overview] = await Promise.all([
-          request<Row>("/dashboard", currentToken), request<Row>("/finance/summary", currentToken), request<Row>("/health/summary", currentToken),
-          request<Row>("/life/overview", currentToken).catch(() => ({})),
-        ]);
-        setDashboard(dash); setFinance(money); setHealth(activity); setLife(overview);
+        // One request for all of Home (cards read their part from it). Older servers without /home: the four separate calls.
+        const home = await loadHome<Row>(currentToken).catch(() => null);
+        const [dash, money, activity, overview] = home ? [home["/dashboard"], home["/finance/summary"], home["/health/summary"], home["/life/overview"]]
+          : await Promise.all([request<Row>("/dashboard", currentToken), request<Row>("/finance/summary", currentToken), request<Row>("/health/summary", currentToken),
+            request<Row>("/life/overview", currentToken).catch(() => ({}))]);
+        setDashboard(dash || {}); setFinance(money || {}); setHealth(activity || {}); setLife(overview || {});
       } else if (selected === "Plan") {
         setPlan(await request<Row>("/planner/daily", currentToken));
       } else if (selected === "More") {

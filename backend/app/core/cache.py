@@ -12,7 +12,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-TTL_SECONDS = 120
+TTL_SECONDS = 900          # every change you make bumps your version, so a longer TTL never shows stale data to you
 MAX_ENTRIES = 2000
 _lock = threading.Lock()
 _versions: dict[str, int] = {}
