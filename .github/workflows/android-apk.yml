@@ -86,6 +86,13 @@ jobs:
           set +e
           ./gradlew assembleRelease --no-daemon --console=plain 2>&1 | tee gradle.log
           code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ] && grep -qE "was not found in any of the following sources|Could not resolve|Could not GET|Read timed out|Connection reset|502 Bad Gateway|503 Service" gradle.log; then
+            # Plugin/dependency servers sometimes have short outages: wait and try once more before failing.
+            echo "::warning::Download problem during the Gradle build; retrying once in 60 s."
+            sleep 60
+            ./gradlew assembleRelease --no-daemon --console=plain --refresh-dependencies 2>&1 | tee gradle.log
+            code=${PIPESTATUS[0]}
+          fi
           if [ "$code" -ne 0 ]; then
             # Surface the real error publicly (annotations + job summary) instead of only "exit code 1".
             {
