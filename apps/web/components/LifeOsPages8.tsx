@@ -232,7 +232,14 @@ export function ReadingPage({ token }: { token: string }) {
   const [open, setOpen] = useState<Row | null>(null);
   const [hl, setHl] = useState({ quote: "", page: "" });
   const [note, setNote] = useState("");
+  const [reader, setReader] = useState<{ b: Row; at: number } | null>(null);
+  const [link, setLink] = useState("");
   const load = useCallback(() => { call<Row>("/reading", token).then(setV).catch(e => setNote(errText(e))); }, [token]);
+  const closeReader = () => {
+    if (reader) { const mins = Math.round((Date.now() - reader.at) / 60000); if (mins >= 1) void call<Row>(`/reading/books/${reader.b.id}/progress`, token, postJson({ minutes: Math.min(600, mins) })).then(setV); }
+    setReader(null);
+  };
+  const read = (b: Row) => { if (b.is_folder) window.open(b.read_url, "_blank"); else setReader({ b, at: Date.now() }); };
   useEffect(() => { load(); }, [load]);
   const add = (b: Row, status: string) => void call("/reading/books", token, postJson({ title: b.title, author: b.author || "", total_pages: b.pages || undefined, cover_url: b.cover_url || undefined, source_key: b.source_key || undefined, status }))
     .then(() => { setFound(null); setQ(""); load(); }).catch(e => setNote(errText(e)));
@@ -255,13 +262,23 @@ export function ReadingPage({ token }: { token: string }) {
     <div className="d-grid-2">{(v.books as Row[]).filter(b => b.status === "reading").map(b => <Card key={b.id} kicker={`${b.percent ?? 0}%${b.finish_forecast ? ` · done by ${b.finish_forecast}` : ""}`} title={b.title}>
       <p className="d-note">{b.author} · page {b.current_page}{b.total_pages ? ` of ${b.total_pages}` : ""}</p>
       <div className="d-row"><button className="d-btn" onClick={() => progress(b, { pages: 10 })}>+10 pages</button><button className="d-btn ghost" onClick={() => { const p = window.prompt("Page reached?", String(b.current_page)); if (p) progress(b, { to_page: Number(p) }); }}>Set page</button>
-        <button className="d-btn ghost" onClick={() => setOpen(b)}>Highlights</button></div></Card>)}</div>
+        <button className="d-btn ghost" onClick={() => setOpen(b)}>Highlights</button>{b.read_url && <button className="d-btn" onClick={() => read(b)}>{b.is_folder ? "📁 Folder" : "📄 Read"}</button>}</div></Card>)}</div>
+    {reader && <div role="dialog" style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,.88)", display: "grid", gridTemplateRows: "auto 1fr", padding: 12, gap: 8 }}>
+      <div className="d-row" style={{ justifyContent: "space-between" }}><b style={{ color: "#fff" }}>📄 {reader.b.title}</b>
+        <span className="d-row"><button className="d-btn ghost" onClick={() => { const p = window.prompt("Page reached?", String(reader.b.current_page)); if (p) void call<Row>(`/reading/books/${reader.b.id}/progress`, token, postJson({ to_page: Number(p) })).then(setV); }}>Set page</button>
+          <button className="d-btn" onClick={closeReader}>✕ Close</button></span></div>
+      <iframe title={reader.b.title} src={reader.b.read_url} style={{ width: "100%", height: "100%", border: 0, borderRadius: 12, background: "#fff" }} allow="fullscreen"/>
+    </div>}
     {open && <Card kicker="Highlights & takeaways" title={open.title} action={<button className="text-button" onClick={() => setOpen(null)}>Close</button>}>
       {(open.highlights as Row[]).map((h, i) => <p key={i}><i>“{h.quote}”</i> <small className="d-note">{h.page != null ? `p. ${h.page}` : ""}</small></p>)}
       <div className="d-row"><input className="d-input" value={hl.quote} onChange={e => setHl({ ...hl, quote: e.target.value })} placeholder="Quote"/><input className="d-input" style={{ width: 80 }} value={hl.page} onChange={e => setHl({ ...hl, page: e.target.value })} placeholder="Page"/>
         <button className="d-btn" onClick={() => void call<Row>(`/reading/books/${open.id}/highlights`, token, postJson({ quote: hl.quote, page: Number(hl.page) || undefined })).then(x => { setOpen(x); setHl({ quote: "", page: "" }); })}>Save</button></div>
       <div className="d-row">{[1, 2, 3, 4, 5].map(n => <button key={n} className="text-button" style={{ fontSize: 20, color: n <= (open.rating || 0) ? "var(--d-amber)" : "var(--d-muted)" }} onClick={() => patch(open, { rating: n })}>★</button>)}
-        <button className="d-btn ghost" onClick={() => patch(open, { status: "finished" })}>✅ Finished</button></div></Card>}
+        <button className="d-btn ghost" onClick={() => patch(open, { status: "finished" })}>✅ Finished</button></div>
+      <div className="d-row"><input className="d-input" value={link} onChange={e => setLink(e.target.value)} placeholder={open.file_url ? "Change e-book link" : "📎 Google Drive link to the PDF"}/>
+        <button className="d-btn ghost" disabled={!link.trim()} onClick={() => { patch(open, { file_url: link.trim() }); setLink(""); }}>Save link</button>
+        {open.read_url && <button className="d-btn" onClick={() => read(open)}>📄 Read</button>}</div>
+      <p className="d-note">In Drive: Share → “Anyone with the link” → Copy link. The PDF opens in Drive's viewer here.</p></Card>}
     <div className="d-grid-2">
       <Card kicker="Shelf" title="Want to read · finished">{(v.books as Row[]).filter(b => b.status !== "reading").map(b => <p key={b.id} className="d-note">{b.status === "finished" ? "✅" : b.status === "paused" ? "⏸" : "📚"} <b>{b.title}</b> · {b.author}{b.rating ? ` · ${"★".repeat(b.rating)}` : ""}
         {b.status === "want" && <button className="text-button" onClick={() => patch(b, { status: "reading" })}>Start</button>}</p>)}</Card>

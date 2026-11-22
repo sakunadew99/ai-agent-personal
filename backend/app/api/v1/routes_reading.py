@@ -19,6 +19,13 @@ def _today(db: Session, user: User):
     return today(db, user.id)
 
 
+def _check_link(url: str) -> None:
+    try:
+        reading.ebook_links(url)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
 @router.get("/reading")
 def reading_overview(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Your books with progress and finish forecasts, pages this week, streak, yearly goal and suggestions."""
@@ -36,7 +43,12 @@ def book_create(data: dto.BookIn, db: Session = Depends(get_db), user: User = De
     exists = db.scalar(select(Book).where(Book.user_id == user.id, Book.title == data.title.strip(), Book.author == data.author.strip()))
     if exists:
         raise HTTPException(409, "This book is already on your shelf")
-    b = Book(user_id=user.id, **{**data.model_dump(), "title": data.title.strip(), "author": data.author.strip()})
+    values = {**data.model_dump(), "title": data.title.strip(), "author": data.author.strip()}
+    if values.get("file_url"):
+        _check_link(values["file_url"])
+        if values["format"] == "paper":
+            values["format"] = "ebook"                                # a PDF link means you read it as an e-book
+    b = Book(user_id=user.id, **values)
     if b.status == "reading":
         b.started_on = _today(db, user)
     db.add(b); db.commit(); db.refresh(b)
@@ -47,6 +59,12 @@ def book_create(data: dto.BookIn, db: Session = Depends(get_db), user: User = De
 def book_update(book_id: uuid.UUID, data: dto.BookUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     b = owned(db, Book, user.id, book_id)
     changes = data.model_dump(exclude_unset=True)
+    if changes.get("file_url"):
+        _check_link(changes["file_url"])
+        if b.format == "paper" and "format" not in changes:
+            changes["format"] = "ebook"
+    elif "file_url" in changes:
+        changes["file_url"] = None                                    # an empty link removes the e-book
     for k, v in changes.items():
         setattr(b, k, v)
     today = _today(db, user)

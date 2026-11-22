@@ -1860,6 +1860,7 @@ class Book(Base):
     category: Mapped[str | None] = mapped_column(String(40), nullable=True)
     cover_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     source_key: Mapped[str | None] = mapped_column(String(80), nullable=True)    # Open Library work key
+    file_url: Mapped[str | None] = mapped_column(String(600), nullable=True)     # e-book link (Google Drive PDF or any https PDF)
     started_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     finished_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     rating: Mapped[int | None] = mapped_column(Integer, nullable=True)

@@ -1818,6 +1818,7 @@ class BookIn(BaseModel):
     category: str | None = Field(default=None, max_length=40)
     cover_url: str | None = Field(default=None, max_length=500, pattern=r"^https://")
     source_key: str | None = Field(default=None, max_length=80)
+    file_url: str | None = Field(default=None, max_length=600)
 
 
 class BookUpdate(BaseModel):
@@ -1830,6 +1831,7 @@ class BookUpdate(BaseModel):
     category: str | None = Field(default=None, max_length=40)
     rating: int | None = Field(default=None, ge=1, le=5)
     takeaways: str | None = Field(default=None, max_length=10000)
+    file_url: str | None = Field(default=None, max_length=600)
 
 
 class BookProgressIn(BaseModel):

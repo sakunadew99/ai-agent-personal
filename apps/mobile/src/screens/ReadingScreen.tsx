@@ -34,7 +34,8 @@ export function ReadingScreen({ api, onError, onNotice }: { api: Api; onError: (
   const [shelf, setShelf] = useState<"want" | "finished" | "paused">("want");
   const [adding, setAdding] = useState(false);
   const [q, setQ] = useState(""); const [found, setFound] = useState<Row[] | null>(null);
-  const [manual, setManual] = useState({ title: "", author: "", pages: "" });
+  const [manual, setManual] = useState({ title: "", author: "", pages: "", link: "" });
+  const [link, setLink] = useState("");
   const [open, setOpen] = useState<Row | null>(null);
   const [hl, setHl] = useState({ quote: "", page: "" });
   const [take, setTake] = useState(""); const [ai, setAi] = useState("");
@@ -50,11 +51,14 @@ export function ReadingScreen({ api, onError, onNotice }: { api: Api; onError: (
   const reading = books.filter(b => b.status === "reading");
   const progress = (b: Row, body: Row) => void api<Row>(`/reading/books/${b.id}/progress`, "POST", body).then(x => { setV(x);
     const nb = (x.books as Row[]).find(y => y.id === b.id); onNotice(nb?.status === "finished" ? `🎉 Finished “${b.title}”!` : `Saved: page ${nb?.current_page}`); }).catch(e => onError(msg(e)));
+  const readEbook = (b: Row) => { openInApp(b.read_url, b.title, { category: "study", note: `Reading: ${b.title}`, bookId: b.is_folder ? undefined : String(b.id) });
+    setTimeout(load, 1500); };
   const stopTimer = (b: Row) => { const mins = Math.max(1, Math.round((Date.now() - timer!.start) / 60000)); setTimer(null);
     Alert.prompt ? Alert.prompt("Which page did you reach?", `${mins} minutes read`, p => progress(b, { to_page: Number(p) || b.current_page, minutes: mins }), "plain-text", String(b.current_page), "number-pad")
       : (setOpen({ ...b, _minutes: mins })); };
   const add = (b: Row, status: string) => void api("/reading/books", "POST", { title: b.title, author: b.author || "", total_pages: b.pages || b.total_pages || undefined,
-    cover_url: b.cover_url || undefined, source_key: b.source_key || undefined, status }).then(() => { onNotice(`Added “${b.title}”`); setAdding(false); setFound(null); setQ(""); load(); }).catch(e => onError(msg(e)));
+    cover_url: b.cover_url || undefined, source_key: b.source_key || undefined, file_url: b.file_url || undefined, status })
+    .then(() => { onNotice(`Added “${b.title}”`); setAdding(false); setFound(null); setQ(""); setManual({ title: "", author: "", pages: "", link: "" }); load(); }).catch(e => onError(msg(e)));
   const patch = (b: Row, body: Row) => void api<Row>(`/reading/books/${b.id}`, "PATCH", body).then(x => { setOpen(o => (o && o.id === x.id ? { ...o, ...x } : o)); load(); }).catch(e => onError(msg(e)));
   const yr = v.year;
   const elapsed = timer ? Math.floor((Date.now() - timer.start) / 1000) : 0;
@@ -77,7 +81,8 @@ export function ReadingScreen({ api, onError, onNotice }: { api: Api; onError: (
             {b.total_pages ? <><View style={{ height: 8, borderRadius: 4, backgroundColor: C.panel2 }}><View style={{ height: 8, borderRadius: 4, width: `${b.percent}%`, backgroundColor: BROWN }}/></View>
               <Muted small>{`Page ${b.current_page} of ${b.total_pages} · ${b.percent}%${b.finish_forecast ? ` · done by ${b.finish_forecast}` : ""}`}</Muted></> : <Muted small>{`Page ${b.current_page}`}</Muted>}</View></Line></TouchableOpacity>
         {running ? <Btn title={`⏹ Stop · ${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}${tick < 0 ? "" : ""}`} onPress={() => stopTimer(b)}/>
-          : <Line><Btn title="📖 Read now" onPress={() => setTimer({ id: b.id, start: Date.now() })} style={{ flex: 1 }}/>
+          : <Line>{b.read_url ? <Btn title={b.is_folder ? "📁 Open folder" : "📄 Read e-book"} onPress={() => readEbook(b)} style={{ flex: 1 }}/>
+            : <Btn title="📖 Read now" onPress={() => setTimer({ id: b.id, start: Date.now() })} style={{ flex: 1 }}/>}
             <Btn kind="outline" title="+10 p" onPress={() => progress(b, { pages: 10 })}/><Btn kind="outline" title="+25 p" onPress={() => progress(b, { pages: 25 })}/></Line>}
       </Card>; })}
     {!reading.length && <Empty>Nothing on the go. Add a book or start one from your shelf.</Empty>}
@@ -106,7 +111,9 @@ export function ReadingScreen({ api, onError, onNotice }: { api: Api; onError: (
       <TextInput style={input} value={manual.title} onChangeText={t => setManual({ ...manual, title: t })} placeholder="Title" placeholderTextColor={C.muted}/>
       <Line><TextInput style={[input, { flex: 2 }]} value={manual.author} onChangeText={t => setManual({ ...manual, author: t })} placeholder="Author" placeholderTextColor={C.muted}/>
         <TextInput style={[input, { flex: 1 }]} value={manual.pages} onChangeText={t => setManual({ ...manual, pages: t })} placeholder="Pages" placeholderTextColor={C.muted} keyboardType="number-pad"/></Line>
-      <Btn title="Add" disabled={!manual.title.trim()} onPress={() => add({ title: manual.title.trim(), author: manual.author.trim(), pages: Number(manual.pages) || undefined }, "reading")}/>
+      <TextInput style={input} value={manual.link} onChangeText={t => setManual({ ...manual, link: t })} placeholder="📎 Google Drive link to the PDF (optional)" placeholderTextColor={C.muted} autoCapitalize="none"/>
+      <Btn title="Add" disabled={!manual.title.trim()} onPress={() => add({ title: manual.title.trim(), author: manual.author.trim(), pages: Number(manual.pages) || undefined, file_url: manual.link.trim() || undefined }, "reading")}/>
+      <Muted small>E-book in Google Drive: open it in Drive → Share → “Anyone with the link” → Copy link, then paste it here. It opens in a reader inside Sakuna.</Muted>
       <Muted small>Search uses Open Library (free and open): real titles, page counts and covers.</Muted>
     </Sheet>}
 
@@ -118,6 +125,10 @@ export function ReadingScreen({ api, onError, onNotice }: { api: Api; onError: (
         <Line>{[1, 2, 3, 4, 5].map(n => <TouchableOpacity key={n} onPress={() => patch(open, { rating: n })}><Text style={{ fontSize: 26, color: n <= (open.rating || 0) ? C.amber : C.line }}>★</Text></TouchableOpacity>)}</Line></View></Line>
       <Line>{(["reading", "paused", "finished"] as const).map(s => <TouchableOpacity key={s} onPress={() => patch(open, { status: s })} style={[chip(open.status === s), { flex: 1, alignItems: "center" }]}>
         <Text style={{ color: open.status === s ? BROWN : C.muted, fontWeight: "800", textTransform: "capitalize" }}>{s}</Text></TouchableOpacity>)}</Line>
+      {open.read_url && <Btn title={open.is_folder ? "📁 Open the Drive folder" : "📄 Read e-book"} onPress={() => readEbook(open)}/>}
+      <Line><TextInput style={[input, { flex: 1 }]} value={link} onChangeText={setLink} placeholder={open.file_url ? "Change e-book link" : "📎 Paste Google Drive link (PDF)"} placeholderTextColor={C.muted} autoCapitalize="none"/>
+        <Btn kind="outline" title="Save" disabled={!link.trim()} onPress={() => { patch(open, { file_url: link.trim() }); setLink(""); }}/></Line>
+      {open.file_url && <Btn kind="link" title="Remove e-book link" onPress={() => patch(open, { file_url: "" })}/>}
       <Line><TextInput style={[input, { flex: 1 }]} keyboardType="number-pad" placeholder="Page reached" placeholderTextColor={C.muted} onSubmitEditing={e => progress(open, { to_page: Number(e.nativeEvent.text) || 0 })}/></Line>
       <Kicker>{`HIGHLIGHTS · ${(open.highlights as Row[]).length}`}</Kicker>
       {(open.highlights as Row[]).map((h, i) => <TouchableOpacity key={i} onLongPress={() => void api<Row>(`/reading/books/${open.id}/highlights/${i}`, "DELETE").then(x => setOpen({ ...open, ...x }))}>

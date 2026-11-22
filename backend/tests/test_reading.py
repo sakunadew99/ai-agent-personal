@@ -67,3 +67,34 @@ def test_yearly_goal_and_suggestions_are_real_books():
         assert all(s["search"].startswith("https://openlibrary.org/search?q=") for s in sug)
         a("POST", "/reading/books", {"title": "The Psychology of Money", "author": "Morgan Housel"})
         assert "The Psychology of Money" not in [s["title"] for s in a("GET", "/reading").json()["suggestions"]]
+
+
+def test_ebook_links_drive_folder_pdf_and_rejects_others():
+    d = reading.ebook_links("https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/view?usp=sharing")
+    assert d == {"provider": "drive", "read_url": "https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/preview", "is_folder": False,
+                 "thumb": "https://drive.google.com/thumbnail?id=1AbCdEfGhIjKlMnOp&sz=w400"}
+    assert reading.ebook_links("https://drive.google.com/open?id=1AbCdEfGhIjKlMnOp")["read_url"].endswith("/1AbCdEfGhIjKlMnOp/preview")
+    assert reading.ebook_links("https://drive.google.com/drive/folders/1XyZ123456789")["is_folder"] is True
+    pdf = reading.ebook_links("https://example.org/books/clean-code.pdf")
+    assert pdf["read_url"] == "https://docs.google.com/viewer?url=https%3A%2F%2Fexample.org%2Fbooks%2Fclean-code.pdf&embedded=true"
+    for bad in ("http://drive.google.com/file/d/x", "javascript:alert(1)", "file:///sdcard/book.pdf"):
+        try:
+            reading.ebook_links(bad)
+            raise AssertionError(bad)
+        except ValueError:
+            pass
+
+
+def test_drive_ebook_book_read_time_and_ownership():
+    with TestClient(app) as client:
+        a, b = _user(client), _user(client)
+        link = "https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/view?usp=sharing"
+        bk = a("POST", "/reading/books", {"title": "Clean Code", "author": "Robert C. Martin", "total_pages": 464, "file_url": link}).json()
+        assert bk["format"] == "ebook" and bk["read_url"] == "https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/preview"
+        assert bk["cover_url"] == "https://drive.google.com/thumbnail?id=1AbCdEfGhIjKlMnOp&sz=w400"
+        assert a("POST", "/reading/books", {"title": "Bad", "file_url": "javascript:alert(1)"}).status_code == 422
+        ov = a("POST", f"/reading/books/{bk['id']}/progress", {"minutes": 25}).json()                   # time read in the viewer
+        me = next(x for x in ov["books"] if x["id"] == bk["id"])
+        assert me["status"] == "reading" and me["current_page"] == 0 and ov["streak"] == 1
+        assert a("PATCH", f"/reading/books/{bk['id']}", {"file_url": ""}).json()["read_url"] is None     # remove the link
+        assert b("PATCH", f"/reading/books/{bk['id']}", {"file_url": link}).status_code == 404

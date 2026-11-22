@@ -13,7 +13,7 @@ import { C } from "./ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 /** What to log when the page is closed (time is measured from opening to closing). */
-export type Track = { category: "study" | "rest" | "entertainment" | "exercise" | "work"; note: string; brain?: boolean; mediaId?: string };
+export type Track = { category: "study" | "rest" | "entertainment" | "exercise" | "work"; note: string; brain?: boolean; mediaId?: string; bookId?: string };
 type Open = { url: string; title?: string; track?: Track };
 
 let listener: ((o: Open | null) => void) | null = null;
@@ -41,6 +41,7 @@ export function BrowserHost({ api, onNotice }: { api: Api; onNotice: (m: string)
     const p = page, secs = Math.round((Date.now() - opened.current) / 1000);
     setPage(null);
     if (p?.track?.mediaId && secs >= 30) void api(`/media/${p.track.mediaId}`, "PATCH", { add_minutes: Math.max(1, Math.round(secs / 60)) }).catch(() => undefined);
+    if (p?.track?.bookId && secs >= 60) void api(`/reading/books/${p.track.bookId}/progress`, "POST", { minutes: Math.min(600, Math.round(secs / 60)) }).catch(() => undefined);
     if (!p?.track || secs < 60) return;
     const end = new Date(), start = new Date(end.getTime() - secs * 1000);
     if (iso(start) !== iso(end)) return;

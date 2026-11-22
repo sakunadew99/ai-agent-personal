@@ -67,6 +67,24 @@ def search(q: str, limit: int = 8) -> list[dict]:
     return out
 
 
+def ebook_links(url: str) -> dict:
+    """Where to read an e-book link: a Drive file opens in Drive's PDF viewer (shared as "Anyone with the link"), a Drive folder
+    opens the folder to pick a book, any other https PDF opens in Google's document viewer."""
+    u = url.strip()
+    m = re.search(r"drive\.google\.com/(?:file/d/|open\?id=|uc\?(?:export=\w+&)?id=)([A-Za-z0-9_-]{10,})", u)
+    if m:
+        fid = m.group(1)
+        return {"provider": "drive", "read_url": f"https://drive.google.com/file/d/{fid}/preview", "is_folder": False,
+                "thumb": f"https://drive.google.com/thumbnail?id={fid}&sz=w400"}
+    if re.search(r"drive\.google\.com/drive/(?:u/\d/)?folders/", u):
+        return {"provider": "drive", "read_url": u, "is_folder": True, "thumb": None}
+    if not u.startswith("https://"):
+        raise ValueError("Paste an https link: a Google Drive file or folder, or a PDF on the web")
+    if re.search(r"\.pdf(\?|#|$)", u, re.I):
+        return {"provider": "web", "read_url": f"https://docs.google.com/viewer?url={quote_plus(u)}&embedded=true", "is_folder": False, "thumb": None}
+    return {"provider": "web", "read_url": u, "is_folder": False, "thumb": None}
+
+
 def _streak(days: set[date], today: date) -> int:
     d = today if today in days else today - timedelta(days=1)
     n = 0
@@ -82,8 +100,10 @@ def book_out(b: Book, pace: float | None, today: date) -> dict:
     forecast = None
     if b.status == "reading" and left and pace and pace > 0:
         forecast = (today + timedelta(days=-(-left // max(1, round(pace))))).isoformat()
+    link = ebook_links(b.file_url) if b.file_url else None
     return {"id": b.id, "title": b.title, "author": b.author, "total_pages": b.total_pages, "current_page": b.current_page, "percent": pct,
-            "pages_left": left, "status": b.status, "format": b.format, "category": b.category, "cover_url": b.cover_url, "started_on": b.started_on,
+            "pages_left": left, "status": b.status, "format": b.format, "category": b.category, "cover_url": b.cover_url or (link or {}).get("thumb"),
+            "file_url": b.file_url, "read_url": (link or {}).get("read_url"), "is_folder": bool(link and link["is_folder"]), "started_on": b.started_on,
             "finished_on": b.finished_on, "rating": b.rating, "highlights": b.highlights or [], "takeaways": b.takeaways, "finish_forecast": forecast}
 
 
