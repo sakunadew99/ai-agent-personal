@@ -108,6 +108,15 @@ export function TravelScreen({ api, onError, onNotice }: { api: Api; onError: (m
         {plan.advisory && <Btn kind="outline" title="🛡 Travel advice" onPress={() => openInApp(plan.advisory, "Official travel advice")} style={{ flex: 1 }}/>}</Line>
       <Btn title="⭐ Add to my wish list" onPress={wish}/>
     </Card>}
+    {plan?.stay_type && <Card style={{ gap: 4 }}><Kicker>{`🏨 ${String(plan.stay_type.label).toUpperCase()} STAYS`}</Kicker>
+      <Text style={{ color: C.text }}>{plan.stay_type.examples}</Text><Muted small>{plan.stay_type.expect}</Muted></Card>}
+    {plan?.safety && <Card style={{ gap: 6, borderColor: C.amber }}><Kicker>{`🛡 SAFETY & EMERGENCY · ${String(plan.safety.country).toUpperCase()}`}</Kicker>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>{(plan.safety.emergency as Row[]).map(e => <TouchableOpacity key={e.label} onPress={() => void Linking.openURL(`tel:${e.number}`)}
+        style={{ padding: 8, borderRadius: 12, backgroundColor: C.panel2 }}><Text style={{ color: C.amber, fontWeight: "900", fontSize: 16 }}>{e.number}</Text><Muted small>{e.label}</Muted></TouchableOpacity>)}</View>
+      {(plan.safety.tips as string[]).map(t => <Text key={t} style={{ color: C.text }}>{`• ${t}`}</Text>)}
+      <Muted small>{plan.safety.insurance}</Muted>
+      <Btn kind="outline" title="Official travel advice (FCDO)" onPress={() => openInApp(plan.safety.official_advice, "Official travel advice")}/>
+      <Muted small>{`Source: ${plan.safety.source}. Checked ${plan.safety.checked}. ${plan.safety.method}`}</Muted></Card>}
     {(v.destinations as Row[]).map(d => <TouchableOpacity key={d.key} activeOpacity={0.85} onPress={() => makePlan(d)}>
       <Card style={{ padding: 12, borderColor: d.good_now ? "#4fd1c566" : C.line }}>
         <Line><Text style={{ color: C.text, fontWeight: "900", flex: 1 }}>{d.name}</Text>{d.good_now && <Text style={{ color: "#4fd1c5", fontWeight: "800" }}>✓ good now</Text>}</Line>

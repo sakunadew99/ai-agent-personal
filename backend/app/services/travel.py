@@ -65,6 +65,48 @@ ABROAD = {
 }
 
 
+# ---------------- safety & emergency info: official sources only, never a made-up "safety score"
+SAFETY_CHECKED = "2026-11"          # when these numbers were last compiled; always confirm on the official page before you go
+SAFETY_METHOD = ("Emergency numbers are the national numbers published by each country's government or police, compiled "
+                 f"{SAFETY_CHECKED}. Current risks (crime, scams, weather, unrest, health) change, so we link to the UK government's "
+                 "official travel advice (FCDO), which is updated continuously, instead of inventing a rating.")
+EMERGENCY = {
+    "srilanka": {"country": "Sri Lanka", "numbers": [("Police", "119"), ("Ambulance (Suwa Seriya, free)", "1990"), ("Fire & rescue", "110"),
+                 ("Tourist police / tourism hotline", "1912"), ("Disaster Management Centre", "117")],
+                 "advice": "https://www.gov.uk/foreign-travel-advice/sri-lanka", "source": "Sri Lanka Police, 1990 Suwa Seriya, Disaster Management Centre"},
+    "maldives": {"country": "Maldives", "numbers": [("Police", "119"), ("Ambulance", "102"), ("Fire", "118")],
+                 "advice": "https://www.gov.uk/foreign-travel-advice/maldives", "source": "Maldives Police Service / FCDO"},
+    "thailand": {"country": "Thailand", "numbers": [("Police", "191"), ("Ambulance / medical", "1669"), ("Tourist police", "1155"), ("Fire", "199")],
+                 "advice": "https://www.gov.uk/foreign-travel-advice/thailand", "source": "Royal Thai Police / FCDO"},
+    "kerala": {"country": "India", "numbers": [("All emergencies", "112"), ("Police", "100"), ("Ambulance", "108"), ("Fire", "101")],
+               "advice": "https://www.gov.uk/foreign-travel-advice/india", "source": "Government of India (ERSS 112) / FCDO"},
+    "japan": {"country": "Japan", "numbers": [("Police", "110"), ("Fire & ambulance", "119")],
+              "advice": "https://www.gov.uk/foreign-travel-advice/japan", "source": "National Police Agency / FCDO"},
+    "germany": {"country": "Germany", "numbers": [("All emergencies (EU)", "112"), ("Police", "110")],
+                "advice": "https://www.gov.uk/foreign-travel-advice/germany", "source": "German federal government / FCDO"},
+}
+SAFETY_TIPS = ["Save the local emergency numbers and your hotel address offline before you go.",
+               "Share your itinerary with someone at home; keep copies of your passport and insurance.",
+               "Use registered taxis or ride-hailing apps; agree tuk-tuk fares (or use the meter) before the ride.",
+               "Sea: swim only at lifeguarded beaches and check flags; currents are strong in the monsoon season.",
+               "Keep valuables out of sight; use the hotel safe; be wary of 'gem', 'special festival' and 'closed temple' scams."]
+STAY_TYPES = {
+    "budget": {"label": "Budget", "examples": "Hostels, guesthouses, homestays, simple 1-2 star hotels",
+               "expect": "Clean room, fan or basic A/C, shared or simple bathroom, little service. Read recent reviews for cleanliness and safety."},
+    "mid": {"label": "Mid-range", "examples": "3-4 star hotels, boutique villas, good guesthouses",
+            "expect": "A/C, private bathroom, breakfast, Wi-Fi, a pool sometimes, 24-hour reception."},
+    "luxury": {"label": "Luxury", "examples": "5-star hotels, resorts, private villas",
+               "expect": "Full service, restaurants, pool and spa, transfers; best locations and views."},
+}
+
+
+def safety(key: str) -> dict:
+    e = EMERGENCY.get(key) or EMERGENCY["srilanka"]
+    return {"country": e["country"], "emergency": [{"label": label, "number": n} for label, n in e["numbers"]], "official_advice": e["advice"],
+            "source": e["source"], "checked": SAFETY_CHECKED, "method": SAFETY_METHOD, "tips": SAFETY_TIPS,
+            "insurance": "Get travel insurance that covers medical evacuation, and check it covers any activities you plan (diving, trekking)."}
+
+
 def maps_link(lat: float, lon: float, name: str) -> dict:
     return {"directions": f"https://www.google.com/maps/dir/?api=1&origin=Colombo&destination={lat},{lon}",
             "place": f"https://www.google.com/maps/search/?api=1&query={quote_plus(name)}",
@@ -117,6 +159,7 @@ def plan(key: str, days: int, tier: str, people: int, usd_lkr: float) -> dict:
                 "itinerary": it, "best_months": months, "maps": maps_link(lat, lon, name),
                 "budget_lkr": {"transport_to_and_back": travel, "stay": stay, "food": food, "local_transport": local, "activities": activities, "total": total},
                 "per_person_lkr": round(total / people), "total_usd": round(total / usd_lkr), "usd_lkr": usd_lkr,
+                "safety": safety("srilanka"), "stay_type": STAY_TYPES[tier], "stay_types": STAY_TYPES,
                 "note": "Estimates for planning; prices change by season. Book stays and check entry fees before you go."}
     if key in ABROAD:
         name, cur, rate, day_usd, flight, slug, lat, lon, tags, hl = ABROAD[key]
@@ -131,5 +174,6 @@ def plan(key: str, days: int, tier: str, people: int, usd_lkr: float) -> dict:
                 "total_lkr": round(total_usd * usd_lkr), "per_person_lkr": round(total_usd * usd_lkr / people), "usd_lkr": usd_lkr,
                 "local_currency": {"code": cur, "per_usd": rate, "total": round(total_usd * rate), "note": "approximate reference rate"},
                 "visa": "Check visa rules for Sri Lankan passport holders on the official embassy or government site before booking.",
+                "safety": safety(key), "stay_type": STAY_TYPES[tier], "stay_types": STAY_TYPES,
                 "note": "Rough estimates for planning; check current flight and hotel prices and the official travel advice."}
     raise KeyError(key)

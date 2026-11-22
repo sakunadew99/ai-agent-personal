@@ -19,6 +19,7 @@ export const GROUPS: Group[] = [
   { name: "Body", emoji: "💪", color: "#3ee08f", items: [
     { key: "Health", icon: "❤️", title: "Health & Mi Band", hint: "Steps, sleep, heart rate", words: "mi fitness steps sleep heart health connect" },
     { key: "Fitness", icon: "🥗", title: "Fitness guide", hint: "Workouts, exercise how-to, meal plans", words: "workout plan exercise technique muscles meal plan diet nutrition protein calories food rice dhal shopping list belly fat" },
+    { key: "Sports", icon: "🥋", title: "Martial arts & swimming", hint: "Pathways, gear costs, safety, clubs near you", words: "karate kickboxing muay thai boxing swimming martial arts sport dojo pool lessons self defence fight" },
     { key: "Gym", icon: "🏋️", title: "Gym", hint: "Sets, kg × reps, records", words: "workout exercise weights" },
     { key: "Skin", icon: "✨", title: "Skin & glow", hint: "Daily face scan, glow score", words: "face skin glow pimple acne spots redness beauty selfie" },
     { key: "Kegel", icon: "🧘", title: "Pelvic floor", hint: "Guided Kegel trainer", words: "kegel pelvic floor exercises bladder wellness men women physio squeeze" },
@@ -35,6 +36,7 @@ export const GROUPS: Group[] = [
     { key: "Roleplay", icon: "🎭", title: "Role-play coach", hint: "Negotiation, leadership, interviews", words: "soft skills negotiation salary client leadership conflict delegate interview feedback say no pitch sales communication confidence" },
     { key: "Skills", icon: "🎯", title: "Skills & trainers", hint: "Yoga, singing, guitar, boxing, leadership", words: "yoga singing vocal guitar music kickboxing fighting swimming leadership soft skills hard skills pose pitch tuner practice" },
     { key: "Speak", icon: "🎙", title: "Speaking coach", hint: "Public speaking, English & German", words: "speech talk presentation pronunciation fluency confidence communication whisper" },
+    { key: "English", icon: "✍️", title: "English check", hint: "Grammar corrections for what you write or say", words: "english grammar correction spelling writing conversation languagetool soft skills" },
 
 
     { key: "Videos", icon: "🎬", title: "My videos", hint: "Drive & YouTube in-app", words: "google drive youtube lectures" },
@@ -50,6 +52,7 @@ export const GROUPS: Group[] = [
     { key: "Notes", icon: "📝", title: "Notes", hint: "Notebook, checklists, tags", words: "note notes notebook checklist list ideas write memo todo keep" },
     { key: "Journal", icon: "✍️", title: "Journal", hint: "Day, gratitude, lessons", words: "diary notes" },
     { key: "Jobs", icon: "💼", title: "Jobs", hint: "Find jobs, tracker", words: "linkedin topjobs career cv" },
+    { key: "Freelance", icon: "🧑‍💻", title: "Freelancing kit", hint: "Price estimator and proposal drafts", words: "freelance freelancing fiverr upwork proposal gig price estimate client side income" },
     { key: "Rewards", icon: "🎮", title: "Rewards game", hint: "Level, badges, missions", words: "points streak" },
     { key: "Review", icon: "🗓", title: "Review", hint: "Weekly review & about you", words: "week insights patterns about you reflect" },
   ] },

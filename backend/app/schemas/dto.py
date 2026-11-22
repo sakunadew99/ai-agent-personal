@@ -1915,3 +1915,29 @@ class DisciplineEventUpdate(BaseModel):
     action: str | None = Field(default=None, max_length=80)
     stayed: bool | None = None
     note: str | None = Field(default=None, max_length=2000)
+
+
+class EnglishCheckIn(BaseModel):
+    text: str = Field(min_length=1, max_length=5000)
+    deep: bool = False
+    lang: Literal["en-GB", "en-US"] = "en-GB"
+
+
+class FreelanceEstimateIn(BaseModel):
+    hours: float = Field(gt=0, le=1000)
+    rate_usd: float | None = Field(default=None, gt=0, le=1000)
+    level: Literal["beginner", "intermediate", "expert"] = "beginner"
+    platform: Literal["fiverr", "upwork", "direct"] = "fiverr"
+    complexity: Literal["simple", "standard", "complex"] = "standard"
+    revisions: int = Field(default=1, ge=0, le=10)
+    buffer_pct: int = Field(default=15, ge=0, le=100)
+
+
+class FreelanceProposalIn(BaseModel):
+    job: str = Field(min_length=10, max_length=5000)
+    skills: list[str] = Field(default_factory=list, max_length=20)
+    name: str = Field(default="", max_length=80)
+    experience: str | None = Field(default=None, max_length=1000)
+    days: int | None = Field(default=None, ge=1, le=365)
+    price_usd: float | None = Field(default=None, gt=0, le=100000)
+    tone: Literal["friendly", "formal"] = "friendly"

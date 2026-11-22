@@ -193,6 +193,13 @@ export function TravelPage({ token }: { token: string }) {
         <p className="d-note"><a href={plan.maps.directions} target="_blank" rel="noreferrer">🗺 Directions</a>{plan.advisory && <> · <a href={plan.advisory} target="_blank" rel="noreferrer">🛡 Official travel advice</a></>}</p>
         <button className="d-btn" onClick={() => void call("/travel/wishes", token, postJson({ destination: sel.name, key: sel.key, days: Number(form.days) || 3, people: Number(form.people) || 1, tier: form.tier, budget_lkr: plan.budget_lkr?.total ?? plan.total_lkr })).then(load)}>⭐ Add to wish list</button></Card>
       <Card kicker="Map" title={plan.destination}><iframe title="map" src={plan.maps.embed} style={{ width: "100%", height: 300, border: 0, borderRadius: 12 }}/></Card>
+      {plan.safety && <Card kicker={`Safety & emergency · ${plan.safety.country}`} title="Save these numbers">
+        <div className="d-chips">{(plan.safety.emergency as Row[]).map(e => <span key={e.label} className="d-chip on"><b>{e.number}</b> {e.label}</span>)}</div>
+        {(plan.safety.tips as string[]).map(t => <p key={t} className="d-note">• {t}</p>)}
+        <p className="d-note">{plan.safety.insurance} <a href={plan.safety.official_advice} target="_blank" rel="noreferrer">Official travel advice (FCDO)</a></p>
+        <p className="d-note">Source: {plan.safety.source}. Checked {plan.safety.checked}. {plan.safety.method}</p></Card>}
+      {plan.stay_type && <Card kicker="Where you'll stay" title={`${plan.stay_type.label} stays`}><p>{plan.stay_type.examples}</p><p className="d-note">{plan.stay_type.expect}</p>
+        {Object.entries(plan.stay_types as Record<string, Row>).filter(([k]) => k !== plan.tier).map(([k, t]) => <p key={k} className="d-note"><b>{t.label}:</b> {t.examples}</p>)}</Card>}
     </div>}
     {(v.wishes as Row[]).length > 0 && <Card kicker="Wish list" title={`${(v.wishes as Row[]).length} places`}>{(v.wishes as Row[]).map(w => <p key={w.id} className="d-note">
       {w.status === "done" ? "✅" : w.status === "planned" ? "📅" : "⭐"} {w.destination} · {w.days}d · {w.tier}{" "}
@@ -500,5 +507,105 @@ export function AskPage({ token, onOpenApprovals }: { token: string; onOpenAppro
       {check && <><p>{check.message}</p>{(check.proposals as Row[]).map(p => <p key={p.id}>• {p.preview}</p>)}
         {(check.proposals as Row[]).length > 0 && <button className="d-btn ghost" onClick={onOpenApprovals}>Review in Approvals</button>}</>}
     </Card>
+  </div>;
+}
+
+
+const rs = (n: number) => `Rs ${Math.round(Number(n)).toLocaleString()}`;
+
+export function SportsPage({ token }: { token: string }) {
+  const [list, setList] = useState<Row[]>([]);
+  const [key, setKey] = useState("swimming");
+  const [city, setCity] = useState("Colombo");
+  const [p, setP] = useState<Row | null>(null);
+  const [note, setNote] = useState("");
+  useEffect(() => { call<Row>("/sports", token).then(r => setList(r.sports as Row[])).catch(e => setNote(errText(e))); }, [token]);
+  const load = useCallback((k: string, c: string) => { call<Row>(`/sports/${k}?city=${encodeURIComponent(c || "Colombo")}`, token).then(setP).catch(e => setNote(errText(e))); }, [token]);
+  useEffect(() => { load(key, "Colombo"); }, [key, load]);
+  const goal = () => { if (p && window.confirm(`Create the goal "${p.goal_plan.title}" with its milestones?`)) void call("/dreams/accept", token, postJson(p.goal_plan)).then(() => setNote("Goal created 💪")).catch(e => setNote(errText(e))); };
+  return <div className="d-dash">
+    <Hero kicker="Martial arts & swimming" title="From first class to" accent="a solid level" sub="Pathways, weekly schedule, gear and LKR costs, safety, and how to pick a good club."/>
+    {note && <p className="d-note">{note}</p>}
+    <div className="d-chips">{list.map(s => <button key={s.key} className={`d-chip ${key === s.key ? "on" : ""}`} onClick={() => setKey(String(s.key))}>{s.icon} {s.name}</button>)}</div>
+    {p && <div className="d-grid-2">
+      <Card kicker={p.kind} title={`${p.icon} ${p.name}`} action={<button className="d-btn" onClick={goal}>🎯 Make it a goal</button>}>
+        <p>{p.what}</p><p className="d-note">Good for: {(p.good_for as string[]).join(", ")}</p>
+        {(p.stages as Row[]).map((s, i) => <p key={i}><b>{i + 1}. {s.name}</b> <span className="d-note">({s.weeks}{/year|month/.test(s.weeks) ? "" : " weeks"}) · {s.focus}</span></p>)}
+        <p className="d-note">A normal week: {(p.week as string[]).join(" · ")}</p></Card>
+      <Card kicker="Estimates" title="Equipment & cost">
+        {(p.equipment as Row[]).map(e => <p key={e.item}>{e.needed_from_day_one ? "●" : "○"} {e.item}: <span className="d-note">{rs(e.lkr_min)}–{Number(e.lkr_max).toLocaleString()}</span></p>)}
+        <p>Monthly fee: <span className="d-note">{rs(p.monthly_fee_lkr.min)}–{Number(p.monthly_fee_lkr.max).toLocaleString()}</span></p>
+        {p.grading_fee_lkr && <p>Grading: <span className="d-note">{rs(p.grading_fee_lkr.min)}–{Number(p.grading_fee_lkr.max).toLocaleString()}</span></p>}
+        <p style={{ color: "var(--d-green)", fontWeight: 800 }}>First month: {rs(p.first_month_cost_lkr.min)} – {rs(p.first_month_cost_lkr.max)}</p><p className="d-note">{p.note}</p></Card>
+      <Card kicker="Learn" title="Online or instructor?"><p>💻 {p.online_ok}</p><p>🧑‍🏫 {p.needs_instructor}</p>
+        <div className="d-row"><input className="d-input" value={city} onChange={e => setCity(e.target.value)} onBlur={() => load(key, city)} placeholder="Your city"/>
+          <a className="d-btn" href={p.links.find_near_you} target="_blank" rel="noreferrer">📍 Near me</a>
+          <a className="d-btn ghost" href={p.links.videos} target="_blank" rel="noreferrer">▶ Videos</a></div>
+        {(p.choose_a_club as string[]).map(c => <p key={c} className="d-note">✓ {c}</p>)}
+        {(p.first_month as string[]).map(c => <p key={c} className="d-note">• {c}</p>)}</Card>
+      <Card kicker="⚠ Safety" title="Train safely">{(p.safety as string[]).map(c => <p key={c} className="d-note">• {c}</p>)}</Card>
+    </div>}
+  </div>;
+}
+
+export function EnglishPage({ token }: { token: string }) {
+  const [text, setText] = useState("");
+  const [r, setR] = useState<Row | null>(null);
+  const [note, setNote] = useState("");
+  const check = (deep: boolean) => { if (text.trim()) void call<Row>("/english/check", token, postJson({ text, deep })).then(setR).catch(e => setNote(errText(e))); };
+  return <div className="d-dash">
+    <Hero kicker="Soft skills · English" title="Say it" accent="right" sub="Grammar corrections for anything you write or plan to say. Built-in rules; a deeper LanguageTool check when you ask."/>
+    {note && <p className="d-note">{note}</p>}
+    <Card kicker="Your text" title="Write a message, email or what you want to say">
+      <textarea className="d-input" rows={6} value={text} onChange={e => setText(e.target.value)} placeholder="Yesterday I didn't went to office because i was sick."/>
+      <div className="d-row"><button className="d-btn" onClick={() => check(false)}>✓ Check</button><button className="d-btn ghost" onClick={() => check(true)}>🔎 Deeper check</button></div>
+      <p className="d-note">The deeper check sends just this text to LanguageTool (api.languagetool.org).</p></Card>
+    {r && <Card kicker={r.count ? `${r.count} suggestion${r.count === 1 ? "" : "s"} · score ${r.score}` : "Looks good ✓"} title="Corrected"
+      action={<button className="d-btn ghost" onClick={() => setText(String(r.corrected))}>Use corrected</button>}>
+      <p style={{ fontSize: 18 }}>{r.corrected}</p>{r.note && <p className="d-note">{r.note}</p>}
+      {(r.issues as Row[]).map((i, k) => <p key={k}><s style={{ color: "var(--d-red)" }}>{i.text || "∅"}</s>{i.suggestion != null && <b style={{ color: "var(--d-green)" }}> → {i.suggestion || "(remove)"}</b>} <span className="d-note">{i.message}{i.source === "languagetool" ? " · LanguageTool" : ""}</span></p>)}
+    </Card>}
+  </div>;
+}
+
+export function FreelancePage({ token }: { token: string }) {
+  const [f, setF] = useState({ hours: "6", rate: "", level: "beginner", platform: "fiverr", complexity: "standard", revisions: "1" });
+  const [est, setEst] = useState<Row | null>(null);
+  const [p, setP] = useState({ job: "", skills: "", name: "", experience: "" });
+  const [draft, setDraft] = useState("");
+  const [checklist, setChecklist] = useState<string[]>([]);
+  const [note, setNote] = useState("");
+  const estimate = () => void call<Row>("/freelance/estimate", token, postJson({ hours: parseFloat(f.hours) || 1, rate_usd: parseFloat(f.rate) || undefined, level: f.level,
+    platform: f.platform, complexity: f.complexity, revisions: parseInt(f.revisions, 10) || 0 })).then(setEst).catch(e => setNote(errText(e)));
+  const write = () => void call<Row>("/freelance/proposal", token, postJson({ job: p.job, skills: p.skills.split(",").map(s => s.trim()).filter(Boolean), name: p.name,
+    experience: p.experience || undefined, days: est?.delivery_days, price_usd: est ? Number(est.price_usd) : undefined })).then(r => { setDraft(String(r.text)); setChecklist(r.checklist as string[]); }).catch(e => setNote(errText(e)));
+  const track = () => void call("/career/jobs", token, postJson({ company: f.platform === "direct" ? "Direct client" : f.platform[0].toUpperCase() + f.platform.slice(1),
+    role: p.job.split("\n")[0].slice(0, 190) || "Freelance gig", status: "draft", notes: draft })).then(() => setNote("Saved to the Job tracker as a draft")).catch(e => setNote(errText(e)));
+  const chips = (k: "level" | "platform" | "complexity", opts: string[]) => <div className="d-chips">{opts.map(o => <button key={o} className={`d-chip ${f[k] === o ? "on" : ""}`} onClick={() => setF({ ...f, [k]: o })}>{o}</button>)}</div>;
+  return <div className="d-dash">
+    <Hero kicker="Freelancing kit" title="Price it right," accent="pitch it well" sub="Estimates from your own hours and rate. Drafts only: Sakuna never sends, applies or automates any platform."/>
+    {note && <p className="d-note">{note}</p>}
+    <div className="d-grid-2">
+      <Card kicker="Price estimator" title="What should I charge?">
+        <div className="d-row"><input className="d-input" value={f.hours} onChange={e => setF({ ...f, hours: e.target.value })} placeholder="Hours of work"/>
+          <input className="d-input" value={f.rate} onChange={e => setF({ ...f, rate: e.target.value })} placeholder="Your $/hour (optional)"/>
+          <input className="d-input" value={f.revisions} onChange={e => setF({ ...f, revisions: e.target.value })} placeholder="Revisions"/></div>
+        {chips("level", ["beginner", "intermediate", "expert"])}{chips("platform", ["fiverr", "upwork", "direct"])}{chips("complexity", ["simple", "standard", "complex"])}
+        <button className="d-btn" onClick={estimate}>Estimate</button>
+        {est && <><p style={{ fontSize: 24, fontWeight: 900, color: "var(--d-green)" }}>${est.price_usd} · {rs(est.price_lkr)}</p>
+          <p className="d-note">You receive ${est.you_receive_usd} after the {est.platform_fee_pct}% fee · about {est.delivery_days} day(s) · packages ${est.packages_usd.basic} / ${est.packages_usd.standard} / ${est.packages_usd.premium}</p>
+          {(est.explain as string[]).map(x => <p key={x} className="d-note">• {x}</p>)}<p className="d-note">{est.note}</p></>}
+      </Card>
+      <Card kicker="Proposal writer" title="A draft you edit and send yourself">
+        <textarea className="d-input" rows={4} value={p.job} onChange={e => setP({ ...p, job: e.target.value })} placeholder="Paste the job or buyer request"/>
+        <input className="d-input" value={p.skills} onChange={e => setP({ ...p, skills: e.target.value })} placeholder="Your skills, comma separated"/>
+        <input className="d-input" value={p.experience} onChange={e => setP({ ...p, experience: e.target.value })} placeholder="One line of relevant experience"/>
+        <input className="d-input" value={p.name} onChange={e => setP({ ...p, name: e.target.value })} placeholder="Your name"/>
+        <button className="d-btn" disabled={p.job.trim().length < 10} onClick={write}>Write draft</button>
+        {draft && <><textarea className="d-input" rows={12} value={draft} onChange={e => setDraft(e.target.value)}/>
+          <div className="d-row"><button className="d-btn ghost" onClick={() => void navigator.clipboard.writeText(draft).then(() => setNote("Copied"))}>Copy</button><button className="d-btn ghost" onClick={track}>Save to Job tracker</button></div>
+          {checklist.map(c => <p key={c} className="d-note">✓ {c}</p>)}</>}
+      </Card>
+    </div>
   </div>;
 }

@@ -363,3 +363,41 @@ def progress_overview(db: Session = Depends(get_db), user: User = Depends(get_cu
 def report_weekly(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     from app.services import ask
     return ask.weekly_report(db, user, _today(db, user))
+
+
+# ---------------- sports pathways, English check, freelancing (plain code)
+
+@router.get("/sports")
+def sports_list(user: User = Depends(get_current_user)):
+    from app.services import sports
+    return {"sports": sports.catalogue(), "safety": sports.COMMON_SAFETY}
+
+
+@router.get("/sports/{key}")
+def sports_pathway(key: str, city: str = Query(default="Colombo", max_length=60), user: User = Depends(get_current_user)):
+    """Stages, weekly schedule, equipment and LKR costs, safety, online vs instructor, how to choose a club, nearby search."""
+    from app.services import sports
+    out = sports.pathway(key, city.strip() or "Colombo")
+    if out is None:
+        raise HTTPException(404, "Unknown sport")
+    return out
+
+
+@router.post("/english/check")
+def english_check(data: dto.EnglishCheckIn, user: User = Depends(get_current_user)):
+    """Grammar suggestions with a corrected version. Built-in rules always; deep=true also asks LanguageTool."""
+    from app.services import english
+    return english.check(data.text, data.deep, data.lang)
+
+
+@router.post("/freelance/estimate")
+def freelance_estimate(data: dto.FreelanceEstimateIn, user: User = Depends(get_current_user)):
+    from app.services import freelance, wealth
+    return freelance.estimate(data.hours, data.rate_usd, data.level, data.platform, data.complexity, data.revisions, wealth._usd_lkr()[0], data.buffer_pct)
+
+
+@router.post("/freelance/proposal")
+def freelance_proposal(data: dto.FreelanceProposalIn, user: User = Depends(get_current_user)):
+    """A proposal draft for you to edit and send yourself. Nothing is sent from Sakuna."""
+    from app.services import freelance
+    return freelance.proposal(data.job, [s.strip()[:40] for s in data.skills if s.strip()], data.name, data.experience, data.days, data.price_usd, data.tone)
