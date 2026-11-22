@@ -146,3 +146,27 @@ def health_advice(ai: bool = False, db: Session = Depends(get_db), user: User = 
 def skill_session_advice(session_id: uuid.UUID, ai: bool = False, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Tips for one practice (e.g. a sing-along): from its scores, progress on the same song, and an AI vocal coach when AI is on."""
     out = wb.session_advice(db, user.id, owned(db, SkillSession, user.id, session_id), ai); db.commit(); return out
+
+
+# ---------------- meal planner and exercise library (plain data and maths)
+
+@router.post("/nutrition/plan")
+def nutrition_plan(data: dto.MealPlanIn, user: User = Depends(get_current_user)):
+    """A 7-day Sri Lankan meal plan for your calorie and protein targets and budget, with a shopping list."""
+    from app.services import nutrition
+    return nutrition.week_plan(data.weight_kg, data.goal, data.budget_lkr_day, list(data.diet), data.height_cm, data.age, data.sex)
+
+
+@router.get("/exercises")
+def exercises_library(muscle: str | None = Query(default=None, max_length=30), equipment: str | None = Query(default=None, max_length=20),
+                      level: int | None = Query(default=None, ge=1, le=3), user: User = Depends(get_current_user)):
+    """Exercises with target muscles, sets, reps, rest, technique, common mistakes and an easier option."""
+    from app.services import exercises
+    return {"items": exercises.library(muscle, equipment, level), "plans": exercises.plans()}
+
+
+@router.get("/exercises/today")
+def exercises_today(plan: str = Query(default="full_body", max_length=20), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Today's workout from the plan you follow (or a rest-day tip)."""
+    from app.services import exercises
+    return exercises.today(plan, wb._today(db, user.id).isoweekday())

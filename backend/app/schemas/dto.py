@@ -1748,3 +1748,13 @@ class RolePlayStart(BaseModel):
 
 class RolePlayReply(BaseModel):
     text: str = Field(min_length=1, max_length=1500)
+
+
+class MealPlanIn(BaseModel):
+    weight_kg: float = Field(ge=30, le=250)
+    goal: Literal["lose", "maintain", "gain"] = "lose"
+    budget_lkr_day: float | None = Field(default=None, ge=100, le=100000)
+    diet: list[Literal["vegetarian", "pescatarian", "no_egg", "no_dairy"]] = Field(default_factory=list, max_length=4)
+    height_cm: float | None = Field(default=None, ge=120, le=230)
+    age: int | None = Field(default=None, ge=14, le=100)
+    sex: Literal["male", "female"] | None = None

@@ -82,3 +82,57 @@ export function WealthPage({ token }: { token: string }) {
     </Card>
   </div>;
 }
+
+export function FitnessGuidePage({ token }: { token: string }) {
+  const [tab, setTab] = useState<"today" | "library" | "meals">("today");
+  const [plans, setPlans] = useState<Row[]>([]);
+  const [plan, setPlan] = useState("full_body");
+  const [today, setToday] = useState<Row | null>(null);
+  const [items, setItems] = useState<Row[]>([]);
+  const [muscle, setMuscle] = useState("");
+  const [open, setOpen] = useState<string | null>(null);
+  const [f, setF] = useState<Row>({ weight_kg: "75", goal: "lose", budget_lkr_day: "", diet: [] as string[] });
+  const [meal, setMeal] = useState<Row | null>(null);
+  const [day, setDay] = useState(0);
+  const [note, setNote] = useState("");
+  useEffect(() => { call<Row>("/exercises", token).then(x => { setPlans(x.plans); setItems(x.items); }).catch(e => setNote(errText(e))); }, [token]);
+  useEffect(() => { call<Row>(`/exercises/today?plan=${plan}`, token).then(setToday).catch(() => undefined); }, [token, plan]);
+  useEffect(() => { if (tab === "library") call<Row>(`/exercises${muscle ? `?muscle=${muscle}` : ""}`, token).then(x => setItems(x.items)).catch(() => undefined); }, [token, tab, muscle]);
+  const card = (e: Row) => <div key={e.name} style={{ borderTop: "1px solid var(--d-line)", padding: "8px 0" }}>
+    <button className="text-button" style={{ width: "100%", textAlign: "left" }} onClick={() => setOpen(open === e.name ? null : e.name)}><b style={{ color: "var(--d-text)" }}>{e.name}</b> · {e.sets} × {e.reps} <small className="d-note">({(e.muscles as string[]).join(", ")})</small></button>
+    {open === e.name && <div className="d-note"><ol>{(e.technique as string[]).map((t, i) => <li key={i}>{t}</li>)}</ol>
+      <p style={{ color: "var(--d-amber)" }}>Mistakes: {(e.mistakes as string[]).join(" · ")}</p><p>Easier: {e.easier} · rest {e.rest_s}s · <a href={e.video_search} target="_blank" rel="noreferrer">▶ Watch how (YouTube search)</a></p></div>}</div>;
+  const make = () => {
+    const body: Row = { weight_kg: Number(f.weight_kg), goal: f.goal, diet: f.diet };
+    if (Number(f.budget_lkr_day) > 0) body.budget_lkr_day = Number(f.budget_lkr_day);
+    void call<Row>("/nutrition/plan", token, postJson(body)).then(setMeal).catch(e => setNote(errText(e)));
+  };
+  return <div className="d-dash">
+    <Hero kicker="Fitness guide" title="Stronger," accent="leaner, safer" sub="Workout plans with technique and a Sri Lankan meal planner that fits your budget. Not medical advice."/>
+    <div className="d-chips">{(["today", "library", "meals"] as const).map(t => <button key={t} className={`d-chip ${tab === t ? "on" : ""}`} onClick={() => setTab(t)}>{{ today: "🏋️ Today", library: "📖 Exercises", meals: "🥗 Meals" }[t]}</button>)}</div>
+    {note && <p className="d-note">{note}</p>}
+    {tab === "today" && <Card kicker={today?.plan || "Plan"} title={today?.rest_day ? "😌 Rest day" : `Workout ${today?.workout || ""}`}
+      action={<select className="d-input" value={plan} onChange={e => setPlan(e.target.value)}>{plans.map(p => <option key={p.key} value={p.key}>{p.title}</option>)}</select>}>
+      {today?.rest_day ? <p className="d-note">{today.tip} Next workout: {today.next_day}.</p> : <>{(today?.exercises as Row[] || []).map(card)}<p className="d-note">{today?.tip}</p></>}</Card>}
+    {tab === "library" && <Card kicker="Exercise library" title={`${items.length} exercises`} action={<select className="d-input" value={muscle} onChange={e => setMuscle(e.target.value)}>
+      {["", "chest", "back", "shoulders", "quads", "glutes", "hamstrings", "biceps", "triceps", "core", "cardio"].map(m => <option key={m} value={m}>{m || "All muscles"}</option>)}</select>}>{items.map(card)}</Card>}
+    {tab === "meals" && <>
+      <Card kicker="Your details" title="7-day Sri Lankan meal plan">
+        <div className="d-row"><label className="d-note">Weight kg<input className="d-input" value={f.weight_kg} onChange={e => setF({ ...f, weight_kg: e.target.value })}/></label>
+          <label className="d-note">Budget/day LKR<input className="d-input" value={f.budget_lkr_day} onChange={e => setF({ ...f, budget_lkr_day: e.target.value })} placeholder="optional"/></label>
+          <select className="d-input" value={f.goal} onChange={e => setF({ ...f, goal: e.target.value })}><option value="lose">Lose fat</option><option value="maintain">Maintain</option><option value="gain">Build muscle</option></select></div>
+        <div className="d-chips">{["vegetarian", "pescatarian", "no_egg", "no_dairy"].map(x => <button key={x} className={`d-chip ${(f.diet as string[]).includes(x) ? "on" : ""}`}
+          onClick={() => setF({ ...f, diet: (f.diet as string[]).includes(x) ? (f.diet as string[]).filter(y => y !== x) : [...f.diet, x] })}>{x.replace("_", " ")}</button>)}</div>
+        <button className="d-btn" onClick={make}>🥗 Make my week</button></Card>
+      {meal && <div className="d-grid-2">
+        <Card kicker={`${meal.targets.kcal} kcal · ${meal.targets.protein_g} g protein (${meal.targets.method})`} title={(meal.days as Row[])[day].day}
+          action={<div className="d-chips">{(meal.days as Row[]).map((d, i) => <button key={d.day} className={`d-chip ${day === i ? "on" : ""}`} onClick={() => setDay(i)}>{d.day.slice(0, 3)}</button>)}</div>}>
+          {((meal.days as Row[])[day].meals as Row[]).map(m => <p key={m.slot}><b style={{ textTransform: "capitalize" }}>{m.slot}</b> <small className="d-note">({m.kcal} kcal · {m.protein_g} g)</small><br/>
+            {(m.items as Row[]).map(it => `${it.qty !== 1 ? `${it.qty} × ` : ""}${it.name}`).join(" · ")}</p>)}
+          {meal.budget_note && <p className="d-note" style={{ color: "var(--d-amber)" }}>{meal.budget_note}</p>}{meal.targets.floor_note && <p className="d-note" style={{ color: "var(--d-amber)" }}>{meal.targets.floor_note}</p>}</Card>
+        <Card kicker="Shopping list" title={`≈ Rs ${Number(meal.week_cost_lkr).toLocaleString()} / week`}>{(meal.shopping as Row[]).map(s => <p key={s.item} className="d-note">{s.item}: {s.portions} × {s.portion} · Rs {Number(s.cost_lkr).toLocaleString()}</p>)}
+          <p className="d-note">{meal.note}</p></Card>
+      </div>}
+    </>}
+  </div>;
+}
