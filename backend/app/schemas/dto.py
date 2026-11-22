@@ -1740,3 +1740,11 @@ class CompanionAnswer(BaseModel):
 
 class CompanionFrequency(BaseModel):
     frequency: Literal["daily", "few_weekly", "useful", "off"]
+
+
+class RolePlayStart(BaseModel):
+    scenario: str = Field(min_length=1, max_length=32)
+
+
+class RolePlayReply(BaseModel):
+    text: str = Field(min_length=1, max_length=1500)

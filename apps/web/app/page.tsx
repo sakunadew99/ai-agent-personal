@@ -38,6 +38,7 @@ import { HabitManager, InboxPage, JobFinder, LearnRadar, PlannerBoard, RewardsGa
 import { BrainGymPage, NewsAndWatch } from "@/components/LifeOsPages3";
 import { SearchPage, VideosPage } from "@/components/LifeOsPages5";
 import { SchedulePage, SpeakingPage } from "@/components/LifeOsPages6";
+import { RolePlayPage } from "@/components/LifeOsPages8";
 import { DreamsPage, DrillPage, HealthAdvicePanel, MedicinesPage, ReceiptPage, RitualsPage, SkillsPage, SkinPage } from "@/components/LifeOsPages7";
 import { DayPage, GymPage, LanguagesPage, ProgressPage } from "@/components/LifeOsPages4";
 import { NudgeBanner, TodayPlanCard } from "@/components/SmartCards";
@@ -75,6 +76,7 @@ const navigation = [
   { label: "Medicines", icon: "heart", hint: "Doses, reminders, refills" },
   { label: "Scan receipt", icon: "copy", hint: "Receipt photo to expense (free on-device OCR)" },
   { label: "Say it", icon: "book", hint: "Pronunciation drill: German & English" },
+  { label: "Role-play coach", icon: "brain", hint: "Negotiation, leadership, interviews: practise and get scored" },
   { label: "Morning & evening", icon: "sun", hint: "2-minute start and close of your day" },
   { label: "Skin & glow", icon: "heart", hint: "Daily face scan and glow score" },
   { label: "Skills & trainers", icon: "flame", hint: "Yoga, singing, guitar, boxing: pitch trainer and pose coach" },
@@ -144,7 +146,7 @@ const NAV_GROUPS: [string, string[]][] = [
   ["TODAY", ["Home", "Morning & evening", "Focus", "Planner", "My day", "Day tracker", "My schedule", "Capture inbox", "Search"]],
   ["💰 MONEY", ["Finance", "Scan receipt", "Invest", "Documents"]],
   ["💪 BODY", ["Health", "Gym", "Medicines", "Skin & glow", "Skills & trainers"]],
-  ["🎓 LEARNING", ["Learning", "Languages", "Say it", "Exam coach", "Speaking coach", "Progress", "Study abroad", "Career", "My videos", "News", "Brain gym"]],
+  ["🎓 LEARNING", ["Learning", "Languages", "Say it", "Role-play coach", "Exam coach", "Speaking coach", "Progress", "Study abroad", "Career", "My videos", "News", "Brain gym"]],
   ["🌱 LIFE", ["Dreams & goals", "My life", "Journal", "Life balance", "Experiences", "Rewards", "Weekly review", "About you", "Insights"]],
   ["✨ AI & SETTINGS", ["Assistant", "AI team", "Memory", "Approvals", "Settings"]],
 ];
@@ -460,6 +462,7 @@ export default function Home() {
       case "Medicines": return <MedicinesPage token={token} />;
       case "Scan receipt": return <ReceiptPage token={token} />;
       case "Say it": return <DrillPage token={token} />;
+      case "Role-play coach": return <RolePlayPage token={token} />;
       case "Morning & evening": return <RitualsPage token={token} />;
       case "Skin & glow": return <SkinPage token={token} />;
       case "Skills & trainers": return <SkillsPage token={token} />;

@@ -1781,3 +1781,20 @@ class SkinCheck(Base):
     metrics: Mapped[dict] = mapped_column(JsonDict)
     note: Mapped[str | None] = mapped_column(String(300), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class RolePlaySession(Base):
+    """One practice conversation (negotiation, leadership, interview...): the messages, the rubric score and feedback."""
+    __tablename__ = "roleplay_sessions"
+    __table_args__ = (CheckConstraint("status IN ('open','done')", name="ck_roleplay_sessions_status"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    scenario: Mapped[str] = mapped_column(String(32))
+    skill: Mapped[str] = mapped_column(String(20))
+    messages: Mapped[list] = mapped_column(JsonDict)
+    status: Mapped[str] = mapped_column(String(8), default="open")
+    score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    feedback: Mapped[dict | None] = mapped_column(JsonDict, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

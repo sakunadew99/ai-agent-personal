@@ -25,6 +25,7 @@ export const GROUPS: Group[] = [
   ] },
   { name: "Learning", emoji: "🎓", color: "#b18cff", items: [
     { key: "Learning", icon: "📚", title: "Learning", hint: "Languages, cards, exams, speaking", words: "german english words leetcode course ielts goethe exam speaking speech presentation pronunciation" },
+    { key: "Roleplay", icon: "🎭", title: "Role-play coach", hint: "Negotiation, leadership, interviews", words: "soft skills negotiation salary client leadership conflict delegate interview feedback say no pitch sales communication confidence" },
     { key: "Skills", icon: "🎯", title: "Skills & trainers", hint: "Yoga, singing, guitar, boxing, leadership", words: "yoga singing vocal guitar music kickboxing fighting swimming leadership soft skills hard skills pose pitch tuner practice" },
     { key: "Speak", icon: "🎙", title: "Speaking coach", hint: "Public speaking, English & German", words: "speech talk presentation pronunciation fluency confidence communication whisper" },
 

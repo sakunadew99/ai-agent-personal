@@ -86,3 +86,36 @@ def speaking_drill(data: dto.DrillIn, db: Session = Depends(get_db), user: User 
                           details={"kind": "drill", "target": data.target, **res}, source="device")
     db.add(row); db.commit()
     return {**res, "id": row.id}
+
+
+# ---------------- soft-skills academy: role-play practice
+
+@router.get("/roleplay")
+def roleplay_catalogue(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Practice situations by skill with your attempts and best scores, and your level per skill."""
+    from app.services import roleplay
+    return roleplay.catalogue(db, user.id)
+
+
+@router.post("/roleplay", status_code=201)
+def roleplay_start(data: dto.RolePlayStart, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services import roleplay
+    row = roleplay.start(db, user.id, data.scenario); db.commit()
+    sc = roleplay.BY_ID[row.scenario]
+    return {"id": row.id, "messages": row.messages, "scenario": {k: sc[k] for k in ("id", "title", "setup", "icon", "skill")},
+            "rubric": [label for label, _, _ in sc["rubric"]]}
+
+
+@router.post("/roleplay/{session_id}/reply")
+def roleplay_reply(session_id: uuid.UUID, data: dto.RolePlayReply, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import RolePlaySession
+    from app.services import roleplay
+    out = roleplay.reply(db, user.id, owned(db, RolePlaySession, user.id, session_id), data.text); db.commit(); return out
+
+
+@router.post("/roleplay/{session_id}/finish")
+def roleplay_finish(session_id: uuid.UUID, ai: bool = False, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Score against the rubric (plain checks), tips, and optional AI coach feedback."""
+    from app.models.entities import RolePlaySession
+    from app.services import roleplay
+    out = roleplay.finish(db, user.id, owned(db, RolePlaySession, user.id, session_id), ai); db.commit(); return out
