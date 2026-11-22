@@ -34,6 +34,9 @@ def _no_real_news_downloads(monkeypatch):
     monkeypatch.setattr(portfolio_ai, "_http", lambda method, url, data=None: blocked(url))
     from app.services import hf
     monkeypatch.setattr(hf, "_post", lambda model, payload, suffix="": blocked(model))
+    from app.services import resources
+    resources._cache.clear()
+    monkeypatch.setattr(resources, "_http_get", blocked)
 
 
 @pytest.fixture(autouse=True)

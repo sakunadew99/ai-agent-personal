@@ -113,3 +113,17 @@ def travel_wish_update(wish_id: uuid.UUID, data: dto.TravelWishUpdate, db: Sessi
 @router.delete("/travel/wishes/{wish_id}", status_code=204)
 def travel_wish_delete(wish_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     db.delete(owned(db, TravelWish, user.id, wish_id)); db.commit()
+
+
+# ---------------- best learning resources for any topic (real search links + a real Wikipedia summary)
+
+@router.get("/resources")
+def resources_find(topic: str = Query(min_length=2, max_length=120), level: str = Query(default="beginner", pattern="^(beginner|intermediate|advanced)$"),
+                   ai: bool = False, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Best beginner video, practical tutorial, educational post, free resource and next action for a topic. Nothing invented."""
+    from app.services import resources
+    out = resources.find(topic, level)
+    if ai:
+        out["ai_note"] = resources.ai_note(db, user.id, out["topic"])
+        db.commit()
+    return out

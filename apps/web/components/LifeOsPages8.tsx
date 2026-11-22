@@ -202,3 +202,26 @@ export function TravelPage({ token }: { token: string }) {
       <p className="d-note">{(d.highlights as string[]).join(" · ")}</p><button className="d-btn ghost" onClick={() => go(d)}>Plan this trip</button></Card>)}</div>
   </div>;
 }
+
+export function ResourcesPage({ token }: { token: string }) {
+  const [topic, setTopic] = useState("");
+  const [level, setLevel] = useState("beginner");
+  const [r, setR] = useState<Row | null>(null);
+  const [note, setNote] = useState("");
+  const find = (ai = false) => { if (topic.trim().length < 2) return;
+    void call<Row>(`/resources?topic=${encodeURIComponent(topic.trim())}&level=${level}${ai ? "&ai=true" : ""}`, token).then(setR).catch(e => setNote(errText(e))); };
+  return <div className="d-dash">
+    <Hero kicker="Learn anything · trusted resources" title="What do you" accent="want to learn?" sub="Real search links on reliable sites and a Wikipedia summary. Nothing made up.">
+      <div className="d-row" style={{ marginTop: 10 }}><input className="d-input" value={topic} onChange={e => setTopic(e.target.value)} onKeyDown={e => { if (e.key === "Enter") find(); }} placeholder="e.g. swimming, pandas, German A1"/>
+        <select className="d-input" value={level} onChange={e => setLevel(e.target.value)}><option value="beginner">Beginner</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option></select>
+        <button className="d-btn" onClick={() => find()}>🔎 Find</button></div>
+    </Hero>
+    {note && <p className="d-note">{note}</p>}
+    {r && <div className="d-grid-2">
+      <Card kicker={`${r.category} · ${r.level}`} title={r.topic}>{(r.items as Row[]).map(i => <p key={i.kind}><b>{i.kind}:</b> <a href={i.url} target="_blank" rel="noreferrer">{i.label}</a><br/><small className="d-note">{i.why}</small></p>)}
+        <p style={{ color: "var(--d-green)", fontWeight: 800 }}>Next: {r.next_action}</p><p className="d-note">{r.note}</p></Card>
+      <Card kicker="Summary" title={r.summary ? r.summary.title : "No summary found"}>{r.summary && <><p>{r.summary.summary}</p><a href={r.summary.url} target="_blank" rel="noreferrer">Read on Wikipedia</a></>}
+        {r.ai_note ? <pre className="d-plan">{r.ai_note}</pre> : <button className="d-btn ghost" onClick={() => find(true)}>✨ What should I learn first?</button>}</Card>
+    </div>}
+  </div>;
+}
