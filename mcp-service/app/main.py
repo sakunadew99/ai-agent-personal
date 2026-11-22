@@ -146,6 +146,62 @@ async def create_expense(amount: float, currency: str, category: str, notes: str
     return await _proposal("create_expense", payload)
 
 
+QUESTIONS = ("today", "important", "week", "neglecting", "next")
+
+
+@mcp.tool()
+async def ask_sakuna(question: str = "today") -> dict:
+    """Answer one of: today (what to do), important (top task), week (progress), neglecting, next. Plain calculations, read-only."""
+    if question not in QUESTIONS:
+        raise ValueError(f"question must be one of {', '.join(QUESTIONS)}")
+    return await _backend("GET", f"/api/v1/ask/{question}")
+
+
+@mcp.tool()
+async def read_progress() -> dict:
+    """Read progress for every active goal: %, pace against start/target dates, tasks and milestones."""
+    return await _backend("GET", "/api/v1/progress")
+
+
+@mcp.tool()
+async def generate_report() -> dict:
+    """Build the user's weekly report (progress, neglected areas, top task, next focus). Read-only."""
+    return await _backend("GET", "/api/v1/reports/weekly")
+
+
+@mcp.tool()
+async def search_resources(topic: str, level: str = "beginner") -> dict:
+    """Find vetted learning resources for a topic (beginner/intermediate/advanced). Never invents titles or links."""
+    if level not in ("beginner", "intermediate", "advanced"):
+        raise ValueError("level must be beginner, intermediate or advanced")
+    return await _backend("GET", "/api/v1/resources", params={"topic": topic[:120], "level": level})
+
+
+@mcp.tool()
+async def search_travel(month: int | None = None, interest: str | None = None) -> dict:
+    """Read travel destinations (good-this-month first) and the user's wish list. month is 1-12."""
+    params = {}
+    if month is not None:
+        if not 1 <= month <= 12:
+            raise ValueError("month must be 1-12")
+        params["month"] = month
+    if interest:
+        params["interest"] = interest[:20]
+    return await _backend("GET", "/api/v1/travel", params=params or None)
+
+
+@mcp.tool()
+async def capture_note(body: str, title: str = "", tags: list[str] | None = None) -> dict:
+    """Propose saving a note. The user must approve it in Sakuna before it is saved."""
+    return await _proposal("create_note", {"title": title[:200], "body": body[:50000], "tags": (tags or [])[:12]})
+
+
+@mcp.tool()
+async def propose_plan_fixes() -> dict:
+    """Run Sakuna's plan check: proposes moving overdue tasks to tomorrow. Creates pending approvals only."""
+    return await _backend("POST", "/api/v1/plan/check")
+
+
 class UserTokenMiddleware:
     """Validate each MCP HTTP request against Sakuna and scope tools to its user."""
 

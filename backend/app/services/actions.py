@@ -285,6 +285,17 @@ def execute_action(db: Session, user: User, action: str, body: dict) -> dict:
         added = add_list_items(db, user.id, "buy" if action == "add_to_buy_list" else "wish", list_name, items, _profile(db, user.id).currency)
         ids = added["buy_item_ids"] + added["wish_ids"]
         return {"id": ids[0] if ids else None, "ids": ids, "summary": added["summary"]}
+    if action == "create_note":
+        from app.models.entities import Note
+        from app.schemas.dto import NoteIn
+        data = NoteIn.model_validate(body)
+        if not (data.title.strip() or data.body.strip()):
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Write a title or some text")
+        tags = list(dict.fromkeys(t.strip().lstrip("#").lower()[:32] for t in data.tags if t.strip()))[:12]
+        row = Note(user_id=user.id, title=data.title.strip(), body=data.body, tags=tags, color=data.color, pinned=data.pinned)
+        db.add(row); db.flush()
+        audit(db, user.id, "note.create", "note", row.id)
+        return {"id": str(row.id), "title": row.title}
     raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown action")
 
 

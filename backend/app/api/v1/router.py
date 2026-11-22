@@ -1613,7 +1613,7 @@ def approvals(db: Session = Depends(get_db), user: User = Depends(get_current_us
 def mcp_proposal(data: dict, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     tool_name = data.get("tool_name")
     payload = data.get("payload") or {}
-    supported = {"create_task", "update_task", "create_goal", "save_memory", "create_daily_plan", "create_expense"}
+    supported = {"create_task", "update_task", "create_goal", "save_memory", "create_daily_plan", "create_expense", "create_note"}
     if tool_name not in supported or not isinstance(payload, dict):
         raise HTTPException(422, "Unsupported MCP write tool or invalid payload")
     # Validate before persisting the proposal; the action is still not executed.
@@ -1623,6 +1623,7 @@ def mcp_proposal(data: dict, db: Session = Depends(get_db), user: User = Depends
         "save_memory": dto.MemoryIn,
         "create_daily_plan": dto.GeneratePlanIn,
         "create_expense": dto.ExpenseIn,
+        "create_note": dto.NoteIn,
     }
     try:
         if tool_name == "update_task":
@@ -1635,6 +1636,10 @@ def mcp_proposal(data: dict, db: Session = Depends(get_db), user: User = Depends
             schemas[tool_name].model_validate(payload)
     except Exception as exc:
         raise HTTPException(422, "Tool arguments failed validation") from exc
+    # Idempotent: the same pending proposal (a retried tool call) is returned instead of duplicated.
+    for same in db.scalars(select(Approval).where(Approval.user_id == user.id, Approval.status == "pending", Approval.tool_name == tool_name)).all():
+        if (same.payload or {}).get("body") == payload:
+            return same
     row = Approval(user_id=user.id, tool_name=tool_name, payload={"action": tool_name, "body": payload}, status="pending")
     db.add(row)
     from app.services.audit import audit

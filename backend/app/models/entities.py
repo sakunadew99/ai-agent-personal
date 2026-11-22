@@ -153,7 +153,9 @@ class MemoryEmbedding(Base):
 
 class Goal(Base):
     __tablename__ = "goals"
-    __table_args__ = (CheckConstraint("horizon IS NULL OR horizon IN ('today','week','month','year','3y','5y','10y')", name="ck_goals_horizon"),)
+    __table_args__ = (CheckConstraint("horizon IS NULL OR horizon IN ('today','week','month','year','3y','5y','10y')", name="ck_goals_horizon"),
+                      CheckConstraint("priority IN ('low','medium','high')", name="ck_goals_priority"),
+                      CheckConstraint("progress_pct IS NULL OR progress_pct BETWEEN 0 AND 100", name="ck_goals_progress_pct"))
 
     id: Mapped[uuid.UUID] = pk()
     user_id: Mapped[uuid.UUID] = user_fk()
@@ -178,8 +180,20 @@ class Goal(Base):
     challenges: Mapped[list | None] = mapped_column(JsonDict, nullable=True)
     next_action: Mapped[str | None] = mapped_column(String(300), nullable=True)
     parent_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("goals.id", ondelete="SET NULL"), nullable=True, index=True)
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    priority: Mapped[str] = mapped_column(String(8), default="medium", server_default="medium")
+    progress_pct: Mapped[int | None] = mapped_column(Integer, nullable=True)      # manual progress when there's no numeric target
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    @property
+    def progress_percent(self) -> int | None:
+        """Numeric target wins (current / target); otherwise your manual %; a completed goal is 100."""
+        if self.status == "completed":
+            return 100
+        if self.target_value and self.target_value > 0:
+            return max(0, min(100, int((self.current_value or 0) / self.target_value * 100)))
+        return self.progress_pct
 
 
 class GoalLevel(Base):

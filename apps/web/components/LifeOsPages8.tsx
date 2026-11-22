@@ -467,6 +467,10 @@ export function AskPage({ token, onOpenApprovals }: { token: string; onOpenAppro
   const [err, setErr] = useState("");
   const ask = useCallback((key: string) => { setQ(key); setA(null); call<Row>(`/ask/${key}`, token).then(setA).catch(e => setErr(errText(e))); }, [token]);
   useEffect(() => { call<Row>("/ask", token).then(r => setQs(r.questions as Row[])).catch(e => setErr(errText(e))); ask("today"); }, [token, ask]);
+  const [prog, setProg] = useState<Row | null>(null);
+  const loadProg = useCallback(() => { call<Row>("/progress", token).then(setProg).catch(e => setErr(errText(e))); }, [token]);
+  useEffect(() => { loadProg(); }, [loadProg]);
+  const patchGoal = (id: string, body: Row) => void call(`/goals/${id}`, token, patchJson(body)).then(loadProg).catch(e => setErr(errText(e)));
   const runCheck = () => void call<Row>("/plan/check", token, postJson({})).then(setCheck).catch(e => setErr(errText(e)));
   const list = (a?.tasks || a?.done || []) as Row[];
   return <div className="d-dash">
@@ -479,6 +483,17 @@ export function AskPage({ token, onOpenApprovals }: { token: string; onOpenAppro
       {((a?.items || []) as Row[]).map((i, k) => <p key={k}><b style={{ color: "var(--d-amber)" }}>{i.title}</b>{i.detail ? <span className="d-note"> · {i.detail}</span> : null}</p>)}
       {((a?.areas || []) as Row[]).filter(x => x.percent != null).map(x => <p key={x.name} className="d-note">{x.name}: {x.percent}% · {String(x.status).replaceAll("_", " ")}</p>)}
     </Card>
+    {prog && (prog.goals as Row[]).length > 0 && <Card kicker="Goal progress" title="Priority, % and pace">
+      {(prog.goals as Row[]).map(g => { const pct = g.progress_percent as number | null; return <div key={g.id} style={{ marginBottom: 10 }}>
+        <div className="d-row" style={{ justifyContent: "space-between" }}><b>{g.title}</b>
+          <button className="d-chip on" title="Change priority" onClick={() => patchGoal(g.id, { priority: ({ low: "medium", medium: "high", high: "low" } as Row)[g.priority] || "medium" })}>{g.priority}</button></div>
+        <div style={{ height: 8, borderRadius: 4, background: "var(--d-card2)" }}><div style={{ width: `${pct ?? 0}%`, height: 8, borderRadius: 4, background: g.pace === "behind" ? "var(--d-amber)" : "var(--d-green)" }}/></div>
+        <div className="d-row" style={{ justifyContent: "space-between" }}>
+          <span className="d-note">{[pct != null ? `${pct}%` : "no % yet", g.pace ? String(g.pace).replace("_", " ") : null, g.days_left != null ? `${g.days_left} days left` : null, g.tasks_open ? `${g.tasks_open} open tasks` : null].filter(Boolean).join(" · ")}</span>
+          {g.manual && <span><button className="text-button" onClick={() => patchGoal(g.id, { progress_pct: Math.max(0, (g.progress_pct ?? pct ?? 0) - 10) })}>−10%</button>
+            <button className="text-button" onClick={() => patchGoal(g.id, { progress_pct: Math.min(100, (g.progress_pct ?? pct ?? 0) + 10) })}>+10%</button></span>}
+        </div></div>; })}
+    </Card>}
     <Card kicker="Plan check" title="Fix overdue tasks, with your approval">
       <p className="d-note">Finds overdue tasks and proposes moving each to tomorrow. Nothing changes until you approve it.</p>
       <button className="d-btn" onClick={runCheck}>🔍 Check my plan</button>

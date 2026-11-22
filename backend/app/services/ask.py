@@ -125,7 +125,7 @@ def answer(db: Session, user: User, q: str, today: date | None = None) -> dict:
         text = items[0]["title"] + "." if items else "Nothing stands out as neglected. Nice balance."
         return {"question": QUESTIONS[q], "answer": text, "items": items[:8]}
     if q == "next":
-        g = sorted((g for g in goals if g.next_action), key=lambda g: (g.due_date or date.max, g.title))
+        g = sorted((g for g in goals if g.next_action), key=lambda g: (-PRIO.get(g.priority, 0), g.due_date or date.max, g.title))
         nxt = ranked[:3]
         if g:
             text = f"For “{g[0].title}”: {g[0].next_action}."
@@ -163,3 +163,43 @@ def plan_check(db: Session, user: User, today: date | None = None) -> dict:
             break
     return {"proposals": created, "skipped_already_pending": len(already),
             "message": f"{len(created)} proposal{'s' if len(created) != 1 else ''} waiting in Approvals." if created else "Your plan looks fine: nothing overdue to move."}
+
+
+def progress(db: Session, user: User, today: date | None = None) -> dict:
+    """Goal progress for every active goal: % (target, manual or completed), dates, priority, open/done tasks, milestones."""
+    from app.models.entities import GoalMilestone
+    tz = _tz(db, user.id)
+    today = today or now_utc().astimezone(tz).date()
+    out = []
+    goals = db.scalars(select(Goal).where(Goal.user_id == user.id, Goal.status.in_(("active", "paused")))).all()
+    for g in sorted(goals, key=lambda g: (-PRIO.get(g.priority, 0), g.due_date or date.max, g.title.lower())):
+        tasks = db.scalars(select(Task).where(Task.user_id == user.id, Task.goal_id == g.id)).all()
+        ms = db.scalars(select(GoalMilestone).where(GoalMilestone.user_id == user.id, GoalMilestone.goal_id == g.id)).all()
+        days_left = (g.due_date - today).days if g.due_date else None
+        pct = g.progress_percent
+        if pct is None and ms:
+            pct = int(sum(1 for m in ms if m.done_at) / len(ms) * 100)
+        elapsed = None
+        if g.start_date and g.due_date and g.due_date > g.start_date:
+            elapsed = max(0, min(100, int((today - g.start_date).days / (g.due_date - g.start_date).days * 100)))
+        pace = None if pct is None or elapsed is None else ("ahead" if pct >= elapsed + 5 else "behind" if pct + 10 < elapsed else "on_track")
+        out.append({"id": g.id, "title": g.title, "category": g.category, "priority": g.priority, "status": g.status, "start_date": g.start_date,
+                    "manual": not (g.target_value and g.target_value > 0), "progress_pct": g.progress_pct,
+                    "due_date": g.due_date, "days_left": days_left, "progress_percent": pct, "time_elapsed_percent": elapsed, "pace": pace,
+                    "tasks_open": sum(1 for t in tasks if t.status in OPEN), "tasks_done": sum(1 for t in tasks if t.status == "done"),
+                    "milestones_done": sum(1 for m in ms if m.done_at), "milestones_total": len(ms), "next_action": g.next_action, "success": g.success})
+    return {"goals": out, "behind": [x["title"] for x in out if x["pace"] == "behind"]}
+
+
+def weekly_report(db: Session, user: User, today: date | None = None) -> dict:
+    """A plain weekly report: progress, what's neglected, top task and next focus. Same numbers the app shows."""
+    tz = _tz(db, user.id)
+    today = today or now_utc().astimezone(tz).date()
+    week, neg, imp, nxt = (answer(db, user, k, today) for k in ("week", "neglecting", "important", "next"))
+    prog = progress(db, user, today)
+    lines = [f"Week of {(today - timedelta(days=today.weekday())).isoformat()}", week["answer"]]
+    for g in prog["goals"][:6]:
+        pct = f"{g['progress_percent']}%" if g["progress_percent"] is not None else "no % yet"
+        lines.append(f"• {g['title']} ({g['priority']}): {pct}" + (f", {g['pace'].replace('_', ' ')}" if g["pace"] else "") + (f", {g['days_left']} days left" if g["days_left"] is not None else ""))
+    lines += [f"Needs attention: {neg['answer']}", f"Most important: {imp['answer']}", f"Next: {nxt['answer']}"]
+    return {"title": "Weekly report", "text": "\n".join(lines), "week": week, "neglecting": neg["items"], "important": imp["tasks"], "goals": prog["goals"]}

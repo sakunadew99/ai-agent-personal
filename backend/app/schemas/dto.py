@@ -173,6 +173,9 @@ class GoalIn(BaseModel):
     challenges: list[str] | None = Field(default=None, max_length=20)
     next_action: str | None = Field(default=None, max_length=300)
     parent_id: uuid.UUID | None = None
+    start_date: date | None = None
+    priority: Priority = "medium"
+    progress_pct: int | None = Field(default=None, ge=0, le=100)
 
 
 class GoalUpdate(BaseModel):
@@ -193,6 +196,9 @@ class GoalUpdate(BaseModel):
     resources: list[str] | None = Field(default=None, max_length=20)
     challenges: list[str] | None = Field(default=None, max_length=20)
     next_action: str | None = Field(default=None, max_length=300)
+    start_date: date | None = None
+    priority: Priority | None = None
+    progress_pct: int | None = Field(default=None, ge=0, le=100)
 
 
 class GoalOut(ORMModel):
@@ -215,6 +221,10 @@ class GoalOut(ORMModel):
     challenges: list[str] | None = None
     next_action: str | None = None
     parent_id: uuid.UUID | None = None
+    start_date: date | None = None
+    priority: str = "medium"
+    progress_pct: int | None = None
+    progress_percent: int | None = None
     created_at: datetime
 
 

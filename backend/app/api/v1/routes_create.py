@@ -350,3 +350,16 @@ def approval_cancel(approval_id: uuid.UUID, db: Session = Depends(get_db), user:
     audit(db, user.id, "approval.cancel", "approval", row.id, {"tool": row.tool_name})
     db.commit()
     return {"id": row.id, "status": row.status}
+
+
+@router.get("/progress")
+def progress_overview(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Every active goal with %, pace against its start/target dates, tasks and milestones."""
+    from app.services import ask
+    return ask.progress(db, user, _today(db, user))
+
+
+@router.get("/reports/weekly")
+def report_weekly(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services import ask
+    return ask.weekly_report(db, user, _today(db, user))
