@@ -127,3 +127,105 @@ def resources_find(topic: str = Query(min_length=2, max_length=120), level: str 
         out["ai_note"] = resources.ai_note(db, user.id, out["topic"])
         db.commit()
     return out
+
+
+# ---------------- notes notebook
+
+NoteColor = ("default", "green", "blue", "amber", "red", "violet", "pink", "teal")
+
+
+def _note_out(n) -> dict:
+    lines = (n.body or "").splitlines()
+    todo = [ln for ln in lines if ln.strip().startswith(("- [ ]", "- [x]", "- [X]"))]
+    done = [ln for ln in todo if ln.strip()[3:4].lower() == "x"]
+    return {"id": n.id, "title": n.title, "body": n.body, "tags": n.tags or [], "color": n.color, "pinned": n.pinned,
+            "checklist": {"done": len(done), "total": len(todo)} if todo else None, "created_at": n.created_at, "updated_at": n.updated_at}
+
+
+@router.get("/notes")
+def notes_list(q: str | None = Query(default=None, max_length=100), tag: str | None = Query(default=None, max_length=40),
+               db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Your notes, pinned first then newest; filter by words or a tag."""
+    from app.models.entities import Note
+    rows = db.scalars(select(Note).where(Note.user_id == user.id).order_by(Note.pinned.desc(), Note.updated_at.desc())).all()
+    if q:
+        words = q.lower().split()
+        rows = [n for n in rows if all(w in f"{n.title} {n.body} {' '.join(n.tags or [])}".lower() for w in words)]
+    if tag:
+        rows = [n for n in rows if tag.lower() in [t.lower() for t in (n.tags or [])]]
+    tags = sorted({t for n in db.scalars(select(Note).where(Note.user_id == user.id)).all() for t in (n.tags or [])}, key=str.lower)
+    return {"items": [_note_out(n) for n in rows], "tags": tags, "colors": list(NoteColor)}
+
+
+@router.post("/notes", status_code=201)
+def note_create(data: dto.NoteIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import Note
+    if not (data.title.strip() or data.body.strip()):
+        raise HTTPException(422, "Write a title or some text")
+    n = Note(user_id=user.id, title=data.title.strip(), body=data.body, tags=_clean_tags(data.tags), color=data.color, pinned=data.pinned)
+    db.add(n); db.commit(); db.refresh(n); return _note_out(n)
+
+
+def _clean_tags(tags: list[str] | None) -> list[str]:
+    out: list[str] = []
+    for t in tags or []:
+        t = t.strip().lstrip("#")[:40]
+        if t and t.lower() not in [x.lower() for x in out]:
+            out.append(t)
+    return out[:12]
+
+
+@router.patch("/notes/{note_id}")
+def note_update(note_id: uuid.UUID, data: dto.NoteUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.core.clock import now_utc
+    from app.models.entities import Note
+    n = owned(db, Note, user.id, note_id)
+    changes = data.model_dump(exclude_unset=True)
+    if "tags" in changes:
+        changes["tags"] = _clean_tags(changes["tags"])
+    for k, v in changes.items():
+        setattr(n, k, v.strip() if k == "title" and isinstance(v, str) else v)
+    n.updated_at = now_utc()
+    db.commit(); db.refresh(n); return _note_out(n)
+
+
+@router.post("/notes/{note_id}/toggle/{line}")
+def note_toggle(note_id: uuid.UUID, line: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Tick or untick one checklist line ("- [ ]" / "- [x]")."""
+    from app.core.clock import now_utc
+    from app.models.entities import Note
+    n = owned(db, Note, user.id, note_id)
+    lines = (n.body or "").splitlines()
+    if not 0 <= line < len(lines) or not lines[line].lstrip().startswith(("- [ ]", "- [x]", "- [X]")):
+        raise HTTPException(404, "Not a checklist line")
+    s = lines[line]
+    i = s.index("- [") + 3
+    lines[line] = s[:i] + (" " if s[i].lower() == "x" else "x") + s[i + 1:]
+    n.body, n.updated_at = "\n".join(lines), now_utc()
+    db.commit(); db.refresh(n); return _note_out(n)
+
+
+@router.delete("/notes/{note_id}", status_code=204)
+def note_delete(note_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import Note
+    db.delete(owned(db, Note, user.id, note_id)); db.commit()
+
+
+# ---------------- pelvic floor (Kegel) trainer
+
+@router.get("/wellness/kegel")
+def kegel_overview(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Your level, today's sets, the week, streak, level-up readiness, the guide and checked reliable resources."""
+    from app.services import kegel
+    return kegel.overview(db, user.id, _today(db, user))
+
+
+@router.post("/wellness/kegel/sessions", status_code=201)
+def kegel_log(data: dto.KegelSessionIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import WellnessSession
+    from app.services import kegel
+    cfg = kegel.LEVELS[data.level]
+    db.add(WellnessSession(user_id=user.id, kind="kegel", level=data.level, sets=data.sets, reps=data.reps or cfg["reps"],
+                           hold_s=data.hold_s or cfg["hold_s"], local_date=_today(db, user)))
+    db.commit()
+    return kegel.overview(db, user.id, _today(db, user))

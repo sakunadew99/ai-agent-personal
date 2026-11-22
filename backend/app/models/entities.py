@@ -1883,3 +1883,36 @@ class BookSession(Base):
     pages: Mapped[int] = mapped_column(Integer, default=0)
     minutes: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Note(Base):
+    """A note in your notebook: title, text (checklists with "- [ ]" lines), tags, colour and pin."""
+    __tablename__ = "notes"
+    __table_args__ = (CheckConstraint("color IN ('default','green','blue','amber','red','violet','pink','teal')", name="ck_notes_color"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    title: Mapped[str] = mapped_column(String(200), default="")
+    body: Mapped[str] = mapped_column(Text, default="")
+    tags: Mapped[list | None] = mapped_column(JsonDict, nullable=True)
+    color: Mapped[str] = mapped_column(String(8), default="default")
+    pinned: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class WellnessSession(Base):
+    """A guided wellness routine you completed, e.g. pelvic floor (Kegel) training: level, sets, reps and hold time."""
+    __tablename__ = "wellness_sessions"
+    __table_args__ = (CheckConstraint("kind IN ('kegel')", name="ck_wellness_sessions_kind"),
+                      CheckConstraint("level BETWEEN 1 AND 4", name="ck_wellness_sessions_level"))
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    kind: Mapped[str] = mapped_column(String(10), default="kegel")
+    level: Mapped[int] = mapped_column(Integer, default=1)
+    sets: Mapped[int] = mapped_column(Integer, default=1)
+    reps: Mapped[int] = mapped_column(Integer, default=10)
+    hold_s: Mapped[int] = mapped_column(Integer, default=3)
+    local_date: Mapped[date] = mapped_column(Date, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

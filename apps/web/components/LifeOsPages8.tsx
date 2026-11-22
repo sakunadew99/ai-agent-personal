@@ -286,3 +286,86 @@ export function ReadingPage({ token }: { token: string }) {
     </div>
   </div>;
 }
+
+const NBG: Record<string, string> = { default: "var(--d-card2)", green: "#123222", blue: "#13243a", amber: "#3a2f1d", red: "#3a2222", violet: "#261d3a", pink: "#3a1d2f", teal: "#123333" };
+
+export function NotesPage({ token }: { token: string }) {
+  const [v, setV] = useState<Row | null>(null);
+  const [q, setQ] = useState(""); const [tag, setTag] = useState("");
+  const [ed, setEd] = useState<Row | null>(null);
+  const load = useCallback(() => { const p = [q && `q=${encodeURIComponent(q)}`, tag && `tag=${encodeURIComponent(tag)}`].filter(Boolean).join("&");
+    call<Row>(`/notes${p ? `?${p}` : ""}`, token).then(setV).catch(() => undefined); }, [token, q, tag]);
+  useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t); }, [load]);
+  const save = () => { if (!ed) return; const body = { title: ed.title || "", body: ed.body || "", tags: String(ed.tagsText ?? (ed.tags || []).join(", ")).split(",").map((s: string) => s.trim()).filter(Boolean), color: ed.color || "default", pinned: !!ed.pinned };
+    void (ed.id ? call(`/notes/${ed.id}`, token, { method: "PATCH", body: JSON.stringify(body) }) : call("/notes", token, postJson(body))).then(() => { setEd(null); load(); }); };
+  if (!v) return <div className="d-empty">Loading notes…</div>;
+  return <div className="d-dash">
+    <Hero kicker="Notes" title="Your" accent="notebook" sub="Checklists with “- [ ] ”, tags, colours and pins. Notes also appear in Search.">
+      <div className="d-row" style={{ marginTop: 10 }}><input className="d-input" value={q} onChange={e => setQ(e.target.value)} placeholder="🔍 Search notes"/>
+        <button className="d-btn" onClick={() => setEd({ title: "", body: "", color: "default" })}>＋ New note</button></div>
+      <div className="d-chips">{["", ...(v.tags as string[])].map(t => <button key={t || "all"} className={`d-chip ${tag === t ? "on" : ""}`} onClick={() => setTag(t)}>{t ? `#${t}` : "All"}</button>)}</div>
+    </Hero>
+    {ed && <Card kicker={ed.id ? "Edit note" : "New note"} title={ed.title || "Untitled"} action={<button className="text-button" onClick={() => setEd(null)}>Cancel</button>}>
+      <input className="d-input" value={ed.title} onChange={e => setEd({ ...ed, title: e.target.value })} placeholder="Title"/>
+      <textarea className="d-input" rows={10} value={ed.body} onChange={e => setEd({ ...ed, body: e.target.value })} placeholder="Write… use “- [ ] ” for checklist items"/>
+      <input className="d-input" value={ed.tagsText ?? (ed.tags || []).join(", ")} onChange={e => setEd({ ...ed, tagsText: e.target.value })} placeholder="Tags, comma separated"/>
+      <div className="d-chips">{(v.colors as string[]).map(c => <button key={c} className={`d-chip ${ed.color === c ? "on" : ""}`} style={{ background: NBG[c] }} onClick={() => setEd({ ...ed, color: c })}>{c}</button>)}
+        <button className={`d-chip ${ed.pinned ? "on" : ""}`} onClick={() => setEd({ ...ed, pinned: !ed.pinned })}>📌 Pin</button></div>
+      <div className="d-row"><button className="d-btn" onClick={save}>💾 Save</button>
+        {ed.id && <button className="danger-link" onClick={() => { if (window.confirm("Delete this note?")) void call(`/notes/${ed.id}`, token, { method: "DELETE" }).then(() => { setEd(null); load(); }); }}>Delete</button>}</div></Card>}
+    <div style={{ columns: "260px", columnGap: 14 }}>{(v.items as Row[]).map(n => <article key={n.id} className="d-card" style={{ breakInside: "avoid", marginBottom: 14, background: NBG[n.color] || NBG.default, cursor: "pointer" }} onClick={() => setEd(n)}>
+      <b style={{ color: "var(--d-text)" }}>{n.pinned ? "📌 " : ""}{n.title}</b>
+      {(n.body as string).split("\n").slice(0, 10).map((ln, i) => { const t = ln.trimStart(); const box = t.startsWith("- [ ]") || t.toLowerCase().startsWith("- [x]");
+        return box ? <label key={i} className="d-note" style={{ display: "block" }} onClick={e => e.stopPropagation()}>
+          <input type="checkbox" checked={t[3].toLowerCase() === "x"} onChange={() => void call(`/notes/${n.id}/toggle/${i}`, token, postJson({})).then(load)}/> {t.slice(5)}</label>
+          : ln.trim() ? <p key={i} className="d-note" style={{ margin: "2px 0" }}>{ln}</p> : null; })}
+      {(n.tags as string[]).length > 0 && <small className="d-note">{(n.tags as string[]).map(t => `#${t}`).join(" ")}</small>}</article>)}</div>
+  </div>;
+}
+
+export function KegelPage({ token }: { token: string }) {
+  const [v, setV] = useState<Row | null>(null);
+  const [level, setLevel] = useState<number | null>(null);
+  const [run, setRun] = useState<{ phases: { label: string; secs: number; squeeze: boolean }[]; i: number; left: number } | null>(null);
+  const load = useCallback(() => { call<Row>("/wellness/kegel", token).then(x => { setV(x); setLevel(l => l ?? x.level); }).catch(() => undefined); }, [token]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (!run || run.i >= run.phases.length) return;
+    const t = setInterval(() => setRun(r => !r ? r : r.left > 1 ? { ...r, left: r.left - 1 } : { ...r, i: r.i + 1, left: r.phases[r.i + 1]?.secs ?? 0 }), 1000);
+    return () => clearInterval(t);
+  }, [run]);
+  if (!v || level == null) return <div className="d-empty">Loading…</div>;
+  const cfg: Row = v.levels[String(level)];
+  const start = () => { const ph = [{ label: "Get ready: relax, breathe", secs: 3, squeeze: false }];
+    for (let k = 0; k < cfg.reps; k++) ph.push({ label: `Squeeze & lift · ${k + 1}/${cfg.reps}`, secs: cfg.hold_s, squeeze: true }, { label: "Relax fully", secs: cfg.relax_s, squeeze: false });
+    for (let k = 0; k < cfg.quick_flicks; k++) ph.push({ label: `Quick squeeze · ${k + 1}/${cfg.quick_flicks}`, secs: 1, squeeze: true }, { label: "Let go", secs: 1, squeeze: false });
+    setRun({ phases: ph, i: 0, left: 3 }); };
+  const p = run && run.phases[Math.min(run.i, run.phases.length - 1)];
+  const finished = run && run.i >= run.phases.length;
+  const g: Row = v.guide;
+  return <div className="d-dash">
+    <Hero kicker="Pelvic floor · Kegel trainer" title={`${v.today.sets}/${v.today.target}`} accent="sets today" sub={`Level ${level}: ${cfg.name} · hold ${cfg.hold_s}s, relax ${cfg.relax_s}s × ${cfg.reps}${cfg.quick_flicks ? ` + ${cfg.quick_flicks} quick` : ""}${v.streak ? ` · 🔥 ${v.streak} days` : ""}`}
+      right={<Ring value={Math.min(100, v.today.sets / v.today.target * 100)} size={120} label={v.today.done ? "✓" : `${v.today.sets}`} sub="today"/>}>
+      <div className="d-chips" style={{ marginTop: 10 }}>{[1, 2, 3, 4].map(n => <button key={n} className={`d-chip ${level === n ? "on" : ""}`} onClick={() => setLevel(n)}>L{n} {v.levels[String(n)].name}</button>)}</div>
+      {!run && <button className="d-btn" style={{ marginTop: 10 }} onClick={start}>▶ Start a set</button>}
+    </Hero>
+    {v.ready_for_next && <p className="d-note" style={{ color: "var(--d-green)" }}>⭐ {v.good_days_7} good days this week: try level {v.level + 1} if it feels easy.</p>}
+    {run && p && <Card kicker={finished ? "Done" : "Follow the circle"} title={finished ? "🎉 Set complete" : p.label}>
+      {!finished ? <div style={{ display: "grid", placeItems: "center", padding: 20 }}><div style={{ width: p.squeeze ? 220 : 150, height: p.squeeze ? 220 : 150, borderRadius: "50%", transition: "all 1s ease",
+        border: `4px solid ${p.squeeze ? "var(--d-green)" : "var(--d-blue)"}`, display: "grid", placeItems: "center", fontSize: 56, fontWeight: 900 }}>{run.left}</div>
+        <p className="d-note">{p.squeeze ? "Lift inward, keep breathing, stomach and buttocks relaxed" : "Let go completely"}</p>
+        <button className="d-btn ghost" onClick={() => setRun(null)}>Stop</button></div>
+        : <div className="d-row"><button className="d-btn" onClick={() => void call<Row>("/wellness/kegel/sessions", token, postJson({ level, sets: 1 })).then(x => { setV(x); setRun(null); })}>✓ Save this set</button>
+          <button className="d-btn ghost" onClick={() => setRun(null)}>Close</button></div>}</Card>}
+    <div className="d-grid-2">
+      <Card kicker="How to do it right" title="Technique">
+        <p>{g.what}</p><ul className="d-list">{(g.find as string[]).map((t, i) => <li key={i}>{t}</li>)}</ul>
+        <ol>{(g.how as string[]).map((t, i) => <li key={i}>{t}</li>)}</ol>
+        <p className="d-note" style={{ color: "var(--d-amber)" }}>Mistakes: {(g.mistakes as string[]).join(" · ")}</p><p className="d-note">{g.frequency}</p></Card>
+      <Card kicker="Safety, videos and reliable reading" title="Learn more">
+        <ul className="d-list">{(g.safety as string[]).map((t, i) => <li key={i}>{t}</li>)}</ul>
+        {(v.resources as Row[]).map(r => <p key={r.url} className="d-note"><b>{r.kind}:</b> <a href={r.url} target="_blank" rel="noreferrer">{r.label}</a></p>)}
+        <p className="d-note">{v.disclaimer}</p></Card>
+    </div>
+  </div>;
+}

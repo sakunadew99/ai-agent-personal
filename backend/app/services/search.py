@@ -14,11 +14,12 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.entities import (CaptureItem, Flashcard, Goal, Habit, JobApplication, JournalEntry, LifeEntry, MediaItem, Memory, Mistake,
-                                 NewsItem, Task, TextVector, VaultDocument)
+                                 NewsItem, Note, Task, TextVector, VaultDocument)
 from app.services import hf
 
 # model, kind, label, icon, screen, title fields, body fields, newest-first column, cap, may go to the meaning model
 SOURCES = [
+    (Note, "note", "Note", "📝", "Notes", ["title"], ["body"], 400, True),
     (Task, "task", "Task", "☑", "Life", ["title"], ["notes", "category"], 400, True),
     (Goal, "goal", "Goal", "🎯", "Life", ["title"], ["description", "category"], 200, True),
     (Habit, "habit", "Habit", "🔁", "Life", ["name"], [], 100, True),

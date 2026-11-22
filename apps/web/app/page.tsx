@@ -38,7 +38,7 @@ import { HabitManager, InboxPage, JobFinder, LearnRadar, PlannerBoard, RewardsGa
 import { BrainGymPage, NewsAndWatch } from "@/components/LifeOsPages3";
 import { SearchPage, VideosPage } from "@/components/LifeOsPages5";
 import { SchedulePage, SpeakingPage } from "@/components/LifeOsPages6";
-import { ContentPage, FitnessGuidePage, ReadingPage, ResourcesPage, RolePlayPage, TravelPage, WealthPage } from "@/components/LifeOsPages8";
+import { ContentPage, FitnessGuidePage, KegelPage, NotesPage, ReadingPage, ResourcesPage, RolePlayPage, TravelPage, WealthPage } from "@/components/LifeOsPages8";
 import { DreamsPage, DrillPage, HealthAdvicePanel, MedicinesPage, ReceiptPage, RitualsPage, SkillsPage, SkinPage } from "@/components/LifeOsPages7";
 import { DayPage, GymPage, LanguagesPage, ProgressPage } from "@/components/LifeOsPages4";
 import { NudgeBanner, TodayPlanCard } from "@/components/SmartCards";
@@ -76,6 +76,8 @@ const navigation = [
   { label: "Fitness guide", icon: "heart", hint: "Workouts with technique and a Sri Lankan meal planner" },
   { label: "Content studio", icon: "brain", hint: "Ideas, scripts and a weekly posting plan" },
   { label: "Travel guide", icon: "compass", hint: "Where to go, itineraries, LKR budgets, wish list" },
+  { label: "Notes", icon: "copy", hint: "Notebook with checklists, tags and colours" },
+  { label: "Pelvic floor", icon: "heart", hint: "Guided Kegel trainer with technique and reliable links" },
   { label: "Medicines", icon: "heart", hint: "Doses, reminders, refills" },
   { label: "$1M journey", icon: "chart", hint: "Projections to $1M and income ideas ranked for you" },
   { label: "Scan receipt", icon: "copy", hint: "Receipt photo to expense (free on-device OCR)" },
@@ -149,9 +151,9 @@ function niceDate(value: unknown) {
 }
 // Same groups as the phone's "All apps"; anything not listed lands in MORE so a new page is never hidden.
 const NAV_GROUPS: [string, string[]][] = [
-  ["TODAY", ["Home", "Morning & evening", "Focus", "Planner", "My day", "Day tracker", "My schedule", "Capture inbox", "Search"]],
+  ["TODAY", ["Home", "Notes", "Morning & evening", "Focus", "Planner", "My day", "Day tracker", "My schedule", "Capture inbox", "Search"]],
   ["💰 MONEY", ["Finance", "$1M journey", "Scan receipt", "Invest", "Documents"]],
-  ["💪 BODY", ["Health", "Fitness guide", "Gym", "Medicines", "Skin & glow", "Skills & trainers"]],
+  ["💪 BODY", ["Health", "Fitness guide", "Pelvic floor", "Gym", "Medicines", "Skin & glow", "Skills & trainers"]],
   ["🎓 LEARNING", ["Learning", "Languages", "Say it", "Role-play coach", "Learn anything", "Reading", "Exam coach", "Speaking coach", "Progress", "Study abroad", "Career", "My videos", "News", "Brain gym"]],
   ["🌱 LIFE", ["Dreams & goals", "Travel guide", "Content studio", "My life", "Journal", "Life balance", "Experiences", "Rewards", "Weekly review", "About you", "Insights"]],
   ["✨ AI & SETTINGS", ["Assistant", "AI team", "Memory", "Approvals", "Settings"]],
@@ -468,6 +470,8 @@ export default function Home() {
       case "Fitness guide": return <FitnessGuidePage token={token} />;
       case "Content studio": return <ContentPage token={token} />;
       case "Travel guide": return <TravelPage token={token} />;
+      case "Notes": return <NotesPage token={token} />;
+      case "Pelvic floor": return <KegelPage token={token} />;
       case "Medicines": return <MedicinesPage token={token} />;
       case "Scan receipt": return <ReceiptPage token={token} />;
       case "$1M journey": return <WealthPage token={token} />;

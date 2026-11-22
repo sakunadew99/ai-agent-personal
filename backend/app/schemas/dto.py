@@ -1849,3 +1849,29 @@ class HighlightIn(BaseModel):
 class ReadingGoalIn(BaseModel):
     books_per_year: int | None = Field(default=None, ge=1, le=500)
     daily_minutes: int | None = Field(default=None, ge=5, le=600)
+
+
+NoteColorLit = Literal["default", "green", "blue", "amber", "red", "violet", "pink", "teal"]
+
+
+class NoteIn(BaseModel):
+    title: str = Field(default="", max_length=200)
+    body: str = Field(default="", max_length=50000)
+    tags: list[str] = Field(default_factory=list, max_length=12)
+    color: NoteColorLit = "default"
+    pinned: bool = False
+
+
+class NoteUpdate(BaseModel):
+    title: str | None = Field(default=None, max_length=200)
+    body: str | None = Field(default=None, max_length=50000)
+    tags: list[str] | None = Field(default=None, max_length=12)
+    color: NoteColorLit | None = None
+    pinned: bool | None = None
+
+
+class KegelSessionIn(BaseModel):
+    level: int = Field(default=1, ge=1, le=4)
+    sets: int = Field(default=1, ge=1, le=5)
+    reps: int | None = Field(default=None, ge=1, le=30)
+    hold_s: int | None = Field(default=None, ge=1, le=15)
