@@ -1875,3 +1875,33 @@ class KegelSessionIn(BaseModel):
     sets: int = Field(default=1, ge=1, le=5)
     reps: int | None = Field(default=None, ge=1, le=30)
     hold_s: int | None = Field(default=None, ge=1, le=15)
+
+
+class DisciplineGoalIn(BaseModel):
+    kind: Literal["porn_free", "nofap", "screen", "custom"] = "custom"
+    label: str | None = Field(default=None, max_length=80)
+    reasons: str | None = Field(default=None, max_length=2000)
+    replacements: list[str] = Field(default_factory=list, max_length=12)
+    started_on: date | None = None
+
+
+class DisciplineGoalUpdate(BaseModel):
+    label: str | None = Field(default=None, min_length=1, max_length=80)
+    reasons: str | None = Field(default=None, max_length=2000)
+    replacements: list[str] | None = Field(default=None, max_length=12)
+    active: bool | None = None
+
+
+class DisciplineCheckinIn(BaseModel):
+    kind: Literal["ok", "urge", "motivation", "reset"]
+    trigger: str | None = Field(default=None, max_length=20)
+    intensity: int | None = Field(default=None, ge=1, le=5)
+    action: str | None = Field(default=None, max_length=80)
+    stayed: bool | None = None
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class DisciplineEventUpdate(BaseModel):
+    action: str | None = Field(default=None, max_length=80)
+    stayed: bool | None = None
+    note: str | None = Field(default=None, max_length=2000)

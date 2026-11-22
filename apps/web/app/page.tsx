@@ -38,7 +38,7 @@ import { HabitManager, InboxPage, JobFinder, LearnRadar, PlannerBoard, RewardsGa
 import { BrainGymPage, NewsAndWatch } from "@/components/LifeOsPages3";
 import { SearchPage, VideosPage } from "@/components/LifeOsPages5";
 import { SchedulePage, SpeakingPage } from "@/components/LifeOsPages6";
-import { ContentPage, FitnessGuidePage, KegelPage, NotesPage, ReadingPage, ResourcesPage, RolePlayPage, TravelPage, WealthPage } from "@/components/LifeOsPages8";
+import { ContentPage, DisciplinePage, FitnessGuidePage, KegelPage, NotesPage, ReadingPage, ResourcesPage, RolePlayPage, TravelPage, WealthPage } from "@/components/LifeOsPages8";
 import { DreamsPage, DrillPage, HealthAdvicePanel, MedicinesPage, ReceiptPage, RitualsPage, SkillsPage, SkinPage } from "@/components/LifeOsPages7";
 import { DayPage, GymPage, LanguagesPage, ProgressPage } from "@/components/LifeOsPages4";
 import { NudgeBanner, TodayPlanCard } from "@/components/SmartCards";
@@ -78,6 +78,7 @@ const navigation = [
   { label: "Travel guide", icon: "compass", hint: "Where to go, itineraries, LKR budgets, wish list" },
   { label: "Notes", icon: "copy", hint: "Notebook with checklists, tags and colours" },
   { label: "Pelvic floor", icon: "heart", hint: "Guided Kegel trainer with technique and reliable links" },
+  { label: "Self-control", icon: "shield", hint: "Private streaks, urge help, triggers and blocking" },
   { label: "Medicines", icon: "heart", hint: "Doses, reminders, refills" },
   { label: "$1M journey", icon: "chart", hint: "Projections to $1M and income ideas ranked for you" },
   { label: "Scan receipt", icon: "copy", hint: "Receipt photo to expense (free on-device OCR)" },
@@ -472,6 +473,7 @@ export default function Home() {
       case "Travel guide": return <TravelPage token={token} />;
       case "Notes": return <NotesPage token={token} />;
       case "Pelvic floor": return <KegelPage token={token} />;
+      case "Self-control": return <DisciplinePage token={token} />;
       case "Medicines": return <MedicinesPage token={token} />;
       case "Scan receipt": return <ReceiptPage token={token} />;
       case "$1M journey": return <WealthPage token={token} />;

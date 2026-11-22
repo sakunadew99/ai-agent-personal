@@ -1916,3 +1916,42 @@ class WellnessSession(Base):
     hold_s: Mapped[int] = mapped_column(Integer, default=3)
     local_date: Mapped[date] = mapped_column(Date, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class DisciplineGoal(Base):
+    """A personal self-control commitment (e.g. porn-free, no-fap, less late-night scrolling). Private; never sent to AI."""
+    __tablename__ = "discipline_goals"
+    __table_args__ = (CheckConstraint("kind IN ('porn_free','nofap','screen','custom')", name="ck_discipline_goals_kind"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    kind: Mapped[str] = mapped_column(String(10), default="custom")
+    label: Mapped[str] = mapped_column(String(80), default="Self-control")          # neutral name shown on screen
+    reasons: Mapped[str | None] = mapped_column(Text, nullable=True)                 # your "why"
+    replacements: Mapped[list | None] = mapped_column(JsonDict, nullable=True)       # your healthy alternatives
+    started_on: Mapped[date] = mapped_column(Date)
+    streak_start: Mapped[date] = mapped_column(Date)
+    best_streak: Mapped[int] = mapped_column(Integer, default=0)
+    resets: Mapped[int] = mapped_column(Integer, default=0)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class DisciplineEvent(Base):
+    """A check-in: doing well, an urge (with trigger and what you did), needing motivation, or a reset."""
+    __tablename__ = "discipline_events"
+    __table_args__ = (CheckConstraint("kind IN ('ok','urge','motivation','reset')", name="ck_discipline_events_kind"),
+                      CheckConstraint("intensity IS NULL OR intensity BETWEEN 1 AND 5", name="ck_discipline_events_intensity"))
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    goal_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("discipline_goals.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(10))
+    trigger: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    intensity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    action: Mapped[str | None] = mapped_column(String(80), nullable=True)            # the replacement you chose
+    stayed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)              # urge handled?
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    local_date: Mapped[date] = mapped_column(Date, index=True)
+    local_hour: Mapped[int] = mapped_column(Integer, default=12)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

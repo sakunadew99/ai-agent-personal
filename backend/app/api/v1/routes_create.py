@@ -229,3 +229,83 @@ def kegel_log(data: dto.KegelSessionIn, db: Session = Depends(get_db), user: Use
                            hold_s=data.hold_s or cfg["hold_s"], local_date=_today(db, user)))
     db.commit()
     return kegel.overview(db, user.id, _today(db, user))
+
+
+# ---------------- personal discipline & digital wellbeing (private; plain code only)
+
+def _hour(db: Session, user: User) -> int:
+    from app.core.clock import now_utc, zone
+    from app.models.entities import UserProfile
+    p = db.scalar(select(UserProfile).where(UserProfile.user_id == user.id))
+    return now_utc().astimezone(zone(p.timezone if p else "Asia/Colombo")).hour
+
+
+@router.get("/discipline")
+def discipline_overview(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Your commitments with streaks, milestones, triggers and insights; check-in options; blocking help. Never shared with AI."""
+    from app.models.entities import DisciplineGoal
+    from app.services import discipline as d
+    today = _today(db, user)
+    goals = db.scalars(select(DisciplineGoal).where(DisciplineGoal.user_id == user.id).order_by(DisciplineGoal.created_at)).all()
+    return {"goals": [d.goal_out(db, g, today) for g in goals], "kinds": d.KINDS, "triggers": d.TRIGGERS, "default_replacements": d.DEFAULT_REPLACEMENTS,
+            "blocking": {"shield": "Use Focus → Shield on the phone to block distracting apps at set hours.",
+                         "dns": [{"name": "CleanBrowsing Adult Filter", "host": "adult-filter-dns.cleanbrowsing.org"},
+                                 {"name": "AdGuard Family", "host": "family.adguard-dns.com"}],
+                         "dns_how": "Android: Settings → Network & internet → Private DNS → Private DNS provider hostname → paste one of these hosts. "
+                                    "It filters adult websites on the whole phone; turn it off the same way."},
+            "privacy": "Private: this section is never sent to AI, isn't in search, and shows a neutral name on shared screens.",
+            "support": d.SUPPORT}
+
+
+@router.post("/discipline/goals", status_code=201)
+def discipline_goal_create(data: dto.DisciplineGoalIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import DisciplineGoal
+    from app.services import discipline as d
+    today = _today(db, user)
+    start = data.started_on or today
+    if start > today:
+        raise HTTPException(422, "The start date can't be in the future")
+    g = DisciplineGoal(user_id=user.id, kind=data.kind, label=(data.label or "Self-control").strip()[:80], reasons=data.reasons,
+                       replacements=[r.strip()[:80] for r in data.replacements if r.strip()][:12] or None, started_on=start, streak_start=start)
+    db.add(g); db.commit(); db.refresh(g)
+    return d.goal_out(db, g, today)
+
+
+@router.patch("/discipline/goals/{goal_id}")
+def discipline_goal_update(goal_id: uuid.UUID, data: dto.DisciplineGoalUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import DisciplineGoal
+    from app.services import discipline as d
+    g = owned(db, DisciplineGoal, user.id, goal_id)
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(g, k, [r.strip()[:80] for r in v if r.strip()][:12] if k == "replacements" and v is not None else v)
+    db.commit(); db.refresh(g)
+    return d.goal_out(db, g, _today(db, user))
+
+
+@router.delete("/discipline/goals/{goal_id}", status_code=204)
+def discipline_goal_delete(goal_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import DisciplineGoal
+    db.delete(owned(db, DisciplineGoal, user.id, goal_id)); db.commit()
+
+
+@router.post("/discipline/goals/{goal_id}/checkin")
+def discipline_checkin(goal_id: uuid.UUID, data: dto.DisciplineCheckinIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """I'm doing well / I'm having an urge / I need motivation / I want to reset. Returns a supportive reply and ideas."""
+    from app.models.entities import DisciplineGoal
+    from app.services import discipline as d
+    g = owned(db, DisciplineGoal, user.id, goal_id)
+    today = _today(db, user)
+    reply = d.record(db, g, data.kind, today, _hour(db, user), data.trigger, data.intensity, data.action, data.stayed, data.note)
+    db.commit(); db.refresh(g)
+    return {**reply, "goal": d.goal_out(db, g, today)}
+
+
+@router.patch("/discipline/events/{event_id}")
+def discipline_event_update(event_id: uuid.UUID, data: dto.DisciplineEventUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """After an urge: record what you did and whether you stayed on track."""
+    from app.models.entities import DisciplineEvent
+    e = owned(db, DisciplineEvent, user.id, event_id)
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(e, k, v)
+    db.commit()
+    return {"id": e.id, "stayed": e.stayed, "action": e.action}

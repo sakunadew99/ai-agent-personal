@@ -1,7 +1,7 @@
 "use client";
 /* Role-play coach (soft-skills academy) and the next vision pages for the web. */
 import { useCallback, useEffect, useState } from "react";
-import { apiRequest as call, postJson, type JsonRecord as Row } from "@/lib/api";
+import { apiRequest as call, patchJson, postJson, type JsonRecord as Row } from "@/lib/api";
 import { Card, Hero, Ring } from "./Charts";
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong");
@@ -367,5 +367,91 @@ export function KegelPage({ token }: { token: string }) {
         {(v.resources as Row[]).map(r => <p key={r.url} className="d-note"><b>{r.kind}:</b> <a href={r.url} target="_blank" rel="noreferrer">{r.label}</a></p>)}
         <p className="d-note">{v.disclaimer}</p></Card>
     </div>
+  </div>;
+}
+
+
+const DISC_TINT = "#8f7bff";
+const EVENT_LABEL: Record<string, string> = { ok: "Doing well", urge: "Urge", motivation: "Motivation", reset: "Reset" };
+
+export function DisciplinePage({ token }: { token: string }) {
+  const [d, setD] = useState<Row | null>(null);
+  const [sel, setSel] = useState("");
+  const [mode, setMode] = useState<"" | "urge" | "reset" | "new">("");
+  const [trigger, setTrigger] = useState("");
+  const [intensity, setIntensity] = useState(3);
+  const [noteText, setNoteText] = useState("");
+  const [reply, setReply] = useState<Row | null>(null);
+  const [left, setLeft] = useState(0);
+  const [form, setForm] = useState({ kind: "porn_free", label: "", reasons: "", days: "0", reps: "" });
+  const [err, setErr] = useState("");
+  const load = useCallback(() => { call<Row>("/discipline", token).then(x => { setD(x); setSel(s => s || x.goals[0]?.id || ""); if (!x.goals.length) setMode("new"); }).catch(e => setErr(errText(e))); }, [token]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (left <= 0) return; const t = setTimeout(() => setLeft(s => s - 1), 1000); return () => clearTimeout(t); }, [left]);
+  if (!d) return <div className="d-empty">Loading…</div>;
+  const goals = d.goals as Row[]; const g = goals.find(x => x.id === sel) || goals[0];
+  const swap = (x: Row) => setD(v => v && ({ ...v, goals: (v.goals as Row[]).map(y => y.id === x.id ? x : y) }));
+  const send = (kind: string, extra: Row = {}) => void call<Row>(`/discipline/goals/${g.id}/checkin`, token, postJson({ kind, ...extra })).then(r => {
+    setReply(r); swap(r.goal); setMode(""); setNoteText(""); if (r.timer_minutes) setLeft(r.timer_minutes * 60); }).catch(e => setErr(errText(e)));
+  const handled = (stayed: boolean, action?: string) => { const ev = (g.recent as Row[])[0]; if (!ev) return;
+    void call(`/discipline/events/${ev.id}`, token, patchJson({ stayed, action })).then(() => { setReply(null); setLeft(0); setSel(g.id); load(); }).catch(e => setErr(errText(e))); };
+  const create = () => { const s = new Date(); s.setDate(s.getDate() - Math.max(0, parseInt(form.days, 10) || 0));
+    void call<Row>("/discipline/goals", token, postJson({ kind: form.kind, label: form.label.trim() || undefined, reasons: form.reasons.trim() || undefined,
+      replacements: form.reps.split(",").map(x => x.trim()).filter(Boolean), started_on: s.toISOString().slice(0, 10) }))
+      .then(x => { setMode(""); setSel(String(x.id)); load(); }).catch(e => setErr(errText(e))); };
+  const remove = () => { if (!confirm("Remove this commitment and its check-ins?")) return; void call(`/discipline/goals/${g.id}`, token, { method: "DELETE" }).then(() => { setSel(""); load(); }).catch(e => setErr(errText(e))); };
+  const b = d.blocking as Row; const next = g?.next_milestone as number | null;
+  return <div className="d-dash">
+    <p className="d-note">🔒 {d.privacy}</p>
+    {err && <p className="d-note">{err}</p>}
+    {goals.length > 1 && <div className="d-chips">{goals.map(x => <button key={x.id} className={`d-chip ${x.id === g?.id ? "on" : ""}`} onClick={() => setSel(x.id)}>{x.label}</button>)}</div>}
+    {mode === "new" || !g ? <Card kicker="Start a commitment" title="One day at a time">
+      <div className="d-chips">{Object.entries(d.kinds as Record<string, string>).map(([k, l]) => <button key={k} className={`d-chip ${form.kind === k ? "on" : ""}`} onClick={() => setForm({ ...form, kind: k })}>{l}</button>)}</div>
+      <input className="d-input" placeholder="Name shown on screen (default: Self-control)" value={form.label} onChange={e => setForm({ ...form, label: e.target.value })}/>
+      <textarea className="d-input" rows={2} placeholder="Your why (shown when you need motivation)" value={form.reasons} onChange={e => setForm({ ...form, reasons: e.target.value })}/>
+      <input className="d-input" placeholder="Already going for how many days?" value={form.days} onChange={e => setForm({ ...form, days: e.target.value })}/>
+      <input className="d-input" placeholder={`Replacements, comma separated (e.g. ${(d.default_replacements as string[]).slice(0, 3).join(", ")})`} value={form.reps} onChange={e => setForm({ ...form, reps: e.target.value })}/>
+      <div className="d-row"><button className="d-btn" onClick={create}>Start</button>{g && <button className="d-btn ghost" onClick={() => setMode("")}>Cancel</button>}</div>
+    </Card> : <>
+      <Hero kicker={`🛡 ${g.label}`} title={`${g.streak_days}`} accent={g.streak_days === 1 ? "day" : "days"} sub={`Best ${g.best_streak} · ${g.clean_days_total} good days in total${g.resets ? ` · restarted ${g.resets}×` : ""}`}
+        right={<Ring value={next ? Math.min(100, g.streak_days / next * 100) : 100} size={120} label={next ? `${next}` : "🏆"} sub="next"/>}>
+        <div className="d-row" style={{ marginTop: 10, flexWrap: "wrap" }}>
+          <button className="d-btn" onClick={() => send("ok")}>😊 I&apos;m doing well</button>
+          <button className="d-btn ghost" onClick={() => { setMode("urge"); setReply(null); }}>🌊 I&apos;m having an urge</button>
+          <button className="d-btn ghost" onClick={() => send("motivation")}>✨ I need motivation</button>
+          <button className="d-btn ghost" onClick={() => { setMode("reset"); setReply(null); }}>↺ I want to reset</button>
+        </div>
+      </Hero>
+      {(mode === "urge" || mode === "reset") && <Card kicker={mode === "urge" ? "What's going on?" : "No guilt"} title={mode === "urge" ? "Name the trigger" : "What happened just before?"}>
+        <div className="d-chips">{Object.entries(d.triggers as Record<string, string>).map(([k, l]) => <button key={k} className={`d-chip ${trigger === k ? "on" : ""}`} onClick={() => setTrigger(t => t === k ? "" : k)}>{l}</button>)}</div>
+        {mode === "urge" && <div className="d-chips">{[1, 2, 3, 4, 5].map(n => <button key={n} className={`d-chip ${intensity === n ? "on" : ""}`} onClick={() => setIntensity(n)}>Strength {n}</button>)}</div>}
+        <textarea className="d-input" rows={2} placeholder="Optional note for your trigger journal" value={noteText} onChange={e => setNoteText(e.target.value)}/>
+        <div className="d-row"><button className="d-btn" onClick={() => send(mode, { trigger: trigger || undefined, intensity: mode === "urge" ? intensity : undefined, note: noteText.trim() || undefined })}>{mode === "urge" ? "Help me now" : "Restart my streak"}</button>
+          <button className="d-btn ghost" onClick={() => setMode("")}>Cancel</button></div>
+      </Card>}
+      {reply && <Card kicker="Sakuna" title={reply.kind === "urge" ? "Ride it out" : reply.kind === "reset" ? "Fresh start" : "Keep going"}>
+        <p>{reply.message}</p>
+        {reply.your_why && <p style={{ color: DISC_TINT, fontWeight: 800 }}>Your why: {reply.your_why}</p>}
+        {left > 0 && <p style={{ fontSize: 32, fontWeight: 900, color: DISC_TINT }}>{Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}</p>}
+        {(reply.suggestions as string[] | undefined)?.map(s => <button key={s} className="d-btn ghost" style={{ display: "block", marginBottom: 6 }} onClick={() => reply.kind === "urge" ? handled(true, s) : setReply(null)}>→ {s}</button>)}
+        {reply.kind === "urge" && <div className="d-row"><button className="d-btn" onClick={() => handled(true)}>It passed ✓</button><button className="text-button" onClick={() => { handled(false); setMode("reset"); }}>I slipped</button></div>}
+        {reply.kind !== "ok" && <p className="d-note">{reply.support}</p>}
+        <button className="text-button" onClick={() => { setReply(null); setLeft(0); }}>Close</button>
+      </Card>}
+      <div className="d-grid-2">
+        <Card kicker="Insights" title="What the data says">{(g.insights as string[]).length ? (g.insights as string[]).map((t, i) => <p key={i}>• {t}</p>) : <p className="d-note">Check in a few times and patterns will show here.</p>}
+          {(g.triggers_30d as Row[]).map(t => <p key={t.trigger}>{t.label}: <b>{t.count}</b></p>)}</Card>
+        <Card kicker="Milestones" title={next ? `Next: ${next} days` : "All reached 🏆"}><div className="d-chips">{(g.milestones as Row[]).map(m => <span key={m.days} className={`d-chip ${m.reached ? "on" : ""}`}>{m.reached ? "★" : "○"} {m.days}d</span>)}</div>
+          <p className="d-note">My replacements: {(g.replacements as string[]).join(" · ")}</p></Card>
+      </div>
+      {(g.recent as Row[]).length > 0 && <Card kicker="Trigger journal" title="Recent check-ins">{(g.recent as Row[]).map(e => <p key={e.id}>
+        {e.date} {String(e.hour).padStart(2, "0")}:00 · {EVENT_LABEL[e.kind]}{e.trigger ? ` · ${(d.triggers as Row)[e.trigger] || e.trigger}` : ""}{e.stayed === true ? " · handled ✓" : e.stayed === false ? " · slipped" : ""}{e.action ? ` → ${e.action}` : ""}{e.note ? ` — ${e.note}` : ""}</p>)}</Card>}
+      <div className="d-row"><button className="d-btn ghost" onClick={() => setMode("new")}>＋ Another commitment</button><button className="text-button" onClick={remove}>Remove this commitment</button></div>
+    </>}
+    <Card kicker="Block apps & websites" title="Make it harder to slip">
+      <p>{b.shield}</p><p>{b.dns_how}</p>
+      {(b.dns as Row[]).map(x => <p key={x.host}><span className="d-note">{x.name}: </span><code>{x.host}</code></p>)}
+    </Card>
+    <p className="d-note">{d.support}</p>
   </div>;
 }
