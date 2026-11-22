@@ -154,7 +154,8 @@ def skill_session_advice(session_id: uuid.UUID, ai: bool = False, db: Session = 
 def nutrition_plan(data: dto.MealPlanIn, user: User = Depends(get_current_user)):
     """A 7-day Sri Lankan meal plan for your calorie and protein targets and budget, with a shopping list."""
     from app.services import nutrition
-    return nutrition.week_plan(data.weight_kg, data.goal, data.budget_lkr_day, list(data.diet), data.height_cm, data.age, data.sex)
+    return nutrition.week_plan(data.weight_kg, data.goal, data.budget_lkr_day, list(data.diet), data.height_cm, data.age, data.sex,
+                               list(data.allergies), [h[:40] for h in data.have])
 
 
 @router.get("/exercises")

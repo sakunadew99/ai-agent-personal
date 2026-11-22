@@ -80,6 +80,8 @@ class UserProfile(Base):
     location: Mapped[str | None] = mapped_column(String(200), nullable=True)
     reading_goal_books: Mapped[int | None] = mapped_column(Integer, nullable=True)       # books to finish this year
     reading_daily_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height_cm: Mapped[int | None] = mapped_column(Integer, nullable=True)                 # for body-fat and waist-to-height
+    sex: Mapped[str | None] = mapped_column(String(6), nullable=True)                      # male | female (body maths only)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -1969,3 +1971,25 @@ class DisciplineEvent(Base):
     local_date: Mapped[date] = mapped_column(Date, index=True)
     local_hour: Mapped[int] = mapped_column(Integer, default=12)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class BodyMeasurement(Base):
+    """Tape-measure and scale check-ins (one per day) so changes show even when the scale doesn't move."""
+    __tablename__ = "body_measurements"
+    __table_args__ = (UniqueConstraint("user_id", "measured_on", name="uq_body_measurements_user_day"),
+                      CheckConstraint("body_fat_pct IS NULL OR body_fat_pct BETWEEN 2 AND 70", name="ck_body_measurements_fat"))
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    measured_on: Mapped[date] = mapped_column(Date)
+    weight_kg: Mapped[Decimal | None] = mapped_column(Numeric(5, 1), nullable=True)
+    waist_cm: Mapped[Decimal | None] = mapped_column(Numeric(5, 1), nullable=True)
+    chest_cm: Mapped[Decimal | None] = mapped_column(Numeric(5, 1), nullable=True)
+    hips_cm: Mapped[Decimal | None] = mapped_column(Numeric(5, 1), nullable=True)
+    neck_cm: Mapped[Decimal | None] = mapped_column(Numeric(5, 1), nullable=True)
+    arm_cm: Mapped[Decimal | None] = mapped_column(Numeric(5, 1), nullable=True)
+    thigh_cm: Mapped[Decimal | None] = mapped_column(Numeric(5, 1), nullable=True)
+    body_fat_pct: Mapped[Decimal | None] = mapped_column(Numeric(4, 1), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

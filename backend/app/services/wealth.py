@@ -72,7 +72,8 @@ def _avg_monthly_saving(db: Session, user_id, currency: str) -> float | None:
     return round(float((inc - exp) / 3), 2) if inc else None
 
 
-def million(db: Session, user_id, monthly_saving: float | None = None, usd_lkr: float | None = None, target_usd: float = 1_000_000) -> dict:
+def million(db: Session, user_id, monthly_saving: float | None = None, usd_lkr: float | None = None, target_usd: float = 1_000_000,
+            target_years: int = 15) -> dict:
     from app.services import smart
     rate, rate_source = (usd_lkr, "your rate") if usd_lkr else _usd_lkr()
     nw = smart.all_in_net_worth(db, user_id)
@@ -102,6 +103,7 @@ def million(db: Session, user_id, monthly_saving: float | None = None, usd_lkr: 
                         "weekly": ["Review spending vs budget", "Send 5 tailored proposals or applications", "Learn one money skill (15 min)"],
                         "monthly": ["Move savings first, on payday", "Check net worth", "Review subscriptions"],
                         "yearly": ["Ask for a raise / raise your rates", "Rebalance investments", "Update this projection"]},
+            "roadmap": roadmap(current_usd, monthly_usd, rate, target_usd, target_years),
             "disclaimer": "Projections, not promises. Returns vary and can be negative; consult a licensed adviser for investment decisions."}
 
 
@@ -152,6 +154,21 @@ OPPORTUNITIES = [
      "income_usd": (30, 400), "risks": ["AI is cutting prices"], "first": "Make a profile with 2 sample translations"},
 ]
 
+# competition, weeks to learn enough to sell, weeks to the first payment (typical, if you work the hours), risk class
+IDEA_META = {
+    "data_freelance": ("high", 8, 6, "beginner"), "ai_automation": ("medium", 12, 10, "beginner"), "fullstack": ("high", 16, 10, "beginner"),
+    "tutoring": ("medium", 2, 3, "beginner"), "digital_products": ("high", 4, 12, "beginner"), "youtube_tech": ("high", 4, 40, "high_risk"),
+    "linkedin_brand": ("medium", 1, 20, "beginner"), "saas": ("high", 24, 36, "high_risk"), "consulting": ("low", 8, 12, "beginner"),
+    "video_editing": ("high", 8, 6, "beginner"), "course": ("medium", 12, 24, "high_risk"), "cse_investing": ("low", 4, 52, "high_risk"),
+    "local_service": ("low", 2, 2, "beginner"), "translation": ("high", 1, 3, "beginner"),
+}
+RISK_LABEL = {"beginner": "Beginner-friendly: low cost, low downside, learn while earning", "high_risk": "Higher risk: slow or uncertain income, or money at risk"}
+
+
+def _meta(idea_id: str) -> dict:
+    comp, learn, first, risk = IDEA_META.get(idea_id, ("medium", 8, 12, "beginner"))
+    return {"competition": comp, "learn_weeks": learn, "first_income_weeks": first, "risk": risk, "risk_label": RISK_LABEL[risk]}
+
 
 def _my_skills(db: Session, user_id) -> set[str]:
     words: set[str] = set()
@@ -182,10 +199,45 @@ def opportunities(db: Session, user_id, hours: int = 8, budget_lkr: int = 10000)
         lo, hi = o["income_usd"]
         out.append({**{k: o[k] for k in ("id", "title", "what", "skills", "cost_lkr", "hours", "difficulty", "risks", "first")},
                     "income": "Indirect (jobs, clients, reputation)" if hi == 0 else f"${lo}–{hi:,}/month early on (varies widely; not a promise)",
-                    "fit": fit, "why": why or ["Needs new skills, but could suit you later"], "missing_skills": [s for s in o["skills"] if s not in have][:4]})
+                    "fit": fit, "why": why or ["Needs new skills, but could suit you later"], "missing_skills": [s for s in o["skills"] if s not in have][:4],
+                    **_meta(o["id"])})
     out.sort(key=lambda x: -x["fit"])
     active = db.scalars(select(Goal).where(Goal.user_id == user_id, Goal.status == "active")).all()
     started = [g.title for g in active if any(g.title.lower().startswith(o["title"].lower()[:12]) for o in OPPORTUNITIES)]
     return {"items": out, "hours": hours, "budget_lkr": budget_lkr, "known_skills": sorted(mine)[:30], "started": started,
             "focus_warning": "You already have 2+ income projects running. Finish or pause one before starting another." if len(started) >= 2 else None,
-            "how": "Fit = skills you have (50) + time (25) + starting cost (25). Start one, give it 90 days, then decide."}
+            "beginner": [x["id"] for x in out if x["risk"] == "beginner"], "high_risk": [x["id"] for x in out if x["risk"] == "high_risk"],
+            "how": "Fit = skills you have (50) + time (25) + starting cost (25). Start one, give it 90 days, then decide. "
+                   "Learning and first-income weeks are typical when you put in the listed hours; competition is how crowded the market is."}
+
+
+HORIZON_FOCUS = {
+    1: ["Emergency fund: 3-6 months of expenses in a savings account", "Track every expense; save on payday first",
+        "Build one sellable skill and start one side income (see Income ideas)"],
+    3: ["Raise your main income (promotion, job change or higher freelance rates)", "Invest a fixed amount every month in diversified funds",
+        "Grow the side income to a steady monthly amount"],
+    5: ["A second reliable income stream (clients, product or business)", "Keep investing; avoid lifestyle inflation when income rises",
+        "Review insurance and keep debt low"],
+    10: ["Let compounding work: keep contributions going through ups and downs", "Scale what works (team, product, higher-value clients)",
+         "Rebalance yearly; get licensed advice for large decisions"],
+}
+
+
+def roadmap(current_usd: float, monthly_usd: float, rate: float, target_usd: float = 1_000_000, target_years: int = 15, scenario: str = "realistic") -> dict:
+    """Checkpoints at 1, 3, 5 and 10 years: where your current saving takes you vs. the on-track path for the target."""
+    sc = next(x for x in SCENARIOS if x["key"] == scenario)
+    need = needed_monthly(current_usd, target_usd, target_years, sc["return_pct"], sc["saving_growth_pct"])
+    mine = {p["year"]: p["value"] for p in project(current_usd, monthly_usd, sc["return_pct"], sc["saving_growth_pct"], target_usd, 10)["path"]}
+    track = {p["year"]: p["value"] for p in project(current_usd, need, sc["return_pct"], sc["saving_growth_pct"], target_usd, 10)["path"]}
+    steps = []
+    for y in (1, 3, 5, 10):
+        on_track, yours = track.get(y, 0), mine.get(y, 0)
+        save_month = need * (1 + sc["saving_growth_pct"] / 100) ** (y - 1)
+        steps.append({"year": y, "on_track_usd": on_track, "on_track_lkr": round(on_track * rate), "your_path_usd": yours, "your_path_lkr": round(yours * rate),
+                      "gap_usd": max(0, on_track - yours), "status": "on track" if yours >= on_track * 0.97 else "behind",
+                      "save_per_month_usd": round(save_month), "save_per_month_lkr": round(save_month * rate),
+                      "income_per_month_usd_at_30pct": round(save_month / 0.30), "focus": HORIZON_FOCUS[y]})
+    how = (f"{sc['label']} scenario: {sc['return_pct']}% yearly return, savings growing {sc['saving_growth_pct']}% a year. 'On track' is the path that "
+           f"reaches USD {target_usd:,.0f} in {target_years} years. LKR uses today's rate; the rupee and prices will change. Income needed assumes you save 30%.")
+    return {"scenario": sc["label"], "target_usd": target_usd, "target_years": target_years, "needed_monthly_usd": need, "needed_monthly_lkr": round(need * rate),
+            "your_monthly_usd": round(monthly_usd, 2), "steps": steps, "how": how, "disclaimer": "Projections, not promises. Returns vary and can be negative."}

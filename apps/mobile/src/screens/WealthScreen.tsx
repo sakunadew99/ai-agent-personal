@@ -13,11 +13,11 @@ const input = { color: C.text, backgroundColor: C.panel2, borderRadius: 12, padd
 
 function Million({ api, onError }: { api: Api; onError: (m: string) => void }) {
   const [m, setM] = useState<Row | null>(null);
-  const [saving, setSaving] = useState(""); const [rate, setRate] = useState("");
-  const load = useCallback(() => {
-    const q = [saving && `monthly_saving_lkr=${Number(saving)}`, rate && `usd_lkr=${Number(rate)}`].filter(Boolean).join("&");
+  const [saving, setSaving] = useState(""); const [rate, setRate] = useState(""); const [goalYears, setGoalYears] = useState(15);
+  const load = useCallback((yrs: number = goalYears) => {
+    const q = [saving && `monthly_saving_lkr=${Number(saving)}`, rate && `usd_lkr=${Number(rate)}`, `target_years=${yrs}`].filter(Boolean).join("&");
     api<Row>(`/money/million${q ? `?${q}` : ""}`).then(x => { setM(x); if (!rate) setRate(String(x.usd_lkr)); if (!saving) setSaving(String(x.monthly_saving_lkr)); }).catch(e => onError(msg(e)));
-  }, [api, onError, saving, rate]);
+  }, [api, onError, saving, rate, goalYears]);
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (!m) return <Empty>Calculating your journey…</Empty>;
   const sc: Row[] = m.scenarios;
@@ -28,7 +28,7 @@ function Million({ api, onError }: { api: Api; onError: (m: string) => void }) {
       right={<Ring value={Math.max(1, m.progress_pct)} size={92} label={`${m.progress_pct < 1 ? m.progress_pct.toFixed(2) : Math.round(m.progress_pct)}%`} sub="OF $1M"/>}>
       <Line><View style={{ flex: 1, gap: 4 }}><Muted small>Monthly saving (LKR)</Muted><TextInput style={input} value={saving} onChangeText={setSaving} keyboardType="number-pad"/></View>
         <View style={{ flex: 1, gap: 4 }}><Muted small>LKR per USD</Muted><TextInput style={input} value={rate} onChangeText={setRate} keyboardType="decimal-pad"/></View></Line>
-      <Btn kind="outline" title="↻ Recalculate" onPress={load}/>
+      <Btn kind="outline" title="↻ Recalculate" onPress={() => load()}/>
       <Muted small>{`Saving: ${m.monthly_saving_source}`}</Muted>
     </Hero>
     <Card><Kicker>3 SCENARIOS · NEXT 40 YEARS</Kicker>
@@ -44,6 +44,16 @@ function Million({ api, onError }: { api: Api; onError: (m: string) => void }) {
           <Text style={{ color: C.muted, fontSize: 11 }}>{`in ${y} years`}</Text><Text style={{ color: C.text, fontWeight: "900", fontSize: 16 }}>{usd(need)}</Text>
           <Muted small>{`Rs ${Math.round(need * m.usd_lkr).toLocaleString()}`}</Muted></View>; })}</Line>
     </Card>
+    {m.roadmap && <Card style={{ gap: 8 }}><Kicker>{`ROADMAP · $1M IN ${m.roadmap.target_years} YEARS (${String(m.roadmap.scenario).toUpperCase()})`}</Kicker>
+      <Line>{[10, 15, 20, 25].map(y => <TouchableOpacity key={y} onPress={() => { setGoalYears(y); load(y); }} style={{ flex: 1, alignItems: "center", paddingVertical: 6, borderRadius: 10,
+        borderWidth: 1, borderColor: goalYears === y ? C.green : C.line }}><Text style={{ color: goalYears === y ? C.green : C.muted, fontWeight: "800" }}>{`${y} yrs`}</Text></TouchableOpacity>)}</Line>
+      <Muted small>{`On-track saving now: ${usd(m.roadmap.needed_monthly_usd)}/month (Rs ${Number(m.roadmap.needed_monthly_lkr).toLocaleString()}). You: ${usd(m.roadmap.your_monthly_usd)}/month.`}</Muted>
+      {(m.roadmap.steps as Row[]).map(st => <View key={st.year} style={{ backgroundColor: C.panel2, borderRadius: 14, padding: 10, gap: 3 }}>
+        <Line><Text style={{ color: C.text, fontWeight: "900", flex: 1 }}>{`Year ${st.year}`}</Text><Text style={{ color: st.status === "on track" ? C.green : C.amber, fontWeight: "800" }}>{st.status}</Text></Line>
+        <Muted small>{`On track: ${usd(st.on_track_usd)} (Rs ${Number(st.on_track_lkr).toLocaleString()}) · your path: ${usd(st.your_path_usd)}`}</Muted>
+        <Muted small>{`Save ${usd(st.save_per_month_usd)}/month (Rs ${Number(st.save_per_month_lkr).toLocaleString()}) · income ≈ ${usd(st.income_per_month_usd_at_30pct)}/month at 30% saved`}</Muted>
+        {(st.focus as string[]).map(f => <Text key={f} style={{ color: C.text, fontSize: 13 }}>{`• ${f}`}</Text>)}</View>)}
+      <Muted small>{m.roadmap.how}</Muted></Card>}
     <Card><Kicker>MILESTONES</Kicker><View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{(m.milestones as Row[]).map(x => <Text key={x.label}
       style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 99, overflow: "hidden", color: x.reached ? "#04170d" : C.muted, backgroundColor: x.reached ? C.green : C.panel2, fontWeight: "800" }}>{`${x.reached ? "✓ " : ""}${x.label}`}</Text>)}</View></Card>
     <Card><Kicker>YOUR MONEY ACTIONS</Kicker>{Object.entries(m.actions as Record<string, string[]>).map(([k, v]) =>
@@ -82,6 +92,8 @@ function Ideas({ api, onError, onNotice }: { api: Api; onError: (m: string) => v
             <Text style={{ color: C.green }}>{`💰 ${x.income}`}</Text>
             {(x.why as string[]).map((w, k) => <Text key={k} style={{ color: C.text }}>{`✓ ${w}`}</Text>)}
             {(x.missing_skills as string[]).length > 0 && <Muted small>{`To learn: ${(x.missing_skills as string[]).join(", ")}`}</Muted>}
+            <Text style={{ color: x.risk === "high_risk" ? C.amber : C.green, fontWeight: "800" }}>{x.risk === "high_risk" ? "⚠ Higher risk" : "🌱 Beginner-friendly"}</Text>
+            <Muted small>{`Competition: ${x.competition} · learn ≈ ${x.learn_weeks} weeks · first income ≈ ${x.first_income_weeks} weeks`}</Muted>
             <Muted small>{`Risks: ${(x.risks as string[]).join(" · ")}`}</Muted>
             <Text style={{ color: C.amber, fontWeight: "800" }}>{`First action: ${x.first}`}</Text>
             <Btn title="🎯 Make it a goal" onPress={() => makeGoal(x)}/>

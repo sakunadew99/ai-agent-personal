@@ -119,10 +119,11 @@ def companion_frequency(data: dto.CompanionFrequency, db: Session = Depends(get_
 
 @router.get("/money/million")
 def money_million(monthly_saving_lkr: float | None = Query(default=None, ge=0, le=100_000_000), usd_lkr: float | None = Query(default=None, gt=1, le=10000),
-                  target_usd: float = Query(default=1_000_000, ge=1000, le=100_000_000), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+                  target_usd: float = Query(default=1_000_000, ge=1000, le=100_000_000), target_years: int = Query(default=15, ge=3, le=40),
+                  db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Where you are on the way to $1M: three scenarios, years to target and the monthly saving needed for 10/15/20 years."""
     from app.services import wealth
-    return wealth.million(db, user.id, monthly_saving_lkr, usd_lkr, target_usd)
+    return wealth.million(db, user.id, monthly_saving_lkr, usd_lkr, target_usd, target_years)
 
 
 @router.get("/opportunities")

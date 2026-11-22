@@ -64,13 +64,14 @@ function Library({ api, onError }: { api: Api; onError: (m: string) => void }) {
 }
 
 function Meals({ api, onError }: { api: Api; onError: (m: string) => void }) {
-  const [prefs, setPrefs] = useState<Row>({ weight_kg: "75", goal: "lose", budget_lkr_day: "", diet: [] as string[], height_cm: "", age: "", sex: "" });
+  const [prefs, setPrefs] = useState<Row>({ weight_kg: "75", goal: "lose", budget_lkr_day: "", diet: [] as string[], height_cm: "", age: "", sex: "", allergies: [] as string[], have: "" });
   const [plan, setPlan] = useState<Row | null>(null);
   const [day, setDay] = useState(0);
   const [showShop, setShowShop] = useState(false);
   useEffect(() => { SecureStore.getItemAsync(MEAL_KEY).then(v => { if (v) setPrefs(JSON.parse(v)); }).catch(() => undefined); }, []);
   const make = useCallback(() => {
-    const body: Row = { weight_kg: Number(prefs.weight_kg), goal: prefs.goal, diet: prefs.diet };
+    const body: Row = { weight_kg: Number(prefs.weight_kg), goal: prefs.goal, diet: prefs.diet, allergies: prefs.allergies || [],
+      have: String(prefs.have || "").split(",").map((x: string) => x.trim()).filter(Boolean) };
     if (Number(prefs.budget_lkr_day) > 0) body.budget_lkr_day = Number(prefs.budget_lkr_day);
     if (Number(prefs.height_cm) && Number(prefs.age) && prefs.sex) Object.assign(body, { height_cm: Number(prefs.height_cm), age: Number(prefs.age), sex: prefs.sex });
     void SecureStore.setItemAsync(MEAL_KEY, JSON.stringify(prefs)).catch(() => undefined);
@@ -91,13 +92,21 @@ function Meals({ api, onError }: { api: Api; onError: (m: string) => void }) {
         <TextInput style={[input, { flex: 1 }]} value={String(prefs.age)} onChangeText={set("age")} placeholder="Age" placeholderTextColor={C.muted} keyboardType="number-pad"/>
         {(["male", "female"] as const).map(s => <TouchableOpacity key={s} onPress={() => set("sex")(prefs.sex === s ? "" : s)} style={chip(prefs.sex === s)}><Text style={{ color: prefs.sex === s ? C.green : C.muted }}>{s === "male" ? "♂" : "♀"}</Text></TouchableOpacity>)}</Line>
       <Muted small>Height, age and sex are optional; they make the calorie target more accurate.</Muted>
+      <Muted small>Allergies (foods that usually contain them are removed):</Muted>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{["peanut", "egg", "milk", "fish", "gluten", "soy", "coconut"].map(x => { const al = (prefs.allergies || []) as string[]; const on = al.includes(x);
+        return <TouchableOpacity key={x} onPress={() => set("allergies")(on ? al.filter(y => y !== x) : [...al, x])} style={chip(on)}>
+          <Text style={{ color: on ? C.red : C.muted, fontWeight: "700" }}>{`${on ? "⚠ " : ""}${x}`}</Text></TouchableOpacity>; })}</View>
+      <TextInput style={input} value={String(prefs.have || "")} onChangeText={set("have")} placeholder="Already at home (rice, eggs, dhal…) — used first" placeholderTextColor={C.muted}/>
       <Btn title="🥗 Make my week" disabled={!(Number(prefs.weight_kg) >= 30)} onPress={make}/>
     </Card>
     {plan && <>
       <Card accent><Line><View style={{ flex: 1 }}><Text style={{ color: C.text, fontWeight: "900", fontSize: 18 }}>{`${plan.targets.kcal} kcal · ${plan.targets.protein_g} g protein`}</Text>
         <Muted small>{`Target per day (${plan.targets.method}). Plan average: ${plan.avg_kcal} kcal, ${plan.avg_protein_g} g protein, Rs ${Number(plan.avg_day_cost_lkr).toLocaleString()}/day`}</Muted></View></Line>
         {!!plan.targets.floor_note && <Text style={{ color: C.amber }}>{plan.targets.floor_note}</Text>}
-        {!!plan.budget_note && <Text style={{ color: C.amber }}>{plan.budget_note}</Text>}</Card>
+        {!!plan.budget_note && <Text style={{ color: C.amber }}>{plan.budget_note}</Text>}
+        {!!plan.protein_note && <Text style={{ color: C.amber }}>{plan.protein_note}</Text>}
+        {(plan.using_from_home as string[] | undefined)?.length ? <Muted small>{`Using from home: ${(plan.using_from_home as string[]).join(", ")}`}</Muted> : null}
+        {!!plan.allergy_note && <Text style={{ color: C.red }}>{plan.allergy_note}</Text>}</Card>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>{(plan.days as Row[]).map((x, i) => <TouchableOpacity key={x.day} onPress={() => setDay(i)} style={chip(day === i)}>
         <Text style={{ color: day === i ? C.green : C.muted, fontWeight: "800" }}>{x.day.slice(0, 3)}</Text></TouchableOpacity>)}</ScrollView>
       {d && <>{(d.meals as Row[]).map(m => <Card key={m.slot} style={{ padding: 12 }}>
@@ -105,7 +114,7 @@ function Meals({ api, onError }: { api: Api; onError: (m: string) => void }) {
         {(m.items as Row[]).map((it, k) => <Text key={k} style={{ color: C.text }}>{`• ${it.name} — ${it.qty !== 1 ? `${it.qty} × ` : ""}${it.portion}`}</Text>)}</Card>)}
         <Muted small>{`${d.day}: ${d.kcal} kcal · ${d.protein_g} g protein · Rs ${Number(d.cost_lkr).toLocaleString()}`}</Muted></>}
       <TouchableOpacity onPress={() => setShowShop(s => !s)}><Card><Line><Kicker>{`🛒 SHOPPING LIST · ABOUT Rs ${Number(plan.week_cost_lkr).toLocaleString()} / WEEK`}</Kicker><View style={{ flex: 1 }}/><Text style={{ color: C.green }}>{showShop ? "Hide" : "Show"}</Text></Line>
-        {showShop && (plan.shopping as Row[]).map(s => <Line key={s.item}><Text style={{ color: C.text, flex: 1 }}>{`${s.item} (${s.portions} × ${s.portion})`}</Text><Muted small>{`Rs ${Number(s.cost_lkr).toLocaleString()}`}</Muted></Line>)}</Card></TouchableOpacity>
+        {showShop && (plan.shopping as Row[]).map(s => <Line key={s.item}><Text style={{ color: s.at_home ? C.muted : C.text, flex: 1 }}>{`${s.at_home ? "🏠 " : ""}${s.item} (${s.portions} × ${s.portion})`}</Text><Muted small>{s.at_home ? "at home" : `Rs ${Number(s.cost_lkr).toLocaleString()}`}</Muted></Line>)}</Card></TouchableOpacity>
       <Card><Kicker>MEAL PREP</Kicker>{(plan.prep as string[]).map((x, i) => <Text key={i} style={{ color: C.text }}>{`• ${x}`}</Text>)}</Card>
       <Muted small>{plan.note}</Muted>
     </>}

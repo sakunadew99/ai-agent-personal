@@ -401,3 +401,60 @@ def freelance_proposal(data: dto.FreelanceProposalIn, user: User = Depends(get_c
     """A proposal draft for you to edit and send yourself. Nothing is sent from Sakuna."""
     from app.services import freelance
     return freelance.proposal(data.job, [s.strip()[:40] for s in data.skills if s.strip()], data.name, data.experience, data.days, data.price_usd, data.tone)
+
+
+# ---------------- body measurements
+
+def _profile_row(db: Session, user: User):
+    from app.models.entities import UserProfile
+    p = db.scalar(select(UserProfile).where(UserProfile.user_id == user.id))
+    if p is None:
+        p = UserProfile(user_id=user.id); db.add(p); db.flush()
+    return p
+
+
+@router.get("/body")
+def body_overview(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Measurements with change since start and last month, waist-to-height ratio and a body-fat estimate."""
+    from app.services import body
+    p = _profile_row(db, user)
+    out = body.overview(db, user.id, _today(db, user), p.height_cm, p.sex)
+    db.commit()
+    return {**out, "height_cm": p.height_cm, "sex": p.sex}
+
+
+@router.put("/body/profile")
+def body_profile(data: dto.BodyProfileIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    p = _profile_row(db, user)
+    p.height_cm, p.sex = data.height_cm, data.sex
+    db.commit()
+    return {"height_cm": p.height_cm, "sex": p.sex}
+
+
+@router.post("/body/measurements", status_code=201)
+def body_add(data: dto.BodyMeasurementIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """One check-in per day: saving again on the same day updates it."""
+    from app.core.clock import now_utc
+    from app.models.entities import BodyMeasurement
+    from app.services import body
+    values = data.model_dump(exclude={"measured_on"})
+    if all(values[k] is None for k in body.FIELDS):
+        raise HTTPException(422, "Enter at least one measurement")
+    day = data.measured_on or _today(db, user)
+    if day > _today(db, user):
+        raise HTTPException(422, "The date can't be in the future")
+    row = db.scalar(select(BodyMeasurement).where(BodyMeasurement.user_id == user.id, BodyMeasurement.measured_on == day))
+    if row is None:
+        row = BodyMeasurement(user_id=user.id, measured_on=day); db.add(row)
+    for k, v in values.items():
+        if v is not None:
+            setattr(row, k, v)
+    row.updated_at = now_utc()
+    db.commit(); db.refresh(row)
+    return body.row_out(row)
+
+
+@router.delete("/body/measurements/{row_id}", status_code=204)
+def body_delete(row_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import BodyMeasurement
+    db.delete(owned(db, BodyMeasurement, user.id, row_id)); db.commit()

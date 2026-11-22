@@ -19,6 +19,7 @@ export const GROUPS: Group[] = [
   { name: "Body", emoji: "💪", color: "#3ee08f", items: [
     { key: "Health", icon: "❤️", title: "Health & Mi Band", hint: "Steps, sleep, heart rate", words: "mi fitness steps sleep heart health connect" },
     { key: "Fitness", icon: "🥗", title: "Fitness guide", hint: "Workouts, exercise how-to, meal plans", words: "workout plan exercise technique muscles meal plan diet nutrition protein calories food rice dhal shopping list belly fat" },
+    { key: "Body", icon: "📏", title: "Body measurements", hint: "Weight, waist, body fat and trends", words: "body measurements weight waist chest hips arm thigh neck body fat bmi tape progress" },
     { key: "Sports", icon: "🥋", title: "Martial arts & swimming", hint: "Pathways, gear costs, safety, clubs near you", words: "karate kickboxing muay thai boxing swimming martial arts sport dojo pool lessons self defence fight" },
     { key: "Gym", icon: "🏋️", title: "Gym", hint: "Sets, kg × reps, records", words: "workout exercise weights" },
     { key: "Skin", icon: "✨", title: "Skin & glow", hint: "Daily face scan, glow score", words: "face skin glow pimple acne spots redness beauty selfie" },

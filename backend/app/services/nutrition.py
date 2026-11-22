@@ -45,6 +45,18 @@ MEALS = {
 CHEAPER = [("chicken", "soya"), ("fish", "sprats"), ("string_hoppers", "rice"), ("pol_roti", "bread"), ("egg_hopper", "egg"),
            ("yoghurt", "curd"), ("milk", "curd"), ("chickpeas", "dhal")]
 EXCLUDE = {"vegetarian": {"meat", "fish"}, "pescatarian": {"meat"}, "no_egg": {"egg"}, "no_dairy": {"dairy"}}
+# allergies remove every food that usually contains the allergen (Sri Lankan curries are often made with coconut milk)
+ALLERGENS = {
+    "peanut": {"peanuts"},
+    "egg": {"egg", "egg_hopper"},
+    "milk": {"curd", "milk", "yoghurt"},
+    "fish": {"fish", "sprats"},
+    "gluten": {"bread", "pol_roti", "oats"},              # oats are often cross-contaminated with wheat
+    "soy": {"soya"},
+    "coconut": {"pol_roti", "pol_sambol", "gotukola", "dhal", "veg_curry", "chicken", "fish", "string_hoppers", "egg_hopper", "chickpeas", "sprats"},
+}
+ALLERGY_NOTE = ("Allergies: foods that usually contain the allergen are removed, but recipes vary. Always check labels and ask how food is "
+                "cooked; cross-contamination is possible. For severe allergies follow your doctor's plan.")
 DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
@@ -64,15 +76,37 @@ def targets(weight_kg: float, goal: str, height_cm: float | None = None, age: in
 
 
 def _allowed(item: str, avoid: set[str]) -> bool:
-    return not (FOODS[item][5] & avoid)
+    """avoid holds food tags (meat, dairy...) and food keys (from allergies)."""
+    return item not in avoid and not (FOODS[item][5] & avoid)
+
+
+def match_have(names: list[str]) -> set[str]:
+    """Match ingredients you have at home ("eggs", "dhal", "rice") to food keys."""
+    out: set[str] = set()
+    for raw in names:
+        n = raw.strip().lower().rstrip("s")
+        if len(n) < 3:
+            continue
+        for key, f in FOODS.items():
+            if n in key.replace("_", " ") or n in f[0].lower():
+                out.add(key)
+    return out
 
 
 class _Day:
-    def __init__(self, day_idx: int, avoid: set[str]):
+    def __init__(self, day_idx: int, avoid: set[str], have: set[str] | None = None):
         self.avoid = avoid
         self.slots: dict[str, list[list]] = {}
         for slot, options in MEALS.items():
-            ok = [o for o in options if all(_allowed(i, avoid) for i in o)] or [["rice", "veg_curry", "salad"]]
+            ok = [o for o in options if all(_allowed(i, avoid) for i in o)]
+            if not ok:                                       # every usual meal has a blocked food: build a safe plate from what's left
+                safe = [k for k in ("rice", "egg", "green_gram", "salad", "papaya", "banana", "yoghurt") if _allowed(k, avoid)]
+                ok = [safe[:3]] if safe else [[]]
+            if have:                                         # prefer meals that use what you already have at home
+                ok.sort(key=lambda o: -sum(1 for i in o if i in have))
+                best = sum(1 for i in ok[0] if i in have)
+                if best:
+                    ok = [o for o in ok if sum(1 for i in o if i in have) >= max(1, best - 1)]
             self.slots[slot] = [[i, 1.0] for i in ok[(day_idx + len(slot)) % len(ok)]]
 
     def total(self, col: int) -> float:
@@ -89,13 +123,13 @@ class _Day:
                             p[0] = cheap
 
 
-def _day(day_idx: int, t: dict, avoid: set[str], budget: float | None) -> dict:
-    d = _Day(day_idx, avoid)
+def _day(day_idx: int, t: dict, avoid: set[str], budget: float | None, have: set[str] | None = None) -> dict:
+    d = _Day(day_idx, avoid, have)
     if budget:
         d.swap_for_budget(budget * 0.8)                                       # leave room for protein top-ups
     # 1) protein: top up with the densest cheap protein you eat, alternating soya and eggs when both are allowed
     extras = [x for x in ("soya", "egg") if _allowed(x, avoid)] + [x for x in ("green_gram", "dhal") if _allowed(x, avoid)]
-    for k in range(6):
+    for k in range(6 if extras else 0):
         if d.total(3) >= t["protein_g"] - 3:
             break
         d.slots["snack"].append([extras[k % min(2, len(extras))], 1.0])
@@ -125,19 +159,23 @@ def _day(day_idx: int, t: dict, avoid: set[str], budget: float | None) -> dict:
 
 
 def week_plan(weight_kg: float, goal: str = "lose", budget_lkr_day: float | None = None, diet: list[str] | None = None,
-              height_cm: float | None = None, age: int | None = None, sex: str | None = None) -> dict:
+              height_cm: float | None = None, age: int | None = None, sex: str | None = None,
+              allergies: list[str] | None = None, have: list[str] | None = None) -> dict:
     t = targets(weight_kg, goal, height_cm, age, sex)
     avoid: set[str] = set()
     for d in diet or []:
         avoid |= EXCLUDE.get(d, set())
-    days = [_day(i, t, avoid, budget_lkr_day) for i in range(7)]
+    for a in allergies or []:
+        avoid |= ALLERGENS.get(a, set())
+    have_keys = {k for k in match_have(have or []) if _allowed(k, avoid)}
+    days = [_day(i, t, avoid, budget_lkr_day, have_keys) for i in range(7)]
     shop: dict[str, float] = {}
     for d in days:
         for m in d["meals"]:
             for it in m["items"]:
                 shop[it["key"]] = shop.get(it["key"], 0) + it["qty"]
-    shopping = sorted(({"item": FOODS[k][0], "portions": q, "portion": FOODS[k][1], "cost_lkr": round(FOODS[k][4] * q)} for k, q in shop.items()),
-                      key=lambda x: -x["cost_lkr"])
+    shopping = sorted(({"item": FOODS[k][0], "portions": q, "portion": FOODS[k][1], "cost_lkr": round(FOODS[k][4] * q), "at_home": k in have_keys}
+                       for k, q in shop.items()), key=lambda x: (x["at_home"], -x["cost_lkr"]))
     week_cost = sum(d["cost_lkr"] for d in days)
     over = [d["day"] for d in days if d["within_budget"] is False]
     return {"targets": t, "days": days, "shopping": shopping, "week_cost_lkr": week_cost, "avg_day_cost_lkr": round(week_cost / 7),
@@ -146,4 +184,8 @@ def week_plan(weight_kg: float, goal: str = "lose", budget_lkr_day: float | None
                             "Lower the protein target a little or raise the budget.") if over else None,
             "prep": ["Sunday: cook dhal, chickpeas and soya for 3 days; boil 6 eggs", "Wednesday: second batch of curries",
                      "Keep cut vegetables and fruit ready in the fridge", "Drink 2.5-3 L water a day (more on gym days)"],
+            "allergies": sorted(allergies or []), "using_from_home": sorted(FOODS[k][0] for k in have_keys),
+            "allergy_note": ALLERGY_NOTE if allergies else None,
+            "protein_note": None if any(d["protein_g"] >= t["protein_g"] - 5 for d in days) else
+            "With these restrictions the plan can't reach your protein target from these foods; ask a dietitian about other protein sources.",
             "note": "Portions and prices are typical estimates; adjust to your shop. Not medical advice; see a dietitian for health conditions."}

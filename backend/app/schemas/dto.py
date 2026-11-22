@@ -1768,6 +1768,8 @@ class MealPlanIn(BaseModel):
     height_cm: float | None = Field(default=None, ge=120, le=230)
     age: int | None = Field(default=None, ge=14, le=100)
     sex: Literal["male", "female"] | None = None
+    allergies: list[Literal["peanut", "egg", "milk", "fish", "gluten", "soy", "coconut"]] = Field(default_factory=list, max_length=7)
+    have: list[str] = Field(default_factory=list, max_length=30)
 
 
 ContentPlatform = Literal["short", "linkedin", "youtube", "carousel"]
@@ -1941,3 +1943,21 @@ class FreelanceProposalIn(BaseModel):
     days: int | None = Field(default=None, ge=1, le=365)
     price_usd: float | None = Field(default=None, gt=0, le=100000)
     tone: Literal["friendly", "formal"] = "friendly"
+
+
+class BodyMeasurementIn(BaseModel):
+    measured_on: date | None = None
+    weight_kg: Decimal | None = Field(default=None, ge=20, le=400)
+    waist_cm: Decimal | None = Field(default=None, ge=30, le=250)
+    chest_cm: Decimal | None = Field(default=None, ge=40, le=250)
+    hips_cm: Decimal | None = Field(default=None, ge=40, le=250)
+    neck_cm: Decimal | None = Field(default=None, ge=20, le=80)
+    arm_cm: Decimal | None = Field(default=None, ge=10, le=80)
+    thigh_cm: Decimal | None = Field(default=None, ge=20, le=120)
+    body_fat_pct: Decimal | None = Field(default=None, ge=2, le=70)
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class BodyProfileIn(BaseModel):
+    height_cm: int | None = Field(default=None, ge=120, le=230)
+    sex: Literal["male", "female"] | None = None

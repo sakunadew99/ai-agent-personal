@@ -38,7 +38,7 @@ import { HabitManager, InboxPage, JobFinder, LearnRadar, PlannerBoard, RewardsGa
 import { BrainGymPage, NewsAndWatch } from "@/components/LifeOsPages3";
 import { SearchPage, VideosPage } from "@/components/LifeOsPages5";
 import { SchedulePage, SpeakingPage } from "@/components/LifeOsPages6";
-import { AskPage, ContentPage, DisciplinePage, EnglishPage, FreelancePage, SportsPage, FitnessGuidePage, KegelPage, NotesPage, ReadingPage, ResourcesPage, RolePlayPage, TravelPage, WealthPage } from "@/components/LifeOsPages8";
+import { AskPage, BodyPage, ContentPage, DisciplinePage, EnglishPage, FreelancePage, SportsPage, FitnessGuidePage, KegelPage, NotesPage, ReadingPage, ResourcesPage, RolePlayPage, TravelPage, WealthPage } from "@/components/LifeOsPages8";
 import { DreamsPage, DrillPage, HealthAdvicePanel, MedicinesPage, ReceiptPage, RitualsPage, SkillsPage, SkinPage } from "@/components/LifeOsPages7";
 import { DayPage, GymPage, LanguagesPage, ProgressPage } from "@/components/LifeOsPages4";
 import { NudgeBanner, TodayPlanCard } from "@/components/SmartCards";
@@ -80,6 +80,7 @@ const navigation = [
   { label: "Notes", icon: "copy", hint: "Notebook with checklists, tags and colours" },
   { label: "Pelvic floor", icon: "heart", hint: "Guided Kegel trainer with technique and reliable links" },
   { label: "Self-control", icon: "shield", hint: "Private streaks, urge help, triggers and blocking" },
+  { label: "Body measurements", icon: "chart", hint: "Weight, waist, body fat and trends" },
   { label: "Martial arts & swimming", icon: "heart", hint: "Karate, kickboxing, Muay Thai, boxing, swimming pathways" },
   { label: "English check", icon: "book", hint: "Grammar corrections for what you write or say" },
   { label: "Freelancing kit", icon: "briefcase", hint: "Price estimator and proposal drafts (you send them)" },
@@ -479,6 +480,7 @@ export default function Home() {
       case "Pelvic floor": return <KegelPage token={token} />;
       case "Self-control": return <DisciplinePage token={token} />;
       case "Martial arts & swimming": return <SportsPage token={token} />;
+      case "Body measurements": return <BodyPage token={token} />;
       case "English check": return <EnglishPage token={token} />;
       case "Freelancing kit": return <FreelancePage token={token} />;
       case "Ask Sakuna": return <AskPage token={token} onOpenApprovals={() => navigate("Approvals")} />;

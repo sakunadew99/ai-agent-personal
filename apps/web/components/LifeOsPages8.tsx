@@ -47,13 +47,13 @@ const usd = (n: number) => `$${Math.round(n).toLocaleString()}`;
 export function WealthPage({ token }: { token: string }) {
   const [m, setM] = useState<Row | null>(null);
   const [o, setO] = useState<Row | null>(null);
-  const [saving, setSaving] = useState(""); const [rate, setRate] = useState("");
+  const [saving, setSaving] = useState(""); const [rate, setRate] = useState(""); const [goalYears, setGoalYears] = useState(15);
   const [hours, setHours] = useState("8"); const [budget, setBudget] = useState("10000");
   const [note, setNote] = useState("");
-  const loadM = useCallback(() => {
-    const q = [saving && `monthly_saving_lkr=${Number(saving)}`, rate && `usd_lkr=${Number(rate)}`].filter(Boolean).join("&");
+  const loadM = useCallback((yrs: number = goalYears) => {
+    const q = [saving && `monthly_saving_lkr=${Number(saving)}`, rate && `usd_lkr=${Number(rate)}`, `target_years=${yrs}`].filter(Boolean).join("&");
     call<Row>(`/money/million${q ? `?${q}` : ""}`, token).then(x => { setM(x); setRate(r => r || String(x.usd_lkr)); setSaving(s => s || String(x.monthly_saving_lkr)); }).catch(e => setNote(errText(e)));
-  }, [token, saving, rate]);
+  }, [token, saving, rate, goalYears]);
   const loadO = useCallback(() => { call<Row>(`/opportunities?hours=${Number(hours) || 8}&budget_lkr=${Number(budget) || 0}`, token).then(setO).catch(e => setNote(errText(e))); }, [token, hours, budget]);
   useEffect(() => { loadM(); loadO(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const goal = (x: Row) => void call<Row>("/dreams/propose", token, postJson({ dream: `Start ${x.title}`, horizon: "month", ai: false })).then(plan => {
@@ -63,12 +63,20 @@ export function WealthPage({ token }: { token: string }) {
     <Hero kicker="$1M financial freedom journey" title={m ? usd(m.current_usd) : "…"} accent="today" sub={m ? `≈ Rs ${Number(m.current_lkr).toLocaleString()} at ${m.usd_lkr} (${m.rate_source}). ${m.disclaimer}` : ""}
       right={m && <Ring value={Math.max(1, m.progress_pct)} size={120} label={`${m.progress_pct < 1 ? m.progress_pct.toFixed(2) : Math.round(m.progress_pct)}%`} sub="of $1M"/>}>
       <div className="d-row" style={{ marginTop: 10 }}><label className="d-note">Monthly saving (LKR)<input className="d-input" value={saving} onChange={e => setSaving(e.target.value)}/></label>
-        <label className="d-note">LKR per USD<input className="d-input" value={rate} onChange={e => setRate(e.target.value)}/></label><button className="d-btn" onClick={loadM}>↻ Recalculate</button></div>
+        <label className="d-note">LKR per USD<input className="d-input" value={rate} onChange={e => setRate(e.target.value)}/></label><button className="d-btn" onClick={() => loadM()}>↻ Recalculate</button></div>
     </Hero>
     {note && <p className="d-note">{note}</p>}
     {m && <div className="d-grid-2">
       <Card kicker="Scenarios" title="Years to $1M">{(m.scenarios as Row[]).map(s => <p key={s.key}><b>{s.label}</b>: {s.years_to_target != null ? `${s.years_to_target} years` : "not within 50 years"}
         <br/><small className="d-note">{s.return_pct}% return · savings +{s.saving_growth_pct}%/year · need {usd(s.needed_monthly_usd["15"])}/month to get there in 15 years</small></p>)}</Card>
+      {m.roadmap && <Card kicker={`Roadmap · ${m.roadmap.scenario}`} title={`$1M in ${m.roadmap.target_years} years`}
+        action={<div className="d-chips">{[10, 15, 20, 25].map(y => <button key={y} className={`d-chip ${goalYears === y ? "on" : ""}`} onClick={() => { setGoalYears(y); loadM(y); }}>{y}y</button>)}</div>}>
+        <p className="d-note">On-track saving now: {usd(m.roadmap.needed_monthly_usd)}/month (Rs {Number(m.roadmap.needed_monthly_lkr).toLocaleString()}); you: {usd(m.roadmap.your_monthly_usd)}/month.</p>
+        {(m.roadmap.steps as Row[]).map(st => <div key={st.year} style={{ borderTop: "1px solid var(--d-line)", padding: "6px 0" }}>
+          <b>Year {st.year}</b> <span style={{ color: st.status === "on track" ? "var(--d-green)" : "var(--d-amber)", fontWeight: 800 }}>{st.status}</span>
+          <br/><small className="d-note">On track {usd(st.on_track_usd)} (Rs {Number(st.on_track_lkr).toLocaleString()}) · your path {usd(st.your_path_usd)} · save {usd(st.save_per_month_usd)}/month · income ≈ {usd(st.income_per_month_usd_at_30pct)}/month at 30% saved</small>
+          <br/><small className="d-note">{(st.focus as string[]).join(" · ")}</small></div>)}
+        <p className="d-note">{m.roadmap.how}</p></Card>}
       <Card kicker="Actions" title="Daily · weekly · monthly · yearly">{Object.entries(m.actions as Record<string, string[]>).map(([k, v]) => <p key={k} className="d-note"><b style={{ textTransform: "capitalize" }}>{k}:</b> {v.join(" · ")}</p>)}</Card>
     </div>}
     <Card kicker="Income ideas" title="Ranked for your skills, time and budget" action={<div className="d-row"><input className="d-input" style={{ width: 80 }} value={hours} onChange={e => setHours(e.target.value)} title="hours/week"/>
@@ -78,6 +86,8 @@ export function WealthPage({ token }: { token: string }) {
         <div className="d-row" style={{ justifyContent: "space-between" }}><b style={{ color: "var(--d-text)" }}>{x.title}</b><span style={{ color: x.fit >= 70 ? "var(--d-green)" : "var(--d-amber)", fontWeight: 800 }}>{x.fit}% fit</span></div>
         <small className="d-note">{x.what} · Rs {Number(x.cost_lkr).toLocaleString()} · {x.hours} h/week · {x.income}</small><br/>
         <small className="d-note">✓ {(x.why as string[]).join(" · ")} · Risks: {(x.risks as string[]).join(", ")}</small><br/>
+        <small style={{ color: x.risk === "high_risk" ? "var(--d-amber)" : "var(--d-green)", fontWeight: 700 }}>{x.risk === "high_risk" ? "⚠ Higher risk" : "🌱 Beginner-friendly"}</small>
+        <small className="d-note"> · competition {x.competition} · learn ≈ {x.learn_weeks} weeks · first income ≈ {x.first_income_weeks} weeks</small><br/>
         <button className="text-button" onClick={() => goal(x)}>🎯 Make it a goal (first: {x.first})</button></div>)}
     </Card>
   </div>;
@@ -91,7 +101,7 @@ export function FitnessGuidePage({ token }: { token: string }) {
   const [items, setItems] = useState<Row[]>([]);
   const [muscle, setMuscle] = useState("");
   const [open, setOpen] = useState<string | null>(null);
-  const [f, setF] = useState<Row>({ weight_kg: "75", goal: "lose", budget_lkr_day: "", diet: [] as string[] });
+  const [f, setF] = useState<Row>({ weight_kg: "75", goal: "lose", budget_lkr_day: "", diet: [] as string[], allergies: [] as string[], have: "" });
   const [meal, setMeal] = useState<Row | null>(null);
   const [day, setDay] = useState(0);
   const [note, setNote] = useState("");
@@ -103,7 +113,8 @@ export function FitnessGuidePage({ token }: { token: string }) {
     {open === e.name && <div className="d-note"><ol>{(e.technique as string[]).map((t, i) => <li key={i}>{t}</li>)}</ol>
       <p style={{ color: "var(--d-amber)" }}>Mistakes: {(e.mistakes as string[]).join(" · ")}</p><p>Easier: {e.easier} · rest {e.rest_s}s · <a href={e.video_search} target="_blank" rel="noreferrer">▶ Watch how (YouTube search)</a></p></div>}</div>;
   const make = () => {
-    const body: Row = { weight_kg: Number(f.weight_kg), goal: f.goal, diet: f.diet };
+    const body: Row = { weight_kg: Number(f.weight_kg), goal: f.goal, diet: f.diet, allergies: f.allergies,
+      have: String(f.have || "").split(",").map((x: string) => x.trim()).filter(Boolean) };
     if (Number(f.budget_lkr_day) > 0) body.budget_lkr_day = Number(f.budget_lkr_day);
     void call<Row>("/nutrition/plan", token, postJson(body)).then(setMeal).catch(e => setNote(errText(e)));
   };
@@ -123,14 +134,21 @@ export function FitnessGuidePage({ token }: { token: string }) {
           <select className="d-input" value={f.goal} onChange={e => setF({ ...f, goal: e.target.value })}><option value="lose">Lose fat</option><option value="maintain">Maintain</option><option value="gain">Build muscle</option></select></div>
         <div className="d-chips">{["vegetarian", "pescatarian", "no_egg", "no_dairy"].map(x => <button key={x} className={`d-chip ${(f.diet as string[]).includes(x) ? "on" : ""}`}
           onClick={() => setF({ ...f, diet: (f.diet as string[]).includes(x) ? (f.diet as string[]).filter(y => y !== x) : [...f.diet, x] })}>{x.replace("_", " ")}</button>)}</div>
+        <p className="d-note">Allergies (foods that usually contain them are removed):</p>
+        <div className="d-chips">{["peanut", "egg", "milk", "fish", "gluten", "soy", "coconut"].map(x => <button key={x} className={`d-chip ${(f.allergies as string[]).includes(x) ? "on" : ""}`}
+          onClick={() => setF({ ...f, allergies: (f.allergies as string[]).includes(x) ? (f.allergies as string[]).filter(y => y !== x) : [...f.allergies, x] })}>{(f.allergies as string[]).includes(x) ? "⚠ " : ""}{x}</button>)}</div>
+        <input className="d-input" value={f.have} onChange={e => setF({ ...f, have: e.target.value })} placeholder="Already at home (rice, eggs, dhal…), used first"/>
         <button className="d-btn" onClick={make}>🥗 Make my week</button></Card>
       {meal && <div className="d-grid-2">
         <Card kicker={`${meal.targets.kcal} kcal · ${meal.targets.protein_g} g protein (${meal.targets.method})`} title={(meal.days as Row[])[day].day}
           action={<div className="d-chips">{(meal.days as Row[]).map((d, i) => <button key={d.day} className={`d-chip ${day === i ? "on" : ""}`} onClick={() => setDay(i)}>{d.day.slice(0, 3)}</button>)}</div>}>
           {((meal.days as Row[])[day].meals as Row[]).map(m => <p key={m.slot}><b style={{ textTransform: "capitalize" }}>{m.slot}</b> <small className="d-note">({m.kcal} kcal · {m.protein_g} g)</small><br/>
             {(m.items as Row[]).map(it => `${it.qty !== 1 ? `${it.qty} × ` : ""}${it.name}`).join(" · ")}</p>)}
-          {meal.budget_note && <p className="d-note" style={{ color: "var(--d-amber)" }}>{meal.budget_note}</p>}{meal.targets.floor_note && <p className="d-note" style={{ color: "var(--d-amber)" }}>{meal.targets.floor_note}</p>}</Card>
-        <Card kicker="Shopping list" title={`≈ Rs ${Number(meal.week_cost_lkr).toLocaleString()} / week`}>{(meal.shopping as Row[]).map(s => <p key={s.item} className="d-note">{s.item}: {s.portions} × {s.portion} · Rs {Number(s.cost_lkr).toLocaleString()}</p>)}
+          {meal.budget_note && <p className="d-note" style={{ color: "var(--d-amber)" }}>{meal.budget_note}</p>}{meal.targets.floor_note && <p className="d-note" style={{ color: "var(--d-amber)" }}>{meal.targets.floor_note}</p>}
+          {meal.protein_note && <p className="d-note" style={{ color: "var(--d-amber)" }}>{meal.protein_note}</p>}
+          {(meal.using_from_home as string[])?.length > 0 && <p className="d-note">Using from home: {(meal.using_from_home as string[]).join(", ")}</p>}
+          {meal.allergy_note && <p className="d-note" style={{ color: "var(--d-red)" }}>{meal.allergy_note}</p>}</Card>
+        <Card kicker="Shopping list" title={`≈ Rs ${Number(meal.week_cost_lkr).toLocaleString()} / week`}>{(meal.shopping as Row[]).map(s => <p key={s.item} className="d-note">{s.at_home ? "🏠 " : ""}{s.item}: {s.portions} × {s.portion} · {s.at_home ? "at home" : `Rs ${Number(s.cost_lkr).toLocaleString()}`}</p>)}
           <p className="d-note">{meal.note}</p></Card>
       </div>}
     </>}
@@ -607,5 +625,46 @@ export function FreelancePage({ token }: { token: string }) {
           {checklist.map(c => <p key={c} className="d-note">✓ {c}</p>)}</>}
       </Card>
     </div>
+  </div>;
+}
+
+
+const BODY_KEYS = ["weight_kg", "waist_cm", "chest_cm", "hips_cm", "neck_cm", "arm_cm", "thigh_cm", "body_fat_pct"];
+
+export function BodyPage({ token }: { token: string }) {
+  const [v, setV] = useState<Row | null>(null);
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [prof, setProf] = useState({ height_cm: "", sex: "" });
+  const [note, setNote] = useState("");
+  const load = useCallback(() => { call<Row>("/body", token).then(x => { setV(x); setProf(p => p.height_cm || p.sex ? p : { height_cm: x.height_cm ? String(x.height_cm) : "", sex: x.sex || "" }); }).catch(e => setNote(errText(e))); }, [token]);
+  useEffect(() => { load(); }, [load]);
+  const save = () => { const body: Row = {}; BODY_KEYS.forEach(k => { if (Number(form[k]) > 0) body[k] = Number(form[k]); });
+    if (!Object.keys(body).length) { setNote("Enter at least one measurement"); return; }
+    void call("/body/measurements", token, postJson(body)).then(() => { setForm({}); setNote("Saved 📏"); load(); }).catch(e => setNote(errText(e))); };
+  const saveProf = () => void call("/body/profile", token, { method: "PUT", body: JSON.stringify({ height_cm: Number(prof.height_cm) || null, sex: prof.sex || null }) }).then(load).catch(e => setNote(errText(e)));
+  const del = (id: string) => { if (window.confirm("Delete this entry?")) void call(`/body/measurements/${id}`, token, { method: "DELETE" }).then(load).catch(e => setNote(errText(e))); };
+  if (!v) return <div className="d-empty">Loading…</div>;
+  const ch = v.changes as Record<string, Row>; const w = ch.weight_kg, wa = ch.waist_cm;
+  return <div className="d-dash">
+    <Hero kicker="Body measurements" title={w ? `${w.latest}` : wa ? `${wa.latest}` : "—"} accent={w ? "kg" : wa ? "cm waist" : "start today"}
+      sub={[w && `${w.since_start > 0 ? "+" : ""}${w.since_start} kg since start`, wa && `waist ${wa.since_start > 0 ? "+" : ""}${wa.since_start} cm`, v.due ? "time to measure" : null].filter(Boolean).join(" · ")}
+      right={<Ring value={v.waist_to_height ? Math.min(100, Number(v.waist_to_height) / 0.7 * 100) : 0} size={120} label={v.waist_to_height ? `${v.waist_to_height}` : "—"} sub="waist / height"/>}/>
+    {note && <p className="d-note">{note}</p>}
+    {(v.insights as string[]).map(t => <p key={t} className="d-note">💡 {t}</p>)}
+    <div className="d-grid-2">
+      <Card kicker="Add today" title="Measurements">
+        <div className="d-row" style={{ flexWrap: "wrap" }}>{BODY_KEYS.map(k => <label key={k} className="d-note" title={v.how_to_measure[k] || ""}>{v.labels[k]}
+          <input className="d-input" style={{ width: 110 }} value={form[k] || ""} placeholder={ch[k] ? String(ch[k].latest) : ""} onChange={e => setForm({ ...form, [k]: e.target.value })}/></label>)}</div>
+        <button className="d-btn" onClick={save}>Save</button><p className="d-note">{v.note} Hover a field for how to measure it.</p></Card>
+      <Card kicker="Results" title={v.body_fat_estimate != null ? `Body fat ≈ ${v.body_fat_estimate}%` : "Changes"}>
+        {v.body_fat_method && <p className="d-note">{v.body_fat_method}</p>}
+        {Object.entries(ch).map(([k, c]) => <p key={k}><b>{c.label}</b>: {c.latest} <span className="d-note">(start {c.since_start > 0 ? "+" : ""}{c.since_start}{c.since_month != null ? `, month ${c.since_month > 0 ? "+" : ""}${c.since_month}` : ""})</span></p>)}
+        <div className="d-row"><input className="d-input" style={{ width: 120 }} placeholder="Height cm" value={prof.height_cm} onChange={e => setProf({ ...prof, height_cm: e.target.value })}/>
+          <select className="d-input" value={prof.sex} onChange={e => setProf({ ...prof, sex: e.target.value })}><option value="">Sex</option><option value="male">male</option><option value="female">female</option></select>
+          <button className="d-btn ghost" onClick={saveProf}>Save</button></div>
+        {v.missing_for_fat && <p className="d-note">{v.missing_for_fat}</p>}</Card>
+    </div>
+    {(v.items as Row[]).length > 0 && <Card kicker="History" title="Your check-ins">{(v.items as Row[]).slice(0, 20).map(r => <p key={r.id} className="d-note">{r.measured_on} · {BODY_KEYS.filter(k => r[k] != null).map(k => `${String(v.labels[k]).split(" (")[0].toLowerCase()} ${r[k]}`).join(", ")}
+      <button className="text-button" onClick={() => del(String(r.id))}>delete</button></p>)}</Card>}
   </div>;
 }
