@@ -23,6 +23,7 @@ export const GROUPS: Group[] = [
     { key: "Skin", icon: "✨", title: "Skin & glow", hint: "Daily face scan, glow score", words: "face skin glow pimple acne spots redness beauty selfie" },
     { key: "Kegel", icon: "🧘", title: "Pelvic floor", hint: "Guided Kegel trainer", words: "kegel pelvic floor exercises bladder wellness men women physio squeeze" },
     { key: "Discipline", icon: "🛡", title: "Self-control", hint: "Streaks, urges, triggers, blocking", words: "discipline self control porn free nofap no fap urge trigger habit streak quit addiction blocking digital wellbeing reset" },
+    { key: "Ask", icon: "💬", title: "Ask Sakuna", hint: "Today, top task, week, neglected, next", words: "ask question today important priority focus next week progress neglect plan check overdue what should i do" },
     { key: "Meds", icon: "💊", title: "Medicines", hint: "Doses, reminders, refills", words: "medicine pills tablets vitamins supplements doctor reminder" },
     { key: "Day", icon: "⏱", title: "Day tracker", hint: "Hour by hour report", words: "time hours check-in" },
     { key: "Balance", icon: "☀️", title: "Life balance", hint: "Target vs actual", words: "areas wheel" },

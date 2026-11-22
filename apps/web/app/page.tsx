@@ -38,7 +38,7 @@ import { HabitManager, InboxPage, JobFinder, LearnRadar, PlannerBoard, RewardsGa
 import { BrainGymPage, NewsAndWatch } from "@/components/LifeOsPages3";
 import { SearchPage, VideosPage } from "@/components/LifeOsPages5";
 import { SchedulePage, SpeakingPage } from "@/components/LifeOsPages6";
-import { ContentPage, DisciplinePage, FitnessGuidePage, KegelPage, NotesPage, ReadingPage, ResourcesPage, RolePlayPage, TravelPage, WealthPage } from "@/components/LifeOsPages8";
+import { AskPage, ContentPage, DisciplinePage, FitnessGuidePage, KegelPage, NotesPage, ReadingPage, ResourcesPage, RolePlayPage, TravelPage, WealthPage } from "@/components/LifeOsPages8";
 import { DreamsPage, DrillPage, HealthAdvicePanel, MedicinesPage, ReceiptPage, RitualsPage, SkillsPage, SkinPage } from "@/components/LifeOsPages7";
 import { DayPage, GymPage, LanguagesPage, ProgressPage } from "@/components/LifeOsPages4";
 import { NudgeBanner, TodayPlanCard } from "@/components/SmartCards";
@@ -49,6 +49,7 @@ type Field = { name: string; label: string; type?: string; required?: boolean; o
 
 const navigation = [
   { label: "Home", icon: "home", group: "TODAY", hint: "Your day at a glance" },
+  { label: "Ask Sakuna", icon: "sparkle", hint: "Today, top task, week, neglected, next + plan check" },
   { label: "Focus", icon: "timer", hint: "30 / 60-minute blocks with a break" },
   { label: "Planner", icon: "calendar", hint: "Time blocks for today and the week" },
   { label: "My day", icon: "sun", hint: "Routines, food diary, week and month view" },
@@ -363,8 +364,8 @@ export default function Home() {
     try { const memories = await call<Row[]>("/memories/search", token, json({ query: memoryQuery })); setData(current => ({ ...current, memories })); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "Memory search failed"); }
   }
-  async function approve(id: string, action: "approve" | "reject") {
-    try { await call(`/approvals/${id}/${action}`, token, { method: "POST" }); setToast(action === "approve" ? "Approved action executed" : "Proposal rejected"); await fetchPage("Approvals", token); }
+  async function approve(id: string, action: "approve" | "reject" | "cancel") {
+    try { await call(`/approvals/${id}/${action}`, token, { method: "POST" }); setToast(action === "approve" ? "Approved action executed" : action === "cancel" ? "Proposal cancelled" : "Proposal rejected"); await fetchPage("Approvals", token); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "Could not resolve approval"); }
   }
 
@@ -474,6 +475,7 @@ export default function Home() {
       case "Notes": return <NotesPage token={token} />;
       case "Pelvic floor": return <KegelPage token={token} />;
       case "Self-control": return <DisciplinePage token={token} />;
+      case "Ask Sakuna": return <AskPage token={token} onOpenApprovals={() => navigate("Approvals")} />;
       case "Medicines": return <MedicinesPage token={token} />;
       case "Scan receipt": return <ReceiptPage token={token} />;
       case "$1M journey": return <WealthPage token={token} />;
@@ -610,9 +612,9 @@ function Insights({ insights }: { insights: Row }) {
   return <><div className="grid metrics"><Panel className="metric"><p className="muted">Open priorities</p><h2>{tasks.length}</h2><span className="trend">Tasks in progress</span></Panel><Panel className="metric"><p className="muted">Active goals</p><h2>{goals.length}</h2><span className="trend">Current direction</span></Panel><Panel className="metric"><p className="muted">High priority</p><h2>{tasks.filter(task => task.priority === "high").length}</h2><span className="trend">Worth protecting time for</span></Panel><Panel className="metric"><p className="muted">Due soon</p><h2>{tasks.filter(task => task.due_at && new Date(task.due_at).getTime() < Date.now() + 86400000).length}</h2><span className="trend">Next 24 hours</span></Panel></div><div className="grid main-grid"><Panel><SectionHeading eyebrow="PRODUCTIVITY SNAPSHOT" title="Tasks to consider"/><ListCards rows={tasks} subtitle={row => `${row.priority} priority${row.due_at ? ` · ${niceDate(row.due_at)}` : ""}`}/></Panel><Panel><SectionHeading eyebrow="LONG-TERM PROGRESS" title="Goals"/>{goals.map(goal => <GoalCard key={goal.title} goal={goal}/>)}{!goals.length && <Empty>Set a goal to track progress here.</Empty>}<div className="notice-card"><b>Recommendations improve with your data</b><p>Log tasks and habits consistently. Sakuna summarizes actual records and avoids treating plans as completed work.</p></div></Panel></div></>;
 }
 
-function Approvals({ rows, onResolve }: { rows: Row[]; onResolve: (id: string, action: "approve" | "reject") => Promise<void> }) {
+function Approvals({ rows, onResolve }: { rows: Row[]; onResolve: (id: string, action: "approve" | "reject" | "cancel") => Promise<void> }) {
   const pending = rows.filter(row => row.status === "pending");
-  return <Panel><SectionHeading eyebrow="YOU STAY IN CONTROL" title="Pending approvals" action={<span className="count">{pending.length} waiting</span>}/>{pending.length ? <div className="approval-list">{pending.map(row => <article className="approval-card" key={row.id}><div className="capture-meta"><span className="badge">{String(row.tool_name).replaceAll("_", " ")}</span><small>{niceDate(row.created_at)}</small></div><pre>{JSON.stringify(row.payload?.body || row.payload, null, 2)}</pre><div className="approval-actions"><button className="outline danger-button" onClick={() => void onResolve(row.id, "reject")}>Reject</button><button className="primary" onClick={() => void onResolve(row.id, "approve")}>Approve & run</button></div></article>)}</div> : <Empty>No actions are waiting for your approval.</Empty>}</Panel>;
+  return <Panel><SectionHeading eyebrow="YOU STAY IN CONTROL" title="Pending approvals" action={<span className="count">{pending.length} waiting</span>}/>{pending.length ? <div className="approval-list">{pending.map(row => <article className="approval-card" key={row.id}><div className="capture-meta"><span className="badge">{String(row.tool_name).replaceAll("_", " ")}</span><small>{niceDate(row.created_at)}</small></div>{row.payload?.preview ? <><p><b>{row.payload.preview}</b></p>{row.payload.reason && <p className="muted">{row.payload.reason}</p>}</> : <pre>{JSON.stringify(row.payload?.body || row.payload, null, 2)}</pre>}<div className="approval-actions"><button className="text-button" onClick={() => void onResolve(row.id, "cancel")}>Cancel</button><button className="outline danger-button" onClick={() => void onResolve(row.id, "reject")}>Reject</button><button className="primary" onClick={() => void onResolve(row.id, "approve")}>Approve & run</button></div></article>)}</div> : <Empty>No actions are waiting for your approval.</Empty>}</Panel>;
 }
 
 function Settings({ profile, user, settings, submit, token, signOut }: { profile: Row; user: Row; settings: Row; submit: (path: string, body: Row, options?: RequestInit) => Promise<void>; token: string; signOut: () => void }) {

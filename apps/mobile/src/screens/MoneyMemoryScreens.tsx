@@ -169,16 +169,17 @@ export function ApprovalsScreen({ api, onError, onNotice }: { api: Api; onError:
   const [rows, setRows] = useState<Row[]>([]);
   const load = useCallback(async () => { try { setRows((await api<Row[]>("/approvals")).filter(r => r.status === "pending")); } catch (reason) { onError(reason instanceof Error ? reason.message : "Could not load"); } }, [api, onError]);
   useEffect(() => { void load(); }, [load]);
-  async function resolve(id: string, action: "approve" | "reject") {
-    try { await api(`/approvals/${id}/${action}`, "POST"); onNotice(action === "approve" ? "Approved and done." : "Rejected."); await load(); }
+  async function resolve(id: string, action: "approve" | "reject" | "cancel") {
+    try { await api(`/approvals/${id}/${action}`, "POST"); onNotice(action === "approve" ? "Approved and done." : action === "cancel" ? "Cancelled." : "Rejected."); await load(); }
     catch (reason) { onError(reason instanceof Error ? reason.message : "Could not resolve"); }
   }
   return <Screen>
     <H1>Approvals</H1><Muted>The assistant and MCP tools only propose changes. Nothing happens until you approve it here.</Muted>
     {rows.length ? rows.map(r => <Card key={r.id}>
       <Line><Badge>{String(r.tool_name).replaceAll("_", " ")}</Badge><View style={{ flex: 1 }}/><Muted small>{niceDate(r.created_at)}</Muted></Line>
-      <Text style={{ color: C.text, fontFamily: "monospace", fontSize: 12 }}>{JSON.stringify(r.payload?.body || r.payload, null, 2)}</Text>
-      <Line><Btn kind="danger" title="Reject" onPress={() => void resolve(r.id, "reject")} style={{ flex: 1 }}/><Btn title="Approve" onPress={() => void resolve(r.id, "approve")} style={{ flex: 1 }}/></Line>
+      {r.payload?.preview ? <><Text style={{ color: C.text, fontWeight: "800" }}>{r.payload.preview}</Text>{r.payload.reason ? <Muted small>{r.payload.reason}</Muted> : null}</>
+        : <Text style={{ color: C.text, fontFamily: "monospace", fontSize: 12 }}>{JSON.stringify(r.payload?.body || r.payload, null, 2)}</Text>}
+      <Line><Btn kind="link" title="Cancel" onPress={() => void resolve(r.id, "cancel")}/><Btn kind="danger" title="Reject" onPress={() => void resolve(r.id, "reject")} style={{ flex: 1 }}/><Btn title="Approve" onPress={() => void resolve(r.id, "approve")} style={{ flex: 1 }}/></Line>
     </Card>) : <Empty>Nothing is waiting for your approval.</Empty>}
   </Screen>;
 }

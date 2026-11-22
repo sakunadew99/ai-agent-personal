@@ -309,3 +309,44 @@ def discipline_event_update(event_id: uuid.UUID, data: dto.DisciplineEventUpdate
         setattr(e, k, v)
     db.commit()
     return {"id": e.id, "stayed": e.stayed, "action": e.action}
+
+
+# ---------------- Ask Sakuna (plain code) + plan check that only proposes
+
+@router.get("/ask")
+def ask_questions():
+    from app.services import ask
+    return {"questions": [{"key": k, "text": v} for k, v in ask.QUESTIONS.items()]}
+
+
+@router.get("/ask/{question}")
+def ask_answer(question: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """What should I do today / most important task / this week's progress / what am I neglecting / what next."""
+    from app.services import ask
+    if question not in ask.QUESTIONS:
+        raise HTTPException(404, "Unknown question")
+    return ask.answer(db, user, question, _today(db, user))
+
+
+@router.post("/plan/check")
+def plan_check(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Proposes moving overdue tasks to tomorrow. Nothing changes until you approve each proposal."""
+    from app.services import ask
+    out = ask.plan_check(db, user, _today(db, user))
+    db.commit()
+    return out
+
+
+@router.post("/approvals/{approval_id}/cancel")
+def approval_cancel(approval_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Withdraw a pending proposal without rejecting it (e.g. you already did it another way)."""
+    from app.core.clock import now_utc
+    from app.models.entities import Approval
+    from app.services.audit import audit
+    row = owned(db, Approval, user.id, approval_id)
+    if row.status != "pending":
+        raise HTTPException(409, "Approval is already resolved")
+    row.status = "cancelled"; row.resolved_at = now_utc()
+    audit(db, user.id, "approval.cancel", "approval", row.id, {"tool": row.tool_name})
+    db.commit()
+    return {"id": row.id, "status": row.status}

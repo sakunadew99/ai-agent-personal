@@ -455,3 +455,35 @@ export function DisciplinePage({ token }: { token: string }) {
     <p className="d-note">{d.support}</p>
   </div>;
 }
+
+
+const ASK_ICON: Record<string, string> = { today: "☀️", important: "🎯", week: "📈", neglecting: "🧭", next: "➡️" };
+
+export function AskPage({ token, onOpenApprovals }: { token: string; onOpenApprovals: () => void }) {
+  const [qs, setQs] = useState<Row[]>([]);
+  const [q, setQ] = useState("today");
+  const [a, setA] = useState<Row | null>(null);
+  const [check, setCheck] = useState<Row | null>(null);
+  const [err, setErr] = useState("");
+  const ask = useCallback((key: string) => { setQ(key); setA(null); call<Row>(`/ask/${key}`, token).then(setA).catch(e => setErr(errText(e))); }, [token]);
+  useEffect(() => { call<Row>("/ask", token).then(r => setQs(r.questions as Row[])).catch(e => setErr(errText(e))); ask("today"); }, [token, ask]);
+  const runCheck = () => void call<Row>("/plan/check", token, postJson({})).then(setCheck).catch(e => setErr(errText(e)));
+  const list = (a?.tasks || a?.done || []) as Row[];
+  return <div className="d-dash">
+    <Hero kicker="Ask Sakuna" title="Answers from" accent="your own data" sub="Plain calculations on your tasks, goals and life areas. Works without any AI key."/>
+    {err && <p className="d-note">{err}</p>}
+    <div className="d-chips">{qs.map(x => <button key={x.key} className={`d-chip ${q === x.key ? "on" : ""}`} onClick={() => ask(String(x.key))}>{ASK_ICON[x.key] || "•"} {x.text}</button>)}</div>
+    <Card kicker="Sakuna" title={qs.find(x => x.key === q)?.text || ""}>
+      <p style={{ fontSize: 18 }}>{a ? a.answer : "Thinking…"}</p>
+      {list.map(t => <p key={t.id}><b>{t.title}</b> <span className="d-note">{[t.due ? `due ${t.due}` : null, t.minutes ? `${t.minutes} min` : null, ...((t.why as string[]) || [])].filter(Boolean).join(" · ")}</span></p>)}
+      {((a?.items || []) as Row[]).map((i, k) => <p key={k}><b style={{ color: "var(--d-amber)" }}>{i.title}</b>{i.detail ? <span className="d-note"> · {i.detail}</span> : null}</p>)}
+      {((a?.areas || []) as Row[]).filter(x => x.percent != null).map(x => <p key={x.name} className="d-note">{x.name}: {x.percent}% · {String(x.status).replaceAll("_", " ")}</p>)}
+    </Card>
+    <Card kicker="Plan check" title="Fix overdue tasks, with your approval">
+      <p className="d-note">Finds overdue tasks and proposes moving each to tomorrow. Nothing changes until you approve it.</p>
+      <button className="d-btn" onClick={runCheck}>🔍 Check my plan</button>
+      {check && <><p>{check.message}</p>{(check.proposals as Row[]).map(p => <p key={p.id}>• {p.preview}</p>)}
+        {(check.proposals as Row[]).length > 0 && <button className="d-btn ghost" onClick={onOpenApprovals}>Review in Approvals</button>}</>}
+    </Card>
+  </div>;
+}
