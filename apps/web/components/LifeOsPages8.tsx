@@ -41,3 +41,44 @@ export function RolePlayPage({ token }: { token: string }) {
     </Card>)}</div>}
   </div>;
 }
+
+const usd = (n: number) => `$${Math.round(n).toLocaleString()}`;
+
+export function WealthPage({ token }: { token: string }) {
+  const [m, setM] = useState<Row | null>(null);
+  const [o, setO] = useState<Row | null>(null);
+  const [saving, setSaving] = useState(""); const [rate, setRate] = useState("");
+  const [hours, setHours] = useState("8"); const [budget, setBudget] = useState("10000");
+  const [note, setNote] = useState("");
+  const loadM = useCallback(() => {
+    const q = [saving && `monthly_saving_lkr=${Number(saving)}`, rate && `usd_lkr=${Number(rate)}`].filter(Boolean).join("&");
+    call<Row>(`/money/million${q ? `?${q}` : ""}`, token).then(x => { setM(x); setRate(r => r || String(x.usd_lkr)); setSaving(s => s || String(x.monthly_saving_lkr)); }).catch(e => setNote(errText(e)));
+  }, [token, saving, rate]);
+  const loadO = useCallback(() => { call<Row>(`/opportunities?hours=${Number(hours) || 8}&budget_lkr=${Number(budget) || 0}`, token).then(setO).catch(e => setNote(errText(e))); }, [token, hours, budget]);
+  useEffect(() => { loadM(); loadO(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const goal = (x: Row) => void call<Row>("/dreams/propose", token, postJson({ dream: `Start ${x.title}`, horizon: "month", ai: false })).then(plan => {
+    if (window.confirm(`Create a 1-month goal "Start ${x.title}" with first step: ${x.first}?`)) void call("/dreams/accept", token, postJson({ ...plan, next_action: x.first })).then(() => { setNote("Goal created."); loadO(); });
+  });
+  return <div className="d-dash">
+    <Hero kicker="$1M financial freedom journey" title={m ? usd(m.current_usd) : "…"} accent="today" sub={m ? `≈ Rs ${Number(m.current_lkr).toLocaleString()} at ${m.usd_lkr} (${m.rate_source}). ${m.disclaimer}` : ""}
+      right={m && <Ring value={Math.max(1, m.progress_pct)} size={120} label={`${m.progress_pct < 1 ? m.progress_pct.toFixed(2) : Math.round(m.progress_pct)}%`} sub="of $1M"/>}>
+      <div className="d-row" style={{ marginTop: 10 }}><label className="d-note">Monthly saving (LKR)<input className="d-input" value={saving} onChange={e => setSaving(e.target.value)}/></label>
+        <label className="d-note">LKR per USD<input className="d-input" value={rate} onChange={e => setRate(e.target.value)}/></label><button className="d-btn" onClick={loadM}>↻ Recalculate</button></div>
+    </Hero>
+    {note && <p className="d-note">{note}</p>}
+    {m && <div className="d-grid-2">
+      <Card kicker="Scenarios" title="Years to $1M">{(m.scenarios as Row[]).map(s => <p key={s.key}><b>{s.label}</b>: {s.years_to_target != null ? `${s.years_to_target} years` : "not within 50 years"}
+        <br/><small className="d-note">{s.return_pct}% return · savings +{s.saving_growth_pct}%/year · need {usd(s.needed_monthly_usd["15"])}/month to get there in 15 years</small></p>)}</Card>
+      <Card kicker="Actions" title="Daily · weekly · monthly · yearly">{Object.entries(m.actions as Record<string, string[]>).map(([k, v]) => <p key={k} className="d-note"><b style={{ textTransform: "capitalize" }}>{k}:</b> {v.join(" · ")}</p>)}</Card>
+    </div>}
+    <Card kicker="Income ideas" title="Ranked for your skills, time and budget" action={<div className="d-row"><input className="d-input" style={{ width: 80 }} value={hours} onChange={e => setHours(e.target.value)} title="hours/week"/>
+      <input className="d-input" style={{ width: 110 }} value={budget} onChange={e => setBudget(e.target.value)} title="budget LKR"/><button className="d-btn ghost" onClick={loadO}>Rank</button></div>}>
+      {o?.focus_warning && <p className="d-note" style={{ color: "var(--d-amber)" }}>⚠ {o.focus_warning}</p>}
+      {(o?.items as Row[] || []).map(x => <div key={x.id} style={{ borderTop: "1px solid var(--d-line)", padding: "8px 0" }}>
+        <div className="d-row" style={{ justifyContent: "space-between" }}><b style={{ color: "var(--d-text)" }}>{x.title}</b><span style={{ color: x.fit >= 70 ? "var(--d-green)" : "var(--d-amber)", fontWeight: 800 }}>{x.fit}% fit</span></div>
+        <small className="d-note">{x.what} · Rs {Number(x.cost_lkr).toLocaleString()} · {x.hours} h/week · {x.income}</small><br/>
+        <small className="d-note">✓ {(x.why as string[]).join(" · ")} · Risks: {(x.risks as string[]).join(", ")}</small><br/>
+        <button className="text-button" onClick={() => goal(x)}>🎯 Make it a goal (first: {x.first})</button></div>)}
+    </Card>
+  </div>;
+}

@@ -12,6 +12,7 @@ type Group = { name: string; emoji: string; color: string; items: Item[] };
 
 export const GROUPS: Group[] = [
   { name: "Money", emoji: "💰", color: "#5aa8ff", items: [
+    { key: "Wealth", icon: "🚀", title: "$1M journey & ideas", hint: "Projections and income ideas", words: "million financial freedom net worth projection savings scenario income ideas opportunities side hustle business freelancing" },
     { key: "Invest", icon: "📈", title: "Invest (CSE)", hint: "Portfolio, review, alerts", words: "shares stock cse aspi atrad dividend portfolio" },
     { key: "Finance", icon: "👛", title: "Money", hint: "Spending, lists, renewals, documents", words: "wallet net worth savings expense income budget finance passport visa bills subscriptions documents renewals buy list wishes" },
   ] },

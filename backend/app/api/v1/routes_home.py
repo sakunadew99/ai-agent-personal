@@ -1,7 +1,7 @@
 """One request for the whole Home screen (8 parts), so the phone doesn't fire 8 requests at a small free server."""
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
@@ -113,3 +113,21 @@ def companion_frequency(data: dto.CompanionFrequency, db: Session = Depends(get_
     """Ask me daily, a few times a week, only when useful, or never."""
     from app.services import companion
     out = companion.set_frequency(db, user.id, data.frequency); db.commit(); return out
+
+
+# ---------------- $1M journey and the opportunity finder
+
+@router.get("/money/million")
+def money_million(monthly_saving_lkr: float | None = Query(default=None, ge=0, le=100_000_000), usd_lkr: float | None = Query(default=None, gt=1, le=10000),
+                  target_usd: float = Query(default=1_000_000, ge=1000, le=100_000_000), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Where you are on the way to $1M: three scenarios, years to target and the monthly saving needed for 10/15/20 years."""
+    from app.services import wealth
+    return wealth.million(db, user.id, monthly_saving_lkr, usd_lkr, target_usd)
+
+
+@router.get("/opportunities")
+def money_opportunities(hours: int = Query(default=8, ge=1, le=80), budget_lkr: int = Query(default=10000, ge=0, le=10_000_000),
+                        db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Income ideas ranked by fit with your skills, time and starting budget, with risks and a first action."""
+    from app.services import wealth
+    return wealth.opportunities(db, user.id, hours, budget_lkr)
