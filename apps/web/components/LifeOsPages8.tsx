@@ -136,3 +136,69 @@ export function FitnessGuidePage({ token }: { token: string }) {
     </>}
   </div>;
 }
+
+const NEXT_STATUS: Record<string, string> = { idea: "scripted", scripted: "recorded", recorded: "published" };
+
+export function ContentPage({ token }: { token: string }) {
+  const [v, setV] = useState<Row | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const [note, setNote] = useState("");
+  const load = useCallback(() => { call<Row>("/content", token).then(setV).catch(e => setNote(errText(e))); }, [token]);
+  useEffect(() => { load(); }, [load]);
+  const patch = (id: string, body: Row) => void call(`/content/${id}`, token, { method: "PATCH", body: JSON.stringify(body) }).then(load).catch(e => setNote(errText(e)));
+  if (!v) return <div className="d-empty">Loading your studio…</div>;
+  return <div className="d-dash">
+    <Hero kicker="Content studio" title={`${v.stats.published_this_week}`} accent="published this week" sub={`${v.stats.weekly_streak ? `🔥 ${v.stats.weekly_streak}-week streak · ` : ""}${v.how}`}/>
+    {note && <p className="d-note">{note}</p>}
+    <div className="d-grid-2">
+      <Card kicker="This week" title="Schedule">{(v.schedule as Row[]).map(s => <p key={s.day} className="d-note"><b>{s.day}</b> · {s.item ? `${s.item.title} (${s.item.status})` : s.format}</p>)}</Card>
+      <Card kicker="Ideas" title="From your goals and skills">{(v.ideas as Row[]).map((i, k) => <div key={k} className="d-row" style={{ justifyContent: "space-between" }}>
+        <span>{i.title} <small className="d-note">({i.format})</small></span>
+        <button className="text-button" onClick={() => void call("/content", token, postJson({ title: i.title, platform: i.platform, topic: i.topic })).then(load)}>＋ Add</button></div>)}</Card>
+    </div>
+    <Card kicker="Pipeline" title={`${(v.items as Row[]).length} pieces`}>{(v.items as Row[]).map(it => <div key={it.id} style={{ borderTop: "1px solid var(--d-line)", padding: "8px 0" }}>
+      <div className="d-row" style={{ justifyContent: "space-between" }}><button className="text-button" onClick={() => { setOpen(open === it.id ? null : it.id); setDraft(it.script || ""); }}><b>{it.title}</b></button>
+        <span className="d-row"><span className="d-note">{it.status}</span>{NEXT_STATUS[it.status] && <button className="d-btn ghost" onClick={() => patch(it.id, { status: NEXT_STATUS[it.status] })}>→ {NEXT_STATUS[it.status]}</button>}
+          <button className="danger-link" onClick={() => { if (window.confirm("Delete?")) void call(`/content/${it.id}`, token, { method: "DELETE" }).then(load); }}>✕</button></span></div>
+      {open === it.id && <><textarea className="d-input" rows={8} value={draft} onChange={e => setDraft(e.target.value)}/>
+        <div className="d-row"><button className="d-btn" onClick={() => patch(it.id, { script: draft })}>💾 Save</button>
+          <button className="d-btn ghost" onClick={() => void call<Row>(`/content/${it.id}/script`, token, postJson({})).then(x => { setDraft(x.script); load(); }).catch(e => setNote(errText(e)))}>✨ AI script</button></div></>}
+    </div>)}</Card>
+  </div>;
+}
+
+export function TravelPage({ token }: { token: string }) {
+  const [v, setV] = useState<Row | null>(null);
+  const [month, setMonth] = useState<number | null>(null);
+  const [plan, setPlan] = useState<Row | null>(null);
+  const [form, setForm] = useState({ days: "3", people: "2", tier: "budget" });
+  const [sel, setSel] = useState<Row | null>(null);
+  const load = useCallback(() => { call<Row>(`/travel${month ? `?month=${month}` : ""}`, token).then(x => { setV(x); setMonth(m => m || x.month); }).catch(() => undefined); }, [token, month]);
+  useEffect(() => { load(); }, [load]);
+  const go = (d: Row) => { setSel(d); void call<Row>(`/travel/plan?key=${d.key}&days=${Number(form.days) || 3}&tier=${form.tier}&people=${Number(form.people) || 1}`, token).then(setPlan); };
+  if (!v) return <div className="d-empty">Loading destinations…</div>;
+  return <div className="d-dash">
+    <Hero kicker="Travel guide" title={`${v.done}`} accent="places explored" sub="Estimates to plan with; check prices before booking. Trips abroad link to official travel advice.">
+      <div className="d-row" style={{ marginTop: 10 }}>
+        <select className="d-input" value={month ?? ""} onChange={e => setMonth(Number(e.target.value))}>{["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((m, i) => <option key={m} value={i + 1}>{m}</option>)}</select>
+        <input className="d-input" style={{ width: 70 }} value={form.days} onChange={e => setForm({ ...form, days: e.target.value })} title="days"/>
+        <input className="d-input" style={{ width: 70 }} value={form.people} onChange={e => setForm({ ...form, people: e.target.value })} title="people"/>
+        <select className="d-input" value={form.tier} onChange={e => setForm({ ...form, tier: e.target.value })}><option value="budget">Budget</option><option value="mid">Mid-range</option><option value="luxury">Luxury</option></select></div>
+    </Hero>
+    {plan && sel && <div className="d-grid-2">
+      <Card kicker={`${plan.days} days · ${plan.tier}`} title={plan.destination}>{(plan.itinerary as Row[]).map(d => <p key={d.day} className="d-note"><b>Day {d.day}:</b> {(d.plan as string[]).join(" · ")}</p>)}
+        {plan.budget_lkr ? Object.entries(plan.budget_lkr as Record<string, number>).map(([k, n]) => <p key={k} className="d-note" style={{ fontWeight: k === "total" ? 800 : 400 }}>{k.replace(/_/g, " ")}: Rs {Number(n).toLocaleString()}</p>)
+          : <p className="d-note"><b>Total ≈ Rs {Number(plan.total_lkr).toLocaleString()}</b> (${plan.budget_usd.total}; {plan.local_currency.code} {Number(plan.local_currency.total).toLocaleString()}) · {plan.visa}</p>}
+        <p className="d-note"><a href={plan.maps.directions} target="_blank" rel="noreferrer">🗺 Directions</a>{plan.advisory && <> · <a href={plan.advisory} target="_blank" rel="noreferrer">🛡 Official travel advice</a></>}</p>
+        <button className="d-btn" onClick={() => void call("/travel/wishes", token, postJson({ destination: sel.name, key: sel.key, days: Number(form.days) || 3, people: Number(form.people) || 1, tier: form.tier, budget_lkr: plan.budget_lkr?.total ?? plan.total_lkr })).then(load)}>⭐ Add to wish list</button></Card>
+      <Card kicker="Map" title={plan.destination}><iframe title="map" src={plan.maps.embed} style={{ width: "100%", height: 300, border: 0, borderRadius: 12 }}/></Card>
+    </div>}
+    {(v.wishes as Row[]).length > 0 && <Card kicker="Wish list" title={`${(v.wishes as Row[]).length} places`}>{(v.wishes as Row[]).map(w => <p key={w.id} className="d-note">
+      {w.status === "done" ? "✅" : w.status === "planned" ? "📅" : "⭐"} {w.destination} · {w.days}d · {w.tier}{" "}
+      <button className="text-button" onClick={() => void call(`/travel/wishes/${w.id}`, token, { method: "PATCH", body: JSON.stringify({ status: w.status === "wish" ? "planned" : "done" }) }).then(load)}>{w.status === "wish" ? "Plan" : "Done"}</button>
+      <button className="danger-link" onClick={() => void call(`/travel/wishes/${w.id}`, token, { method: "DELETE" }).then(load)}>✕</button></p>)}</Card>}
+    <div className="d-grid-2">{(v.destinations as Row[]).map(d => <Card key={d.key} kicker={`${d.region}${d.good_now ? " · ✓ good now" : ""}`} title={d.name}>
+      <p className="d-note">{(d.highlights as string[]).join(" · ")}</p><button className="d-btn ghost" onClick={() => go(d)}>Plan this trip</button></Card>)}</div>
+  </div>;
+}

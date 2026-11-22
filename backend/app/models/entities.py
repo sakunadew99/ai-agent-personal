@@ -1798,3 +1798,42 @@ class RolePlaySession(Base):
     feedback: Mapped[dict | None] = mapped_column(JsonDict, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ContentItem(Base):
+    """A piece of content you plan to make: idea -> scripted -> recorded -> published. Sakuna never posts anything."""
+    __tablename__ = "content_items"
+    __table_args__ = (CheckConstraint("status IN ('idea','scripted','recorded','published')", name="ck_content_items_status"),
+                      CheckConstraint("platform IN ('short','linkedin','youtube','carousel')", name="ck_content_items_platform"))
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    title: Mapped[str] = mapped_column(String(200))
+    platform: Mapped[str] = mapped_column(String(10))
+    topic: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    status: Mapped[str] = mapped_column(String(10), default="idea")
+    script: Mapped[str | None] = mapped_column(Text, nullable=True)
+    scheduled_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    published_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class TravelWish(Base):
+    """A place you want to go: wish -> planned -> done, with dates, budget and notes."""
+    __tablename__ = "travel_wishes"
+    __table_args__ = (CheckConstraint("status IN ('wish','planned','done')", name="ck_travel_wishes_status"),
+                      CheckConstraint("tier IN ('budget','mid','luxury')", name="ck_travel_wishes_tier"))
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    destination: Mapped[str] = mapped_column(String(120))
+    key: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    status: Mapped[str] = mapped_column(String(8), default="wish")
+    planned_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    days: Mapped[int] = mapped_column(Integer, default=3)
+    people: Mapped[int] = mapped_column(Integer, default=1)
+    tier: Mapped[str] = mapped_column(String(8), default="budget")
+    budget_lkr: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

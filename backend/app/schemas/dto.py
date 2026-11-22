@@ -1758,3 +1758,49 @@ class MealPlanIn(BaseModel):
     height_cm: float | None = Field(default=None, ge=120, le=230)
     age: int | None = Field(default=None, ge=14, le=100)
     sex: Literal["male", "female"] | None = None
+
+
+ContentPlatform = Literal["short", "linkedin", "youtube", "carousel"]
+ContentStatus = Literal["idea", "scripted", "recorded", "published"]
+
+
+class ContentIn(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    platform: ContentPlatform = "short"
+    topic: str | None = Field(default=None, max_length=120)
+    scheduled_on: date | None = None
+
+
+class ContentUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    platform: ContentPlatform | None = None
+    status: ContentStatus | None = None
+    script: str | None = Field(default=None, max_length=20000)
+    scheduled_on: date | None = None
+    published_on: date | None = None
+    url: str | None = Field(default=None, max_length=500, pattern=r"^https?://")
+
+
+TravelTier = Literal["budget", "mid", "luxury"]
+
+
+class TravelWishIn(BaseModel):
+    destination: str = Field(min_length=1, max_length=120)
+    key: str | None = Field(default=None, max_length=32)
+    status: Literal["wish", "planned", "done"] = "wish"
+    planned_on: date | None = None
+    days: int = Field(default=3, ge=1, le=60)
+    people: int = Field(default=1, ge=1, le=20)
+    tier: TravelTier = "budget"
+    budget_lkr: Decimal | None = Field(default=None, ge=0, le=Decimal("100000000"))
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class TravelWishUpdate(BaseModel):
+    status: Literal["wish", "planned", "done"] | None = None
+    planned_on: date | None = None
+    days: int | None = Field(default=None, ge=1, le=60)
+    people: int | None = Field(default=None, ge=1, le=20)
+    tier: TravelTier | None = None
+    budget_lkr: Decimal | None = Field(default=None, ge=0, le=Decimal("100000000"))
+    notes: str | None = Field(default=None, max_length=2000)

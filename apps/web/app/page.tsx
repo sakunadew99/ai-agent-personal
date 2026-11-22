@@ -38,7 +38,7 @@ import { HabitManager, InboxPage, JobFinder, LearnRadar, PlannerBoard, RewardsGa
 import { BrainGymPage, NewsAndWatch } from "@/components/LifeOsPages3";
 import { SearchPage, VideosPage } from "@/components/LifeOsPages5";
 import { SchedulePage, SpeakingPage } from "@/components/LifeOsPages6";
-import { FitnessGuidePage, RolePlayPage, WealthPage } from "@/components/LifeOsPages8";
+import { ContentPage, FitnessGuidePage, RolePlayPage, TravelPage, WealthPage } from "@/components/LifeOsPages8";
 import { DreamsPage, DrillPage, HealthAdvicePanel, MedicinesPage, ReceiptPage, RitualsPage, SkillsPage, SkinPage } from "@/components/LifeOsPages7";
 import { DayPage, GymPage, LanguagesPage, ProgressPage } from "@/components/LifeOsPages4";
 import { NudgeBanner, TodayPlanCard } from "@/components/SmartCards";
@@ -74,6 +74,8 @@ const navigation = [
   { label: "My schedule", icon: "check", hint: "Office, gym, sleep times (detected from your logs)" },
   { label: "Dreams & goals", icon: "flame", hint: "Today to 10 years: dream to plan, with your approval" },
   { label: "Fitness guide", icon: "heart", hint: "Workouts with technique and a Sri Lankan meal planner" },
+  { label: "Content studio", icon: "brain", hint: "Ideas, scripts and a weekly posting plan" },
+  { label: "Travel guide", icon: "compass", hint: "Where to go, itineraries, LKR budgets, wish list" },
   { label: "Medicines", icon: "heart", hint: "Doses, reminders, refills" },
   { label: "$1M journey", icon: "chart", hint: "Projections to $1M and income ideas ranked for you" },
   { label: "Scan receipt", icon: "copy", hint: "Receipt photo to expense (free on-device OCR)" },
@@ -149,7 +151,7 @@ const NAV_GROUPS: [string, string[]][] = [
   ["💰 MONEY", ["Finance", "$1M journey", "Scan receipt", "Invest", "Documents"]],
   ["💪 BODY", ["Health", "Fitness guide", "Gym", "Medicines", "Skin & glow", "Skills & trainers"]],
   ["🎓 LEARNING", ["Learning", "Languages", "Say it", "Role-play coach", "Exam coach", "Speaking coach", "Progress", "Study abroad", "Career", "My videos", "News", "Brain gym"]],
-  ["🌱 LIFE", ["Dreams & goals", "My life", "Journal", "Life balance", "Experiences", "Rewards", "Weekly review", "About you", "Insights"]],
+  ["🌱 LIFE", ["Dreams & goals", "Travel guide", "Content studio", "My life", "Journal", "Life balance", "Experiences", "Rewards", "Weekly review", "About you", "Insights"]],
   ["✨ AI & SETTINGS", ["Assistant", "AI team", "Memory", "Approvals", "Settings"]],
 ];
 function groupNavigation(query = "") {
@@ -462,6 +464,8 @@ export default function Home() {
       case "My schedule": return <SchedulePage token={token} />;
       case "Dreams & goals": return <DreamsPage token={token} />;
       case "Fitness guide": return <FitnessGuidePage token={token} />;
+      case "Content studio": return <ContentPage token={token} />;
+      case "Travel guide": return <TravelPage token={token} />;
       case "Medicines": return <MedicinesPage token={token} />;
       case "Scan receipt": return <ReceiptPage token={token} />;
       case "$1M journey": return <WealthPage token={token} />;

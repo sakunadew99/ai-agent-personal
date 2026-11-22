@@ -39,6 +39,8 @@ export const GROUPS: Group[] = [
   { name: "Life", emoji: "🌱", color: "#f5b65b", items: [
     { key: "Dreams", icon: "🌟", title: "Dreams & goals", hint: "Today to 10 years, dream to plan", words: "dream goal vision future plan milestone why success 10 years million germany" },
     { key: "Schedule", icon: "⏰", title: "My schedule", hint: "Office, gym, sleep times", words: "office work time gym time wake sleep routine shift hours" },
+    { key: "Travel", icon: "🗺", title: "Travel guide", hint: "Where to go, plans, LKR budgets", words: "travel trip holiday ella kandy sigiriya beach japan germany itinerary budget map wishlist visit" },
+    { key: "Content", icon: "🎬", title: "Content studio", hint: "Ideas, scripts, posting plan", words: "content youtube tiktok instagram linkedin post video script creator personal brand social media" },
     { key: "Life", icon: "🎯", title: "My life", hint: "Tasks, goals, habits", words: "todo goals habits" },
     { key: "Journal", icon: "✍️", title: "Journal", hint: "Day, gratitude, lessons", words: "diary notes" },
     { key: "Jobs", icon: "💼", title: "Jobs", hint: "Find jobs, tracker", words: "linkedin topjobs career cv" },
