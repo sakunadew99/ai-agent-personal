@@ -234,3 +234,49 @@ export function DrillPage({ token }: { token: string }) {
     </Card>}
   </div>;
 }
+
+const HZ: [string, string][] = [["week", "This week"], ["month", "This month"], ["year", "This year"], ["3y", "3 years"], ["5y", "5 years"], ["10y", "10 years"]];
+
+export function DreamsPage({ token }: { token: string }) {
+  const [v, setV] = useState<Row | null>(null);
+  const [q, setQ] = useState<Row | null>(null);
+  const [reply, setReply] = useState<Row | null>(null);
+  const [dream, setDream] = useState(""); const [hz, setHz] = useState("year");
+  const [plan, setPlan] = useState<Row | null>(null);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => { call<Row>("/dreams/ladder", token).then(setV).catch(() => undefined); call<Row>("/companion?force=true", token).then(setQ).catch(() => undefined); }, [token]);
+  useEffect(() => { load(); }, [load]);
+  const lines = (k: string) => (plan?.[k] as string[] || []).join("\n");
+  const setLines = (k: string, t: string) => setPlan(p => ({ ...p!, [k]: t.split("\n").map(s => s.trim()).filter(Boolean) }));
+  return <div className="d-dash">
+    <Hero kicker="Dreams & goals · today to 10 years" title="Dream" accent="to action" sub="Write a dream; Sakuna proposes why, success, milestones, skills and a first step. Nothing is saved until you approve."/>
+    {q?.question && <Card kicker="✨ Sakuna asks" title={q.question.text}>
+      {reply ? <><p>{reply.text}</p><p className="d-note">{(reply.actions as Row[]).map(a => a.label).join(" · ")}</p></>
+        : <div className="d-chips">{(q.question.choices as Row[]).map(c => <button key={c.key} className="d-chip" onClick={() => void call<Row>("/companion/answer", token, postJson({ choice: c.key, goal_id: q.question.goal_id })).then(setReply)}>{c.label}</button>)}</div>}
+      <div className="d-chips" style={{ marginTop: 8 }}>{["daily", "few_weekly", "useful", "off"].map(f => <button key={f} className={`d-chip ${q.frequency === f ? "on" : ""}`}
+        onClick={() => void call("/companion/frequency", token, { method: "PUT", body: JSON.stringify({ frequency: f }) }).then(load)}>{{ daily: "Ask daily", few_weekly: "Few times a week", useful: "Only when useful", off: "Don't ask" }[f]}</button>)}</div>
+    </Card>}
+    <Card kicker="New dream" title="I want to…">
+      <textarea className="d-input" rows={2} value={dream} onChange={e => setDream(e.target.value)} placeholder="e.g. I want to learn swimming"/>
+      <div className="d-chips">{HZ.map(([k, l]) => <button key={k} className={`d-chip ${hz === k ? "on" : ""}`} onClick={() => setHz(k)}>{l}</button>)}</div>
+      <button className="d-btn" disabled={busy || dream.trim().length < 3} onClick={() => { setBusy(true); void call<Row>("/dreams/propose", token, postJson({ dream, horizon: hz })).then(setPlan).finally(() => setBusy(false)); }}>{busy ? "Thinking…" : "✨ Turn into a plan"}</button>
+    </Card>
+    {plan && <Card kicker={`Proposed plan · ${plan.horizon_label}${plan.source === "ai" ? " · AI" : ""}`} title="Edit, then approve">
+      <input className="d-input" value={plan.title} onChange={e => setPlan({ ...plan, title: e.target.value })}/>
+      <label className="d-note">Why it matters<textarea className="d-input" rows={2} value={plan.why} onChange={e => setPlan({ ...plan, why: e.target.value })}/></label>
+      <label className="d-note">What success looks like<textarea className="d-input" rows={2} value={plan.success} onChange={e => setPlan({ ...plan, success: e.target.value })}/></label>
+      <label className="d-note">Milestones (one per line)<textarea className="d-input" rows={4} value={(plan.milestones as Row[]).map(m => m.title).join("\n")}
+        onChange={e => setPlan({ ...plan, milestones: e.target.value.split("\n").map((t, i) => ({ title: t, due_date: (plan.milestones as Row[])[i]?.due_date || null })) })}/></label>
+      <label className="d-note">Skills (one per line)<textarea className="d-input" rows={3} value={lines("skills")} onChange={e => setLines("skills", e.target.value)}/></label>
+      <label className="d-note">Challenges (one per line)<textarea className="d-input" rows={2} value={lines("challenges")} onChange={e => setLines("challenges", e.target.value)}/></label>
+      <label className="d-note">First step (becomes a task)<input className="d-input" value={plan.next_action} onChange={e => setPlan({ ...plan, next_action: e.target.value })}/></label>
+      <div className="d-row"><button className="d-btn" onClick={() => void call<Row>("/dreams/accept", token, postJson({ ...plan, milestones: (plan.milestones as Row[]).filter(m => m.title.trim()) })).then(x => { setV(x); setPlan(null); setDream(""); })}>✓ Approve and add</button>
+        <button className="d-btn ghost" onClick={() => setPlan(null)}>Reject</button></div>
+    </Card>}
+    {(v?.today_connects as Row[] || []).length > 0 && <Card kicker="Today → your future" title="Tasks that move your goals">{(v!.today_connects as Row[]).map((c, i) => <p key={i} className="d-note">☑ {c.task} → <b>{c.goal}</b></p>)}</Card>}
+    <div className="d-grid-2">{(v?.horizons as Row[] || []).map(h => <Card key={h.key} kicker={h.label} title={`${(h.goals as Row[]).length} goals`}>
+      {(h.goals as Row[]).map(g => <div key={g.id} style={{ marginBottom: 10 }}><b style={{ color: "var(--d-text)" }}>{g.title}</b>{g.progress != null && <Meter value={g.progress}/>}
+        {g.why && <small className="d-note" style={{ display: "block" }}>💡 {g.why}</small>}{g.next_milestone && <small className="d-note" style={{ display: "block" }}>Next: {g.next_milestone}</small>}</div>)}
+    </Card>)}</div>
+  </div>;
+}

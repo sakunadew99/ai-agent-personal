@@ -68,3 +68,48 @@ def ritual_evening_save(data: dto.EveningIn, db: Session = Depends(get_db), user
     """Mood, wins and a lesson go to today's journal; tomorrow's top 3 become tasks (you typed them)."""
     from app.services import rituals
     out = rituals.save_evening(db, user.id, data.mood, data.wins, data.lesson, data.tomorrow); db.commit(); return out
+
+
+
+# ---------------- dreams -> plans, and the proactive companion
+
+@router.post("/dreams/propose")
+def dream_propose(data: dto.DreamIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """A proposal only: why, success, skills, resources, milestones, challenges and a first step. Nothing is saved."""
+    from app.services import dreams
+    out = dreams.propose(db, user.id, data.dream, data.horizon, data.ai); db.commit(); return out
+
+
+@router.post("/dreams/accept", status_code=201)
+def dream_accept(data: dto.DreamAccept, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """You approved the plan (after editing it if you liked): the goal, its milestones and one first task are created."""
+    from app.services import dreams
+    goal = dreams.accept(db, user.id, data.model_dump()); db.commit()
+    return {"goal_id": goal.id, **dreams.ladder(db, user.id)}
+
+
+@router.get("/dreams/ladder")
+def dream_ladder(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Goals by horizon (today .. 10 years) with milestone progress, and today's tasks that move them."""
+    from app.services import dreams
+    return dreams.ladder(db, user.id)
+
+
+@router.get("/companion")
+def companion_question(force: bool = False, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """One useful question with buttons, or none (frequency, quiet hours, sleep). force=true asks now."""
+    from app.services import companion
+    out = companion.question(db, user.id, force); db.commit(); return out
+
+
+@router.post("/companion/answer")
+def companion_answer(data: dto.CompanionAnswer, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services import companion
+    out = companion.answer(db, user.id, data.choice, data.goal_id); db.commit(); return out
+
+
+@router.put("/companion/frequency")
+def companion_frequency(data: dto.CompanionFrequency, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Ask me daily, a few times a week, only when useful, or never."""
+    from app.services import companion
+    out = companion.set_frequency(db, user.id, data.frequency); db.commit(); return out

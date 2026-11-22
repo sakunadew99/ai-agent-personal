@@ -34,6 +34,7 @@ export const GROUPS: Group[] = [
     { key: "Study", icon: "✈️", title: "Study abroad", hint: "DAAD, programs, checklist", words: "germany daad masters university" },
   ] },
   { name: "Life", emoji: "🌱", color: "#f5b65b", items: [
+    { key: "Dreams", icon: "🌟", title: "Dreams & goals", hint: "Today to 10 years, dream to plan", words: "dream goal vision future plan milestone why success 10 years million germany" },
     { key: "Schedule", icon: "⏰", title: "My schedule", hint: "Office, gym, sleep times", words: "office work time gym time wake sleep routine shift hours" },
     { key: "Life", icon: "🎯", title: "My life", hint: "Tasks, goals, habits", words: "todo goals habits" },
     { key: "Journal", icon: "✍️", title: "Journal", hint: "Day, gratitude, lessons", words: "diary notes" },
@@ -133,7 +134,7 @@ export function ExploreScreen({ open, api, openAny }: { open: (t: MoreTarget) =>
 
 /** Home: a search pill plus six big shortcuts. */
 export function QuickLaunch({ open, onSearch }: { open: (t: MoreTarget) => void; onSearch: () => void }) {
-  const picks: MoreTarget[] = ["Invest", "Health", "Skills", "Meds", "Learning", "Journal"];
+  const picks: MoreTarget[] = ["Dreams", "Invest", "Health", "Skills", "Learning", "Meds"];
   const items = picks.map(k => ALL.find(i => i.key === k)!);
   return <View style={{ gap: 12 }}>
     <TouchableOpacity onPress={onSearch} activeOpacity={0.8} style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: C.panel2, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 13, borderWidth: 1, borderColor: C.line }}>

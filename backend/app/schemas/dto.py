@@ -151,6 +151,9 @@ class PermissionUpdate(BaseModel):
     mode: ToolMode
 
 
+Horizon = Literal["today", "week", "month", "year", "3y", "5y", "10y"]
+
+
 class GoalIn(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     description: str | None = None
@@ -162,6 +165,14 @@ class GoalIn(BaseModel):
     status: GoalStatus = "active"
     metric: GoalMetric = "manual"
     metric_currency: str | None = Field(default=None, pattern=r"^[A-Za-z]{3}$")
+    horizon: Horizon | None = None
+    why: str | None = Field(default=None, max_length=2000)
+    success: str | None = Field(default=None, max_length=2000)
+    skills: list[str] | None = Field(default=None, max_length=20)
+    resources: list[str] | None = Field(default=None, max_length=20)
+    challenges: list[str] | None = Field(default=None, max_length=20)
+    next_action: str | None = Field(default=None, max_length=300)
+    parent_id: uuid.UUID | None = None
 
 
 class GoalUpdate(BaseModel):
@@ -175,6 +186,13 @@ class GoalUpdate(BaseModel):
     status: GoalStatus | None = None
     metric: GoalMetric | None = None
     metric_currency: str | None = Field(default=None, pattern=r"^[A-Za-z]{3}$")
+    horizon: Horizon | None = None
+    why: str | None = Field(default=None, max_length=2000)
+    success: str | None = Field(default=None, max_length=2000)
+    skills: list[str] | None = Field(default=None, max_length=20)
+    resources: list[str] | None = Field(default=None, max_length=20)
+    challenges: list[str] | None = Field(default=None, max_length=20)
+    next_action: str | None = Field(default=None, max_length=300)
 
 
 class GoalOut(ORMModel):
@@ -189,6 +207,14 @@ class GoalOut(ORMModel):
     due_date: date | None
     metric: str = "manual"
     metric_currency: str | None = None
+    horizon: str | None = None
+    why: str | None = None
+    success: str | None = None
+    skills: list[str] | None = None
+    resources: list[str] | None = None
+    challenges: list[str] | None = None
+    next_action: str | None = None
+    parent_id: uuid.UUID | None = None
     created_at: datetime
 
 
@@ -1678,3 +1704,39 @@ class DrillIn(BaseModel):
     heard: str = Field(default="", max_length=600)
     lang: Literal["en", "de"] = "de"
     seconds: int = Field(default=5, ge=1, le=120)
+
+
+class DreamIn(BaseModel):
+    dream: str = Field(min_length=3, max_length=500)
+    horizon: Horizon = "year"
+    ai: bool = True
+
+
+class DreamMilestone(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    due_date: date | None = None
+
+
+class DreamAccept(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    dream: str | None = Field(default=None, max_length=500)
+    category: str = Field(default="personal", max_length=32)
+    horizon: Horizon = "year"
+    due_date: date | None = None
+    why: str | None = Field(default=None, max_length=2000)
+    success: str | None = Field(default=None, max_length=2000)
+    skills: list[str] = Field(default_factory=list, max_length=20)
+    resources: list[str] = Field(default_factory=list, max_length=20)
+    challenges: list[str] = Field(default_factory=list, max_length=20)
+    milestones: list[DreamMilestone] = Field(default_factory=list, max_length=12)
+    next_action: str | None = Field(default=None, max_length=300)
+    parent_id: uuid.UUID | None = None
+
+
+class CompanionAnswer(BaseModel):
+    choice: str = Field(min_length=1, max_length=20)
+    goal_id: str | None = Field(default=None, max_length=40)
+
+
+class CompanionFrequency(BaseModel):
+    frequency: Literal["daily", "few_weekly", "useful", "off"]

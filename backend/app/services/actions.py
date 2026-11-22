@@ -110,6 +110,7 @@ def create_goal(db: Session, user_id, data: GoalIn) -> Goal:
     from app.services.goal_engine import validate_metric
     values = data.model_dump()
     values["metric_currency"] = validate_metric(data.metric, data.metric_currency)
+    _goal_owned(db, user_id, data.parent_id)          # a sub-goal can only hang under your own goal
     row = Goal(user_id=user_id, **values)
     db.add(row)
     db.flush()

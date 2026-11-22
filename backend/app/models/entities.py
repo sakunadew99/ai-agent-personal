@@ -151,6 +151,7 @@ class MemoryEmbedding(Base):
 
 class Goal(Base):
     __tablename__ = "goals"
+    __table_args__ = (CheckConstraint("horizon IS NULL OR horizon IN ('today','week','month','year','3y','5y','10y')", name="ck_goals_horizon"),)
 
     id: Mapped[uuid.UUID] = pk()
     user_id: Mapped[uuid.UUID] = user_fk()
@@ -166,6 +167,15 @@ class Goal(Base):
     # tasks_done | milestones_done (see services/goal_engine.py). Money metrics use metric_currency.
     metric: Mapped[str] = mapped_column(String(32), default="manual", server_default="manual")
     metric_currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    # dream-to-action: the horizon (today .. 10 years), why it matters, what success looks like, and the path
+    horizon: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    why: Mapped[str | None] = mapped_column(Text, nullable=True)
+    success: Mapped[str | None] = mapped_column(Text, nullable=True)
+    skills: Mapped[list | None] = mapped_column(JsonDict, nullable=True)
+    resources: Mapped[list | None] = mapped_column(JsonDict, nullable=True)
+    challenges: Mapped[list | None] = mapped_column(JsonDict, nullable=True)
+    next_action: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("goals.id", ondelete="SET NULL"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -265,6 +275,7 @@ class PlanItem(Base):
 
 class CheckinSetting(Base):
     __tablename__ = "checkin_settings"
+    __table_args__ = (CheckConstraint("ask_frequency IN ('daily','few_weekly','useful','off')", name="ck_checkin_settings_ask"),)
 
     id: Mapped[uuid.UUID] = pk()
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
@@ -272,6 +283,8 @@ class CheckinSetting(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     quiet_start: Mapped[time | None] = mapped_column(Time, nullable=True)
     quiet_end: Mapped[time | None] = mapped_column(Time, nullable=True)
+    ask_frequency: Mapped[str] = mapped_column(String(10), default="useful", server_default="useful")   # daily|few_weekly|useful|off
+    last_question_on: Mapped[date | None] = mapped_column(Date, nullable=True)
 
 
 class CheckinLog(Base):

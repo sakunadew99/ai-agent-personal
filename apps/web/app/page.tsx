@@ -38,7 +38,7 @@ import { HabitManager, InboxPage, JobFinder, LearnRadar, PlannerBoard, RewardsGa
 import { BrainGymPage, NewsAndWatch } from "@/components/LifeOsPages3";
 import { SearchPage, VideosPage } from "@/components/LifeOsPages5";
 import { SchedulePage, SpeakingPage } from "@/components/LifeOsPages6";
-import { DrillPage, HealthAdvicePanel, MedicinesPage, ReceiptPage, RitualsPage, SkillsPage, SkinPage } from "@/components/LifeOsPages7";
+import { DreamsPage, DrillPage, HealthAdvicePanel, MedicinesPage, ReceiptPage, RitualsPage, SkillsPage, SkinPage } from "@/components/LifeOsPages7";
 import { DayPage, GymPage, LanguagesPage, ProgressPage } from "@/components/LifeOsPages4";
 import { NudgeBanner, TodayPlanCard } from "@/components/SmartCards";
 
@@ -71,6 +71,7 @@ const navigation = [
   { label: "Search", icon: "compass", hint: "Find anything you saved, by words or meaning" },
   { label: "Speaking coach", icon: "brain", hint: "Public speaking, English & German: pace, fillers, tips" },
   { label: "My schedule", icon: "check", hint: "Office, gym, sleep times (detected from your logs)" },
+  { label: "Dreams & goals", icon: "flame", hint: "Today to 10 years: dream to plan, with your approval" },
   { label: "Medicines", icon: "heart", hint: "Doses, reminders, refills" },
   { label: "Scan receipt", icon: "copy", hint: "Receipt photo to expense (free on-device OCR)" },
   { label: "Say it", icon: "book", hint: "Pronunciation drill: German & English" },
@@ -144,7 +145,7 @@ const NAV_GROUPS: [string, string[]][] = [
   ["💰 MONEY", ["Finance", "Scan receipt", "Invest", "Documents"]],
   ["💪 BODY", ["Health", "Gym", "Medicines", "Skin & glow", "Skills & trainers"]],
   ["🎓 LEARNING", ["Learning", "Languages", "Say it", "Exam coach", "Speaking coach", "Progress", "Study abroad", "Career", "My videos", "News", "Brain gym"]],
-  ["🌱 LIFE", ["My life", "Journal", "Life balance", "Experiences", "Rewards", "Weekly review", "About you", "Insights"]],
+  ["🌱 LIFE", ["Dreams & goals", "My life", "Journal", "Life balance", "Experiences", "Rewards", "Weekly review", "About you", "Insights"]],
   ["✨ AI & SETTINGS", ["Assistant", "AI team", "Memory", "Approvals", "Settings"]],
 ];
 function groupNavigation(query = "") {
@@ -455,6 +456,7 @@ export default function Home() {
       case "Search": return <SearchPage token={token} />;
       case "Speaking coach": return <SpeakingPage token={token} />;
       case "My schedule": return <SchedulePage token={token} />;
+      case "Dreams & goals": return <DreamsPage token={token} />;
       case "Medicines": return <MedicinesPage token={token} />;
       case "Scan receipt": return <ReceiptPage token={token} />;
       case "Say it": return <DrillPage token={token} />;
