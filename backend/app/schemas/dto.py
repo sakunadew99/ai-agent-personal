@@ -1804,3 +1804,46 @@ class TravelWishUpdate(BaseModel):
     tier: TravelTier | None = None
     budget_lkr: Decimal | None = Field(default=None, ge=0, le=Decimal("100000000"))
     notes: str | None = Field(default=None, max_length=2000)
+
+
+BookStatus = Literal["want", "reading", "finished", "paused"]
+
+
+class BookIn(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    author: str = Field(default="", max_length=200)
+    total_pages: int | None = Field(default=None, ge=1, le=20000)
+    status: BookStatus = "want"
+    format: Literal["paper", "ebook", "audio"] = "paper"
+    category: str | None = Field(default=None, max_length=40)
+    cover_url: str | None = Field(default=None, max_length=500, pattern=r"^https://")
+    source_key: str | None = Field(default=None, max_length=80)
+
+
+class BookUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=300)
+    author: str | None = Field(default=None, max_length=200)
+    total_pages: int | None = Field(default=None, ge=1, le=20000)
+    current_page: int | None = Field(default=None, ge=0, le=20000)
+    status: BookStatus | None = None
+    format: Literal["paper", "ebook", "audio"] | None = None
+    category: str | None = Field(default=None, max_length=40)
+    rating: int | None = Field(default=None, ge=1, le=5)
+    takeaways: str | None = Field(default=None, max_length=10000)
+
+
+class BookProgressIn(BaseModel):
+    to_page: int | None = Field(default=None, ge=0, le=20000)
+    pages: int | None = Field(default=None, ge=0, le=2000)
+    minutes: int = Field(default=0, ge=0, le=600)
+
+
+class HighlightIn(BaseModel):
+    quote: str = Field(min_length=1, max_length=2000)
+    page: int | None = Field(default=None, ge=0, le=20000)
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class ReadingGoalIn(BaseModel):
+    books_per_year: int | None = Field(default=None, ge=1, le=500)
+    daily_minutes: int | None = Field(default=None, ge=5, le=600)

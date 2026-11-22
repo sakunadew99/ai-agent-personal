@@ -37,6 +37,8 @@ def _no_real_news_downloads(monkeypatch):
     from app.services import resources
     resources._cache.clear()
     monkeypatch.setattr(resources, "_http_get", blocked)
+    from app.services import reading
+    monkeypatch.setattr(reading, "_http_get", blocked)
 
 
 @pytest.fixture(autouse=True)

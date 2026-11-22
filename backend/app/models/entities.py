@@ -78,6 +78,8 @@ class UserProfile(Base):
     automation_policy: Mapped[str] = mapped_column(String(16), default="confirm")
     bio: Mapped[str | None] = mapped_column(Text, nullable=True)
     location: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    reading_goal_books: Mapped[int | None] = mapped_column(Integer, nullable=True)       # books to finish this year
+    reading_daily_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -1836,4 +1838,47 @@ class TravelWish(Base):
     tier: Mapped[str] = mapped_column(String(8), default="budget")
     budget_lkr: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Book(Base):
+    """A book you want to read, are reading or finished: progress, rating, highlights and takeaways."""
+    __tablename__ = "books"
+    __table_args__ = (CheckConstraint("status IN ('want','reading','finished','paused')", name="ck_books_status"),
+                      CheckConstraint("format IN ('paper','ebook','audio')", name="ck_books_format"),
+                      CheckConstraint("rating IS NULL OR rating BETWEEN 1 AND 5", name="ck_books_rating"),
+                      UniqueConstraint("user_id", "title", "author", name="uq_books_user_title_author"))
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    title: Mapped[str] = mapped_column(String(300))
+    author: Mapped[str] = mapped_column(String(200), default="")
+    total_pages: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    current_page: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(10), default="want")
+    format: Mapped[str] = mapped_column(String(8), default="paper")
+    category: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    cover_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    source_key: Mapped[str | None] = mapped_column(String(80), nullable=True)    # Open Library work key
+    started_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    finished_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    highlights: Mapped[list | None] = mapped_column(JsonDict, nullable=True)       # [{"quote", "page", "note"}]
+    takeaways: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class BookSession(Base):
+    """One reading sitting: pages from -> to and minutes."""
+    __tablename__ = "book_sessions"
+    __table_args__ = (CheckConstraint("pages >= 0", name="ck_book_sessions_pages"), CheckConstraint("minutes BETWEEN 0 AND 600", name="ck_book_sessions_minutes"))
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    book_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("books.id", ondelete="CASCADE"), index=True)
+    local_date: Mapped[date] = mapped_column(Date, index=True)
+    from_page: Mapped[int] = mapped_column(Integer, default=0)
+    to_page: Mapped[int] = mapped_column(Integer, default=0)
+    pages: Mapped[int] = mapped_column(Integer, default=0)
+    minutes: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

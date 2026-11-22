@@ -225,3 +225,47 @@ export function ResourcesPage({ token }: { token: string }) {
     </div>}
   </div>;
 }
+
+export function ReadingPage({ token }: { token: string }) {
+  const [v, setV] = useState<Row | null>(null);
+  const [q, setQ] = useState(""); const [found, setFound] = useState<Row[] | null>(null);
+  const [open, setOpen] = useState<Row | null>(null);
+  const [hl, setHl] = useState({ quote: "", page: "" });
+  const [note, setNote] = useState("");
+  const load = useCallback(() => { call<Row>("/reading", token).then(setV).catch(e => setNote(errText(e))); }, [token]);
+  useEffect(() => { load(); }, [load]);
+  const add = (b: Row, status: string) => void call("/reading/books", token, postJson({ title: b.title, author: b.author || "", total_pages: b.pages || undefined, cover_url: b.cover_url || undefined, source_key: b.source_key || undefined, status }))
+    .then(() => { setFound(null); setQ(""); load(); }).catch(e => setNote(errText(e)));
+  const progress = (b: Row, body: Row) => void call<Row>(`/reading/books/${b.id}/progress`, token, postJson(body)).then(setV).catch(e => setNote(errText(e)));
+  const patch = (b: Row, body: Row) => void call<Row>(`/reading/books/${b.id}`, token, { method: "PATCH", body: JSON.stringify(body) }).then(x => { setOpen(o => (o && o.id === x.id ? x : o)); load(); });
+  if (!v) return <div className="d-empty">Loading your shelf…</div>;
+  const yr = v.year;
+  return <div className="d-dash">
+    <Hero kicker="Reading" title={`${yr.finished}${yr.goal ? `/${yr.goal}` : ""}`} accent="books this year" sub={`${v.streak ? `🔥 ${v.streak}-day streak · ` : ""}${v.week_pages} pages this week${v.pace_pages_per_day ? ` · ${v.pace_pages_per_day}/day` : ""}`}
+      right={<Ring value={yr.goal ? Math.min(100, yr.finished / yr.goal * 100) : 0} size={120} label={yr.goal ? `${Math.round(yr.finished / yr.goal * 100)}%` : "—"} sub="year goal"/>}>
+      <div className="d-row" style={{ marginTop: 10 }}><input className="d-input" value={q} onChange={e => setQ(e.target.value)} placeholder="Search books (Open Library)"
+        onKeyDown={e => { if (e.key === "Enter") void call<Row>(`/reading/search?q=${encodeURIComponent(q)}`, token).then(x => setFound(x.items)); }}/>
+        <select className="d-input" value={yr.goal || ""} onChange={e => void call<Row>("/reading/goal", token, { method: "PUT", body: JSON.stringify({ books_per_year: Number(e.target.value) || null, daily_minutes: v.daily_minutes || 20 }) }).then(setV)}>
+          <option value="">Yearly goal</option>{[6, 12, 24, 36, 52].map(n => <option key={n} value={n}>{n} books</option>)}</select></div>
+    </Hero>
+    {note && <p className="d-note">{note}</p>}
+    {found && <Card kicker="Search results" title={`${found.length} books`}>{found.map((b, i) => <div key={i} className="d-row" style={{ justifyContent: "space-between" }}>
+      <span>{b.cover_url && <img src={b.cover_url} alt="" style={{ height: 48, borderRadius: 4, verticalAlign: "middle", marginRight: 8 }}/>}<b>{b.title}</b> <small className="d-note">{b.author} {b.year ? `· ${b.year}` : ""} {b.pages ? `· ${b.pages} p` : ""}</small></span>
+      <span><button className="text-button" onClick={() => add(b, "reading")}>📖 Reading</button><button className="text-button" onClick={() => add(b, "want")}>Want</button></span></div>)}</Card>}
+    <div className="d-grid-2">{(v.books as Row[]).filter(b => b.status === "reading").map(b => <Card key={b.id} kicker={`${b.percent ?? 0}%${b.finish_forecast ? ` · done by ${b.finish_forecast}` : ""}`} title={b.title}>
+      <p className="d-note">{b.author} · page {b.current_page}{b.total_pages ? ` of ${b.total_pages}` : ""}</p>
+      <div className="d-row"><button className="d-btn" onClick={() => progress(b, { pages: 10 })}>+10 pages</button><button className="d-btn ghost" onClick={() => { const p = window.prompt("Page reached?", String(b.current_page)); if (p) progress(b, { to_page: Number(p) }); }}>Set page</button>
+        <button className="d-btn ghost" onClick={() => setOpen(b)}>Highlights</button></div></Card>)}</div>
+    {open && <Card kicker="Highlights & takeaways" title={open.title} action={<button className="text-button" onClick={() => setOpen(null)}>Close</button>}>
+      {(open.highlights as Row[]).map((h, i) => <p key={i}><i>“{h.quote}”</i> <small className="d-note">{h.page != null ? `p. ${h.page}` : ""}</small></p>)}
+      <div className="d-row"><input className="d-input" value={hl.quote} onChange={e => setHl({ ...hl, quote: e.target.value })} placeholder="Quote"/><input className="d-input" style={{ width: 80 }} value={hl.page} onChange={e => setHl({ ...hl, page: e.target.value })} placeholder="Page"/>
+        <button className="d-btn" onClick={() => void call<Row>(`/reading/books/${open.id}/highlights`, token, postJson({ quote: hl.quote, page: Number(hl.page) || undefined })).then(x => { setOpen(x); setHl({ quote: "", page: "" }); })}>Save</button></div>
+      <div className="d-row">{[1, 2, 3, 4, 5].map(n => <button key={n} className="text-button" style={{ fontSize: 20, color: n <= (open.rating || 0) ? "var(--d-amber)" : "var(--d-muted)" }} onClick={() => patch(open, { rating: n })}>★</button>)}
+        <button className="d-btn ghost" onClick={() => patch(open, { status: "finished" })}>✅ Finished</button></div></Card>}
+    <div className="d-grid-2">
+      <Card kicker="Shelf" title="Want to read · finished">{(v.books as Row[]).filter(b => b.status !== "reading").map(b => <p key={b.id} className="d-note">{b.status === "finished" ? "✅" : b.status === "paused" ? "⏸" : "📚"} <b>{b.title}</b> · {b.author}{b.rating ? ` · ${"★".repeat(b.rating)}` : ""}
+        {b.status === "want" && <button className="text-button" onClick={() => patch(b, { status: "reading" })}>Start</button>}</p>)}</Card>
+      <Card kicker="Books for your goals" title="Real, well-known books">{(v.suggestions as Row[]).map(s => <p key={s.title} className="d-note"><b>{s.title}</b> · {s.author}<br/>{s.why} <button className="text-button" onClick={() => add(s, "want")}>＋ Want</button></p>)}</Card>
+    </div>
+  </div>;
+}
