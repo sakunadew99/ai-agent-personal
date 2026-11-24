@@ -40,6 +40,7 @@ export const GROUPS: Group[] = [
     { key: "English", icon: "✍️", title: "English check", hint: "Grammar corrections for what you write or say", words: "english grammar correction spelling writing conversation languagetool soft skills" },
 
 
+    { key: "Reels", icon: "🎬", title: "Learning reels", hint: "Swipe-up reels: only learning, ranked for you", words: "reels shorts tiktok swipe scroll for you feed videos learning motivation psychology educational facebook youtube" },
     { key: "LearnFeed", icon: "🎓", title: "Learning feed", hint: "Only educational, motivational & psychology videos", words: "youtube tiktok facebook instagram learning feed educational motivational motivation psychology filter videos watch shorts reels" },
     { key: "Videos", icon: "🎬", title: "My videos", hint: "Drive & YouTube in-app", words: "google drive youtube lectures" },
     { key: "News", icon: "📰", title: "Feed", hint: "News, videos, brain games", words: "news youtube watch brain gym games puzzle memory" },

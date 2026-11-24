@@ -1993,3 +1993,21 @@ class BodyMeasurement(Base):
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class FeedEvent(Base):
+    """One interaction with a learning reel: view (with seconds), complete, like/unlike, save, skip or hide."""
+    __tablename__ = "feed_events"
+    __table_args__ = (CheckConstraint("action IN ('view','complete','like','unlike','save','skip','hide')", name="ck_feed_events_action"),
+                      CheckConstraint("seconds BETWEEN 0 AND 86400", name="ck_feed_events_seconds"),
+                      Index("ix_feed_events_user_video", "user_id", "video_id"))
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    video_id: Mapped[str] = mapped_column(String(40))
+    channel_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    category: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    action: Mapped[str] = mapped_column(String(10))
+    seconds: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

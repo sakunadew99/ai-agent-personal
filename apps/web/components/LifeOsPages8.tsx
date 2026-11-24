@@ -1,6 +1,6 @@
 "use client";
 /* Role-play coach (soft-skills academy) and the next vision pages for the web. */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { apiRequest as call, patchJson, postJson, type JsonRecord as Row } from "@/lib/api";
 import { Card, Hero, Ring } from "./Charts";
 
@@ -728,5 +728,52 @@ export function LearnFeedPage({ token }: { token: string }) {
         <p className="d-note">Calmer real apps: Shield blocks TikTok/Facebook at set hours; on YouTube pause watch history; on TikTok use Content preferences; on Facebook use Feeds → Favorites.</p>
       </Card>
     </div>
+  </div>;
+}
+
+
+export function ReelsPage({ token }: { token: string }) {
+  const [items, setItems] = useState<Row[]>([]);
+  const [index, setIndex] = useState(0);
+  const [stats, setStats] = useState<Row | null>(null);
+  const [liked, setLiked] = useState<Record<string, boolean>>({});
+  const [note, setNote] = useState("");
+  const box = useRef<HTMLDivElement | null>(null);
+  const started = useRef(Date.now());
+  const send = useCallback((it: Row, action: string, seconds = 0) => {
+    if (it) void call("/reels/events", token, postJson({ events: [{ video_id: it.id, channel_id: it.channel_id || undefined, category: it.category, title: it.title, action, seconds: Math.round(seconds) }] })).catch(() => undefined);
+  }, [token]);
+  const more = useCallback(() => {
+    let ch = ""; try { ch = (JSON.parse(localStorage.getItem("sakuna.watchChannels") || "[]") as Row[]).map(c => c.channel_id).join(","); } catch { /* none */ }
+    call<Row>(`/reels?channels=${encodeURIComponent(ch)}`, token).then(r => { setStats(r.stats);
+      setItems(prev => { const have = new Set(prev.map(p => p.id)); return [...prev, ...(r.items as Row[]).filter(i => !have.has(i.id))]; }); }).catch(e => setNote(errText(e)));
+  }, [token]);
+  useEffect(() => { more(); }, [more]);
+  useEffect(() => { if (items.length && index >= items.length - 3) more(); }, [index, items.length, more]);
+  const onScroll = () => {
+    const el = box.current; if (!el) return;
+    const i = Math.round(el.scrollTop / el.clientHeight);
+    if (i !== index && items[index]) { const secs = (Date.now() - started.current) / 1000; send(items[index], secs < 4 ? "skip" : "view", secs); started.current = Date.now(); setIndex(i); }
+  };
+  const like = (it: Row) => { const on = !liked[it.id]; setLiked({ ...liked, [it.id]: on }); send(it, on ? "like" : "unlike"); };
+  const hide = (it: Row) => { send(it, "hide"); setItems(items.filter(x => x.id !== it.id)); };
+  const src = (it: Row) => it.kind === "youtube" ? `https://www.youtube.com/embed/${it.id}?autoplay=1&playsinline=1&rel=0` : it.embed;
+  return <div className="d-dash">
+    <Hero kicker="Learning reels" title="Scroll," accent="but grow" sub={`Only educational, motivational and psychology videos, ranked for you. ${stats ? `${stats.minutes_week} min this week.` : ""}`}/>
+    {note && <p className="d-note">{note}</p>}
+    <div ref={box} onScroll={onScroll} style={{ height: "78vh", maxWidth: 460, margin: "0 auto", overflowY: "scroll", scrollSnapType: "y mandatory", borderRadius: 18, background: "#000" }}>
+      {items.map((it, i) => <div key={it.id} style={{ height: "78vh", scrollSnapAlign: "start", position: "relative" }}>
+        {i === index && src(it) ? <iframe title={it.title} src={src(it)} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" style={{ width: "100%", height: "100%", border: 0 }}/>
+          : it.thumb ? <img src={it.thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }}/> : <a href={it.url} target="_blank" rel="noreferrer" style={{ color: "#fff", display: "block", padding: 40 }}>Open ↗</a>}
+        <div style={{ position: "absolute", left: 12, right: 70, bottom: 56, color: "#fff", pointerEvents: "none" }}>
+          <small style={{ color: LF_TINT[it.category], fontWeight: 800 }}>{LF_LABEL[it.category]} · {it.channel}</small>
+          <p style={{ margin: "4px 0", fontWeight: 800 }}>{it.title}</p><small style={{ color: "#ddd" }}>✨ {it.reason}</small></div>
+        <div style={{ position: "absolute", right: 10, bottom: 70, display: "grid", gap: 12 }}>
+          <button className="d-btn ghost" onClick={() => like(it)}>{liked[it.id] ? "❤️" : "🤍"}</button>
+          <button className="d-btn ghost" title="Fewer like this" onClick={() => hide(it)}>👎</button>
+          <a className="d-btn ghost" href={it.url} target="_blank" rel="noreferrer">↗</a></div>
+      </div>)}
+    </div>
+    <p className="d-note" style={{ textAlign: "center" }}>Scroll inside the player for the next reel. Ranked by what you finish, like and skip, your goals, freshness and popularity.</p>
   </div>;
 }

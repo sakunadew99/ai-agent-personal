@@ -493,3 +493,22 @@ def learn_link(data: dto.LearnLinkIn, db: Session = Depends(get_db), user: User 
     row = MediaItem(user_id=user.id, title=f"[{plat}] {data.title.strip()}"[:200], url=url, provider="youtube" if plat == "YouTube" else "web", folder=folder)
     db.add(row); db.commit(); db.refresh(row)
     return {"saved": True, "id": row.id, "category": c["category"], "folder": folder, "why": c["why"] if c["category"] else "Saved anyway", "platform": plat}
+
+
+# ---------------- learning reels ("For you")
+
+@router.get("/reels")
+def reels_feed(channels: str = Query(default="", max_length=600), ai: bool = False, limit: int = Query(default=20, ge=5, le=40),
+               db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Ranked learning reels with a reason for each, plus this week's learning minutes."""
+    from app.services import reels
+    return reels.reels(db, user.id, [c.strip() for c in channels.split(",") if c.strip()], _today(db, user), ai, limit)
+
+
+@router.post("/reels/events", status_code=201)
+def reels_events(data: dto.ReelEventsIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """What you watched (seconds), finished, liked, saved, skipped or hid. Only used to rank your own feed."""
+    from app.services import reels
+    n = reels.record(db, user.id, [e.model_dump() for e in data.events])
+    db.commit()
+    return {"recorded": n}

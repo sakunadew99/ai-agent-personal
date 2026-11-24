@@ -32,7 +32,7 @@ function VideoCard({ v, big }: { v: Row; big?: boolean }) {
 }
 
 /** Learning feed: only educational, motivational and psychology videos, auto-selected; plus TikTok / Facebook links you save. */
-export function LearnFeedScreen({ api, onError, onNotice }: { api: Api; onError: (m: string) => void; onNotice: (m: string) => void }) {
+export function LearnFeedScreen({ api, onError, onNotice, onOpenReels }: { api: Api; onError: (m: string) => void; onNotice: (m: string) => void; onOpenReels?: () => void }) {
   const [res, setRes] = useState<Row | null>(null); const [cat, setCat] = useState<string>("all");
   const [mine, setMine] = useState<Row[]>([]); const [ai, setAi] = useState(false); const [shorts, setShorts] = useState(false);
   const [busy, setBusy] = useState(false); const [showHidden, setShowHidden] = useState(false); const [add, setAdd] = useState<string>("");
@@ -64,6 +64,10 @@ export function LearnFeedScreen({ api, onError, onNotice }: { api: Api; onError:
     setLinkRes(r); if (r.saved) { setLink(""); setCap(""); onNotice(`Saved to ${r.folder}`); loadSaved(); } }).catch(e => onError(msg(e)));
   const videos = ((res?.videos || []) as Row[]).filter(v => cat === "all" || v.category === cat);
   return <Screen onRefresh={() => void load(mine, ai, shorts)}>
+    {onOpenReels && <TouchableOpacity activeOpacity={0.85} onPress={onOpenReels}><Card style={{ backgroundColor: "#1a1030", borderColor: "#b48cff", gap: 4 }}>
+      <Text style={{ color: "#fff", fontSize: 20, fontWeight: "900" }}>▶ Watch reels</Text>
+      <Muted small>Swipe up like TikTok or Facebook Reels: only learning videos, ranked for you. Plays inside Sakuna, so Shield can block the other apps.</Muted>
+    </Card></TouchableOpacity>}
     <Card style={{ gap: 8 }}>
       <Kicker>ONLY LEARNING CONTENT · AUTO-SELECTED</Kicker>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>{Object.keys(LABEL).map(k => <Chip key={k} label={`${LABEL[k]}${k !== "all" && res ? ` ${res.counts[k]}` : ""}`}

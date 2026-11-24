@@ -94,7 +94,7 @@ def ai_classify(titles: list[str]) -> list[str | None]:
     return hf.zero_shot(titles, AI_LABELS)
 
 
-def feed(my_channels: list[str], shorts: bool = False, ai: bool = False, only: str | None = None) -> dict:
+def feed(my_channels: list[str], shorts: bool = False, ai: bool = False, only: str | None = None, limit: int = 90) -> dict:
     mine = [c for c in my_channels if re.fullmatch(r"UC[A-Za-z0-9_-]{22}", c)][:15]
     plan: dict[str, tuple[str, str | None]] = {cid: (name, cat) for cid, name, cat in LEARN_CHANNELS}
     for cid, name, shelf in brain_videos.CHANNELS:
@@ -155,7 +155,7 @@ def feed(my_channels: list[str], shorts: bool = False, ai: bool = False, only: s
     for cat in CATS:
         fresh = [v for v in uniq if v["category"] == cat and v["published"] and (today - date.fromisoformat(v["published"])).days <= 14]
         picks += sorted(fresh, key=heat, reverse=True)[:1]
-    return {"videos": uniq[:90], "picks": picks, "counts": {c: sum(1 for v in uniq if v["category"] == c) for c in CATS},
+    return {"videos": uniq[:limit], "picks": picks, "counts": {c: sum(1 for v in uniq if v["category"] == c) for c in CATS},
             "hidden_count": len(hidden), "hidden": [{"title": h["title"], "channel": h["channel"], "why": h["why"]} for h in hidden[:12]],
             "categories": CATS, "channels": [{"channel_id": c, "name": n, "category": cat} for c, n, cat in LEARN_CHANNELS],
             "errors": [f"{down} channel feed(s) didn't answer right now."] if down else [],

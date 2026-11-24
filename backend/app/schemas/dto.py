@@ -1968,3 +1968,16 @@ class LearnLinkIn(BaseModel):
     title: str = Field(min_length=3, max_length=200)
     ai: bool = False
     save_anyway: bool = False
+
+
+class ReelEvent(BaseModel):
+    video_id: str = Field(min_length=1, max_length=40)
+    channel_id: str | None = Field(default=None, max_length=40)
+    category: str | None = Field(default=None, max_length=12)
+    title: str | None = Field(default=None, max_length=200)
+    action: Literal["view", "complete", "like", "unlike", "save", "skip", "hide"]
+    seconds: int = Field(default=0, ge=0, le=86400)
+
+
+class ReelEventsIn(BaseModel):
+    events: list[ReelEvent] = Field(min_length=1, max_length=50)
