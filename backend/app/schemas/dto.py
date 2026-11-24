@@ -1961,3 +1961,10 @@ class BodyMeasurementIn(BaseModel):
 class BodyProfileIn(BaseModel):
     height_cm: int | None = Field(default=None, ge=120, le=230)
     sex: Literal["male", "female"] | None = None
+
+
+class LearnLinkIn(BaseModel):
+    url: str = Field(min_length=8, max_length=600)
+    title: str = Field(min_length=3, max_length=200)
+    ai: bool = False
+    save_anyway: bool = False

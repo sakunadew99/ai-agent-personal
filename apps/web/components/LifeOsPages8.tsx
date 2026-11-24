@@ -668,3 +668,65 @@ export function BodyPage({ token }: { token: string }) {
       <button className="text-button" onClick={() => del(String(r.id))}>delete</button></p>)}</Card>}
   </div>;
 }
+
+
+const LF_TINT: Record<string, string> = { educational: "#5aa8ff", motivational: "#f5b65b", psychology: "#b48cff" };
+const LF_LABEL: Record<string, string> = { all: "All", educational: "📚 Educational", motivational: "🔥 Motivation", psychology: "🧠 Psychology" };
+
+export function LearnFeedPage({ token }: { token: string }) {
+  const [res, setRes] = useState<Row | null>(null);
+  const [cat, setCat] = useState("all");
+  const [mine, setMine] = useState<Row[]>(() => { try { return JSON.parse(localStorage.getItem("sakuna.watchChannels") || "[]"); } catch { return []; } });
+  const [ai, setAi] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [showHidden, setShowHidden] = useState(false);
+  const [add, setAdd] = useState("");
+  const [link, setLink] = useState({ url: "", title: "" });
+  const [linkRes, setLinkRes] = useState<Row | null>(null);
+  const [saved, setSaved] = useState<Row[]>([]);
+  const [note, setNote] = useState("");
+  const load = useCallback(async (list: Row[], useAi: boolean) => {
+    setBusy(true);
+    try { setRes(await call<Row>(`/learn-feed?channels=${encodeURIComponent(list.map(c => c.channel_id).join(","))}&ai=${useAi}`, token)); }
+    catch (e) { setNote(errText(e)); } finally { setBusy(false); }
+  }, [token]);
+  const loadSaved = useCallback(() => { call<Row>("/media", token).then(m => setSaved((m.items as Row[]).filter(i => String(i.folder).startsWith("Learning")))).catch(() => undefined); }, [token]);
+  useEffect(() => { void load(mine, false); loadSaved(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const keep = (next: Row[]) => { setMine(next); try { localStorage.setItem("sakuna.watchChannels", JSON.stringify(next)); } catch { /* private window */ } void load(next, ai); };
+  const addChannel = () => void call<Row>(`/watch/channel?q=${encodeURIComponent(add.trim())}`, token).then(c => { keep([...mine.filter(x => x.channel_id !== c.channel_id), c].slice(0, 15)); setAdd(""); }).catch(e => setNote(errText(e)));
+  const saveLink = (anyway: boolean) => void call<Row>("/learn-feed/link", token, postJson({ url: link.url.trim(), title: link.title.trim(), ai, save_anyway: anyway }))
+    .then(r => { setLinkRes(r); if (r.saved) { setLink({ url: "", title: "" }); loadSaved(); } }).catch(e => setNote(errText(e)));
+  const videos = ((res?.videos || []) as Row[]).filter(v => cat === "all" || v.category === cat);
+  const card = (v: Row) => <a key={v.id} href={v.url} target="_blank" rel="noreferrer" style={{ display: "block", textDecoration: "none", border: `1px solid ${LF_TINT[v.category]}55`, borderRadius: 14, overflow: "hidden" }}>
+    {v.thumb && <img src={v.thumb} alt="" style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover" }}/>}
+    <div style={{ padding: 10 }}><small style={{ color: LF_TINT[v.category], fontWeight: 800 }}>{LF_LABEL[v.category]} · {v.channel}</small>
+      <p style={{ margin: "4px 0", color: "var(--d-text)", fontWeight: 700 }}>{v.title}</p><small className="d-note">{v.published} · {v.why}</small></div></a>;
+  return <div className="d-dash">
+    <Hero kicker="Learning feed" title="Only what" accent="grows you" sub="Educational, motivational and psychology videos, auto-selected from trusted channels and yours. Everything else is hidden."/>
+    {note && <p className="d-note">{note}</p>}
+    <div className="d-chips">{Object.keys(LF_LABEL).map(k => <button key={k} className={`d-chip ${cat === k ? "on" : ""}`} onClick={() => setCat(k)}>{LF_LABEL[k]}{k !== "all" && res ? ` ${res.counts[k]}` : ""}</button>)}
+      <button className={`d-chip ${ai ? "on" : ""}`} onClick={() => { setAi(!ai); void load(mine, !ai); }}>🤖 AI check {ai ? "on" : "off"}</button>{busy && <span className="d-note">Loading…</span>}</div>
+    {res && <>
+      {cat === "all" && (res.picks as Row[]).length > 0 && <Card kicker="Today's picks" title="One per topic"><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>{(res.picks as Row[]).map(card)}</div></Card>}
+      <p className="d-note"><button className="text-button" onClick={() => setShowHidden(!showHidden)}>🚫 {res.hidden_count} hidden (not learning content) {showHidden ? "▲" : "▼"}</button></p>
+      {showHidden && <Card kicker="Hidden" title="Filtered out">{(res.hidden as Row[]).map((h, i) => <p key={i} className="d-note">{h.title} · {h.channel} — {h.why}</p>)}<p className="d-note">{res.how}</p></Card>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>{videos.slice(0, 48).map(card)}</div>
+    </>}
+    <div className="d-grid-2">
+      <Card kicker="TikTok · Facebook · Instagram" title="Save a learning clip">
+        <p className="d-note">These apps don't share their feed, so paste a link and a few words about it. Only learning content is saved.</p>
+        <input className="d-input" value={link.url} onChange={e => setLink({ ...link, url: e.target.value })} placeholder="https://www.tiktok.com/@…/video/…"/>
+        <input className="d-input" value={link.title} onChange={e => setLink({ ...link, title: e.target.value })} placeholder="What it's about"/>
+        <button className="d-btn" disabled={link.url.trim().length < 8 || link.title.trim().length < 3} onClick={() => saveLink(false)}>Check & save</button>
+        {linkRes && !linkRes.saved && <p className="d-note" style={{ color: "var(--d-amber)" }}>{linkRes.why}. {linkRes.hint}
+          {!String(linkRes.why).startsWith("Hidden") && <button className="text-button" onClick={() => saveLink(true)}>Save anyway</button>}</p>}
+        {saved.slice(0, 10).map(x => <p key={x.id} className="d-note"><a href={x.url} target="_blank" rel="noreferrer">▶ {x.title}</a> · {x.folder}</p>)}
+      </Card>
+      <Card kicker="Your channels" title="Only their learning videos show">
+        <div className="d-row"><input className="d-input" value={add} onChange={e => setAdd(e.target.value)} placeholder="YouTube channel link or @handle"/><button className="d-btn" disabled={!add.trim()} onClick={addChannel}>Add</button></div>
+        {mine.map(c => <p key={c.channel_id} className="d-note">{c.name} <button className="text-button" onClick={() => keep(mine.filter(x => x.channel_id !== c.channel_id))}>remove</button></p>)}
+        <p className="d-note">Calmer real apps: Shield blocks TikTok/Facebook at set hours; on YouTube pause watch history; on TikTok use Content preferences; on Facebook use Feeds → Favorites.</p>
+      </Card>
+    </div>
+  </div>;
+}

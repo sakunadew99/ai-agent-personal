@@ -458,3 +458,38 @@ def body_add(data: dto.BodyMeasurementIn, db: Session = Depends(get_db), user: U
 def body_delete(row_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     from app.models.entities import BodyMeasurement
     db.delete(owned(db, BodyMeasurement, user.id, row_id)); db.commit()
+
+
+# ---------------- learning feed: only educational, motivational and psychology content
+
+@router.get("/learn-feed")
+def learn_feed(channels: str = Query(default="", max_length=600), shorts: bool = False, ai: bool = False,
+               only: str | None = Query(default=None, pattern="^(educational|motivational|psychology)$"), user: User = Depends(get_current_user)):
+    """Latest videos from trusted channels (+ yours), auto-filtered to learning topics, with what was hidden and why."""
+    from app.services import learn_feed as lf
+    return lf.feed([c.strip() for c in channels.split(",") if c.strip()], shorts, ai, only)
+
+
+@router.post("/learn-feed/link", status_code=201)
+def learn_link(data: dto.LearnLinkIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Save a TikTok / Facebook / YouTube / Instagram link if its caption is educational, motivational or psychology."""
+    from app.models.entities import MediaItem
+    from app.services import learn_feed as lf
+    url = data.url.strip()
+    plat = lf.platform_of(url)
+    if not url.lower().startswith("https://") or plat is None:
+        raise HTTPException(422, "Paste an https link from TikTok, Facebook, YouTube or Instagram")
+    c = lf.classify(data.title)
+    if not c["category"] and not c["blocked"] and data.ai:
+        lab = lf.ai_classify([data.title])[0]
+        if lab in lf.CATS:
+            c = {"category": lab, "why": "AI check: " + lf.AI_LABELS[lab], "blocked": False, "method": "ai"}
+    if not c["category"] and not data.save_anyway:
+        return {"saved": False, "category": None, "why": c["why"], "platform": plat,
+                "hint": "Add a few words about what it teaches (e.g. 'how to stop overthinking'), or save it anyway."}
+    if c["blocked"]:
+        return {"saved": False, "category": None, "why": c["why"], "platform": plat, "hint": "This looks like entertainment, so it isn't saved to learning."}
+    folder = lf.FOLDER.get(c["category"] or "", "Learning · Other")
+    row = MediaItem(user_id=user.id, title=f"[{plat}] {data.title.strip()}"[:200], url=url, provider="youtube" if plat == "YouTube" else "web", folder=folder)
+    db.add(row); db.commit(); db.refresh(row)
+    return {"saved": True, "id": row.id, "category": c["category"], "folder": folder, "why": c["why"] if c["category"] else "Saved anyway", "platform": plat}

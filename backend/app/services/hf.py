@@ -2,6 +2,7 @@
 
 - FinBERT (ProsusAI/finbert): positive / negative / neutral tone of finance headlines.
 - all-MiniLM-L6-v2: 384-number "meaning" vectors for search.
+- bart-large-mnli (zero-shot): sorts public video titles into topics for the Learning feed.
 Only public headlines and the text you search are sent; private data follows your AI sharing switches (see search.py).
 """
 from __future__ import annotations
@@ -83,3 +84,36 @@ def cosine(a: list[float], b: list[float]) -> float:
     da = sum(x * x for x in a) ** 0.5
     db = sum(y * y for y in b) ** 0.5
     return num / (da * db) if da and db else 0.0
+
+
+ZERO_SHOT_MODEL = "facebook/bart-large-mnli"
+_zs_cache: dict[str, str | None] = {}
+
+
+def zero_shot(texts: list[str], labels: dict[str, str]) -> list[str | None]:
+    """Best label key per text (labels: key -> description), or None when unavailable or unsure (score < 0.5)."""
+    out: list[str | None] = [None] * len(texts)
+    if not texts or not enabled():
+        return out
+    names = list(labels.values())
+    back = {v: k for k, v in labels.items()}
+    for i, text in enumerate(texts):
+        if text in _zs_cache:
+            out[i] = _zs_cache[text]
+            continue
+        try:
+            res = _post(ZERO_SHOT_MODEL, {"inputs": text[:300], "parameters": {"candidate_labels": names}, "options": {"wait_for_model": True}})
+        except (httpx.HTTPError, ValueError, json.JSONDecodeError) as exc:
+            _fail("zero-shot", exc)
+            break
+        best, score = None, 0.0
+        if isinstance(res, dict) and res.get("labels"):                       # {"labels": [...], "scores": [...]}
+            best, score = res["labels"][0], float(res["scores"][0])
+        elif isinstance(res, list) and res and isinstance(res[0], dict):       # [{"label", "score"}, ...]
+            top = max(res, key=lambda x: x.get("score", 0))
+            best, score = top.get("label"), float(top.get("score", 0))
+        _zs_cache[text] = back.get(best) if best and score >= 0.5 else None
+        out[i] = _zs_cache[text]
+    if len(_zs_cache) > 3000:
+        _zs_cache.clear()
+    return out
