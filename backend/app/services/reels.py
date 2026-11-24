@@ -106,6 +106,18 @@ def _embed_url(platform: str, url: str) -> str | None:
     if platform == "YouTube":
         m = re.search(r"(?:v=|youtu\.be/|shorts/)([A-Za-z0-9_-]{11})", url)
         return f"https://www.youtube.com/embed/{m.group(1)}" if m else None
+    if platform == "LinkedIn":                                   # LinkedIn's official post embed
+        m = re.search(r"(?:activity[-:]|urn:li:activity:)(\d{15,25})", url)
+        if m:
+            return f"https://www.linkedin.com/embed/feed/update/urn:li:activity:{m.group(1)}"
+        m = re.search(r"urn:li:(share|ugcPost):(\d{15,25})", url)
+        return f"https://www.linkedin.com/embed/feed/update/urn:li:{m.group(1)}:{m.group(2)}" if m else None
+    if platform == "TED":
+        m = re.search(r"ted\.com/talks/([A-Za-z0-9_]+)", url)
+        return f"https://embed.ted.com/talks/{m.group(1)}" if m else None
+    if platform == "Vimeo":
+        m = re.search(r"vimeo\.com/(?:video/)?(\d{5,12})", url)
+        return f"https://player.vimeo.com/video/{m.group(1)}" if m else None
     return None
 
 
@@ -210,3 +222,40 @@ def record(db: Session, user_id, items: list[dict]) -> int:
         n += 1
     db.flush()
     return n
+
+
+
+def hub(db: Session, user_id, channels: list[str], today: date, only: str | None = None, exclude: set[str] | None = None, limit: int = 24) -> dict:
+    """A Facebook-style learning feed: posts and videos ranked "For you", mixed two posts to one video, plus a reels row."""
+    from app.services import posts
+    exclude = exclude or set()
+    feed = learn_feed.feed(channels, shorts=True, ai=False, limit=200)
+    vids = [{**v, "kind": "youtube", "embed": f"https://www.youtube.com/embed/{v['id']}"} for v in feed["videos"]]
+    post_items, post_hidden, down = posts.fetch_all()
+    if only in learn_feed.CATS:
+        vids = [v for v in vids if v["category"] == only]
+        post_items = [p for p in post_items if p["category"] == only]
+    vids = [v for v in vids if v["id"] not in exclude]
+    post_items = [p for p in post_items if p["id"] not in exclude]
+    rv = rank(db, user_id, vids, today, limit)
+    rp = rank(db, user_id, post_items, today, limit * 2)
+    events = db.scalars(select(FeedEvent).where(FeedEvent.user_id == user_id)).all()
+    saved = [x for x in saved_items(db, user_id, profile(list(events))["seen"]) if x["id"] not in exclude and (not only or x["category"] == only)]
+    items: list[dict] = []
+    while (rp or rv) and len(items) < limit:
+        for _ in range(2):
+            if rp and len(items) < limit:
+                items.append(rp.pop(0))
+        if rv and len(items) < limit:
+            items.append(rv.pop(0))
+        if not rp and not rv:
+            break
+    for k, x in enumerate(saved[:3]):
+        items.insert(min(len(items), 4 + k * 7), x)
+    goal_words = list(_goal_words(db, user_id))
+    return {"items": items, "reels": [v for v in rank(db, user_id, vids, today, 10)], "categories": learn_feed.CATS,
+            "hidden_count": feed["hidden_count"] + post_hidden, "errors": (feed["errors"] + ([f"{down} post feed(s) didn't answer right now."] if down else [])),
+            "linkedin": posts.linkedin_links(goal_words),
+            "sources": [{"name": n, "topic": t} for n, _u, t in posts.SOURCES],
+            "how": "Posts from trusted science, technology, psychology and self-improvement publishers and videos from trusted channels; "
+                   "everything passes the learning filter, then is ranked by what you read, watch, like and skip, your goals and freshness."}

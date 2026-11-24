@@ -84,3 +84,8 @@ def test_soft_block_keeps_psychology_about_gaming():
     assert learn_feed.classify("If you've been gaming a lot lately, try this", trusted="motivational")["blocked"]
     assert learn_feed.classify("Gaming addiction and anxiety: the psychology")["category"] == "psychology"
     assert learn_feed.classify("Engineers make great founders")["category"] == "educational"
+
+
+def test_fails_only_blocks_fail_compilations():
+    assert learn_feed.classify("When the 80/20 Rule Fails: the downside of being effective", trusted="motivational")["category"] == "motivational"
+    assert learn_feed.classify("Epic fails 2026")["blocked"]

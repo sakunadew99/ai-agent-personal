@@ -40,6 +40,9 @@ def _no_real_news_downloads(monkeypatch):
     from app.services import reading
     monkeypatch.setattr(reading, "_http_get", blocked)
     hf._zs_cache.clear()
+    from app.services import posts
+    posts.clear_cache()
+    monkeypatch.setattr(posts, "_download", blocked)
     from app.services import english
     monkeypatch.setattr(english, "_http", lambda text, lang: blocked(text))
 

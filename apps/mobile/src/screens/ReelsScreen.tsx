@@ -13,8 +13,8 @@ const WebView = RNWebView as unknown as React.ComponentType<{ source: { uri: str
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 const msg = (r: unknown) => (r instanceof Error ? r.message : "Something went wrong");
 const CH_KEY = "sakuna.watchChannels";
-const TINT: Record<string, string> = { educational: "#5aa8ff", motivational: "#f5b65b", psychology: "#b48cff" };
-const LABEL: Record<string, string> = { educational: "📚 Educational", motivational: "🔥 Motivation", psychology: "🧠 Psychology" };
+const TINT: Record<string, string> = { technology: "#4fd1c5", educational: "#5aa8ff", motivational: "#f5b65b", psychology: "#b48cff" };
+const LABEL: Record<string, string> = { technology: "💻 Technology", educational: "📚 Educational", motivational: "🔥 Motivation", psychology: "🧠 Psychology" };
 // YouTube embeds can refuse to play (e.g. "Error 153") without a real web origin/Referer, so the player page uses the app's own API origin.
 const ORIGIN = (process.env.EXPO_PUBLIC_API_URL || "https://ai-agent-personal.onrender.com").replace(/\/+$/, "");
 
@@ -54,7 +54,7 @@ function Side({ icon, label, on, onPress }: { icon: string; label: string; on?: 
 }
 
 /** Full-screen learning reels: swipe up for the next one. Only learning content; ranked "For you". Plays inside Sakuna (Shield-safe). */
-export function ReelsScreen({ api, onError, onNotice, onClose }: { api: Api; onError: (m: string) => void; onNotice: (m: string) => void; onClose: () => void }) {
+export function ReelsScreen({ api, onError, onNotice, onClose, first }: { api: Api; onError: (m: string) => void; onNotice: (m: string) => void; onClose: () => void; first?: Row | null }) {
   const { height, width } = Dimensions.get("window");
   const [items, setItems] = useState<Row[]>([]); const [index, setIndex] = useState(0); const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Row | null>(null); const [liked, setLiked] = useState<Record<string, boolean>>({}); const [why, setWhy] = useState(false);
@@ -66,14 +66,15 @@ export function ReelsScreen({ api, onError, onNotice, onClose }: { api: Api; onE
     void api("/reels/events", "POST", { events: [{ video_id: it.id, channel_id: it.channel_id || undefined, category: it.category, title: it.title, action, seconds: Math.round(seconds) }] })
       .catch(() => undefined);
   }, [api]);
-  const fetchMore = useCallback(async (first = false) => {
+  const startWith = first;
+  const fetchMore = useCallback(async (initial = false) => {
     try {
       const r = await api<Row>(`/reels?channels=${encodeURIComponent(channels.current)}`);
       setStats(r.stats);
-      setItems(prev => { const have = new Set(prev.map(p => p.id)); const add = (r.items as Row[]).filter(i => !have.has(i.id)); return first ? add : [...prev, ...add]; });
+      setItems(prev => { const have = new Set(prev.map(p => p.id)); const add = (r.items as Row[]).filter(i => !have.has(i.id) && i.id !== startWith?.id); return initial ? (startWith ? [startWith, ...add] : add) : [...prev, ...add]; });
       setLiked(prev => ({ ...Object.fromEntries((r.items as Row[]).filter(i => i.liked).map(i => [i.id, true])), ...prev }));
     } catch (e) { onError(msg(e)); } finally { setLoading(false); }
-  }, [api, onError]);
+  }, [api, onError, startWith]);
   useEffect(() => {
     void SecureStore.getItemAsync(CH_KEY).then(v => { channels.current = (v ? JSON.parse(v) as Row[] : []).map(c => c.channel_id).join(","); })
       .catch(() => undefined).finally(() => void fetchMore(true));
@@ -100,7 +101,7 @@ export function ReelsScreen({ api, onError, onNotice, onClose }: { api: Api; onE
   const like = (it: Row) => { const on = !liked[it.id]; setLiked(l => ({ ...l, [it.id]: on })); send(it, on ? "like" : "unlike"); };
   const save = (it: Row) => {
     send(it, "save");
-    if (it.kind === "youtube") void api("/media", "POST", { url: it.url, title: it.title.slice(0, 200), folder: { educational: "Learning · Educational", motivational: "Learning · Motivation", psychology: "Learning · Psychology" }[it.category as string] || "Learning · Other" })
+    if (it.kind === "youtube") void api("/media", "POST", { url: it.url, title: it.title.slice(0, 200), folder: { technology: "Learning · Technology", educational: "Learning · Educational", motivational: "Learning · Motivation", psychology: "Learning · Psychology" }[it.category as string] || "Learning · Other" })
       .then(() => onNotice("Saved to My videos")).catch(e => onError(msg(e)));
     else onNotice("Already in your saved clips");
   };

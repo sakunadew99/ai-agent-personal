@@ -670,8 +670,8 @@ export function BodyPage({ token }: { token: string }) {
 }
 
 
-const LF_TINT: Record<string, string> = { educational: "#5aa8ff", motivational: "#f5b65b", psychology: "#b48cff" };
-const LF_LABEL: Record<string, string> = { all: "All", educational: "📚 Educational", motivational: "🔥 Motivation", psychology: "🧠 Psychology" };
+const LF_TINT: Record<string, string> = { technology: "#4fd1c5", educational: "#5aa8ff", motivational: "#f5b65b", psychology: "#b48cff" };
+const LF_LABEL: Record<string, string> = { all: "All", technology: "💻 Technology", educational: "📚 Educational", motivational: "🔥 Motivation", psychology: "🧠 Psychology" };
 
 export function LearnFeedPage({ token }: { token: string }) {
   const [res, setRes] = useState<Row | null>(null);
@@ -775,5 +775,63 @@ export function ReelsPage({ token }: { token: string }) {
       </div>)}
     </div>
     <p className="d-note" style={{ textAlign: "center" }}>Scroll inside the player for the next reel. Ranked by what you finish, like and skip, your goals, freshness and popularity.</p>
+  </div>;
+}
+
+
+const HUB_TABS: [string, string][] = [["", "✨ For you"], ["technology", "💻 Tech"], ["educational", "📚 Learn"], ["motivational", "🔥 Motivation"], ["psychology", "🧠 Mind"]];
+const hubAgo = (d?: string) => { if (!d) return ""; const n = Math.round((Date.now() - new Date(d).getTime()) / 86400000); return n <= 0 ? "today" : n === 1 ? "yesterday" : `${n}d ago`; };
+
+export function HubPage({ token }: { token: string }) {
+  const [tab, setTab] = useState("");
+  const [items, setItems] = useState<Row[]>([]);
+  const [meta, setMeta] = useState<Row | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [playing, setPlaying] = useState("");
+  const [liked, setLiked] = useState<Record<string, boolean>>({});
+  const [link, setLink] = useState({ url: "", title: "" });
+  const [note, setNote] = useState("");
+  const send = useCallback((it: Row, action: string, seconds = 0) => void call("/reels/events", token, postJson({ events: [{ video_id: it.id, channel_id: it.channel_id || undefined,
+    category: it.category, title: it.title, action, seconds }] })).catch(() => undefined), [token]);
+  const load = useCallback((t: string, more = false, shown: Row[] = []) => {
+    let ch = ""; try { ch = (JSON.parse(localStorage.getItem("sakuna.watchChannels") || "[]") as Row[]).map(c => c.channel_id).join(","); } catch { /* none */ }
+    const ex = more ? shown.map(i => i.id).slice(-120).join(",") : "";
+    setBusy(true);
+    call<Row>(`/hub?channels=${encodeURIComponent(ch)}${t ? `&only=${t}` : ""}${ex ? `&exclude=${encodeURIComponent(ex)}` : ""}`, token).then(r => {
+      setMeta(r); setItems(prev => { const base = more ? prev : []; const have = new Set(base.map(p => p.id)); return [...base, ...(r.items as Row[]).filter(i => !have.has(i.id))]; });
+    }).catch(e => setNote(errText(e))).finally(() => setBusy(false));
+  }, [token]);
+  useEffect(() => { load(""); }, [load]);
+  const open = (it: Row) => { if (it.kind === "youtube" || it.embed) { setPlaying(String(it.id)); send(it, "view", 30); return; } send(it, "view", 30); window.open(String(it.url), "_blank", "noopener"); };
+  const share = () => void call<Row>("/learn-feed/link", token, postJson({ url: link.url.trim(), title: link.title.trim() })).then(r => {
+    setNote(r.saved ? `Added (${r.folder})` : `${r.why}. ${r.hint || ""}`); if (r.saved) { setLink({ url: "", title: "" }); load(tab); } }).catch(e => setNote(errText(e)));
+  const save = (it: Row) => { send(it, "save"); void call("/media", token, postJson({ url: it.url, title: String(it.title).slice(0, 200), folder: it.kind === "post" ? "Saved posts" : "Learning · Other" })).then(() => setNote("Saved")).catch(e => setNote(errText(e))); };
+  return <div className="d-dash" style={{ maxWidth: 680, margin: "0 auto" }}>
+    <Hero kicker="Learning hub" title="Your feed," accent="only growth" sub="Technology, educational, motivation and psychology posts and videos from trusted sources, ranked for you."/>
+    <Card kicker="Share" title="Something you learned">
+      <div className="d-row"><input className="d-input" value={link.url} onChange={e => setLink({ ...link, url: e.target.value })} placeholder="LinkedIn, TikTok, Facebook, TED… link"/>
+        <input className="d-input" value={link.title} onChange={e => setLink({ ...link, title: e.target.value })} placeholder="What it teaches"/>
+        <button className="d-btn" disabled={link.url.trim().length < 8 || link.title.trim().length < 3} onClick={share}>Add</button></div></Card>
+    {note && <p className="d-note">{note}</p>}
+    <div className="d-chips">{HUB_TABS.map(([k, l]) => <button key={k} className={`d-chip ${tab === k ? "on" : ""}`} onClick={() => { setTab(k); load(k); }}>{l}</button>)}</div>
+    {(meta?.errors as string[] | undefined)?.map(e => <p key={e} className="d-note">{e}</p>)}
+    {items.map(it => <Card key={it.id} kicker={`${it.channel} · ${hubAgo(it.published)} · ${meta?.categories?.[it.category] || ""}`} title={it.title}>
+      {it.excerpt && <p className="d-note">{it.excerpt}</p>}
+      {playing === it.id ? <iframe title={it.title} src={it.kind === "youtube" ? `https://www.youtube.com/embed/${it.id}?autoplay=1&rel=0` : it.embed}
+          allow="autoplay; encrypted-media; picture-in-picture; fullscreen" style={{ width: "100%", aspectRatio: "16/9", border: 0, borderRadius: 12 }}/>
+        : it.thumb ? <button className="text-button" style={{ display: "block", width: "100%", padding: 0, position: "relative" }} onClick={() => open(it)}>
+          <img src={it.thumb} alt="" style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", borderRadius: 12 }}/>{it.kind === "youtube" && <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", fontSize: 40 }}>▶</span>}</button>
+        : <button className="d-btn ghost" onClick={() => open(it)}>{it.kind === "post" ? "Read" : "Open"} ↗</button>}
+      <p className="d-note">✨ {it.reason}</p>
+      <div className="d-row"><button className="text-button" onClick={() => { const on = !liked[it.id]; setLiked({ ...liked, [it.id]: on }); send(it, on ? "like" : "unlike"); }}>{liked[it.id] ? "❤️ Liked" : "🤍 Like"}</button>
+        <button className="text-button" onClick={() => save(it)}>🔖 Save</button>
+        <button className="text-button" onClick={() => { send(it, "hide"); setItems(items.filter(x => x.id !== it.id)); }}>👎 Less</button>
+        {it.kind === "post" && <a className="text-button" href={it.url} target="_blank" rel="noreferrer" onClick={() => send(it, "view", 30)}>Read ↗</a>}</div>
+    </Card>)}
+    {items.length > 0 && <button className="d-btn ghost" disabled={busy} onClick={() => load(tab, true, items)}>{busy ? "Loading…" : "Load more"}</button>}
+    {meta && <Card kicker="LinkedIn" title="Learning posts on LinkedIn">
+      <p className="d-note">LinkedIn has no public feed, so these open LinkedIn's own search for your goals. Share good posts above.</p>
+      {(meta.linkedin as Row[]).map(l => <p key={l.url}><a href={l.url} target="_blank" rel="noreferrer">→ {l.title}</a></p>)}
+      <p className="d-note">🚫 {meta.hidden_count} non-learning items hidden. {meta.how}</p></Card>}
   </div>;
 }

@@ -18,8 +18,9 @@ import httpx
 
 from app.services import brain_videos
 
-CATS = {"educational": "📚 Educational", "motivational": "🔥 Motivation", "psychology": "🧠 Psychology"}
-FOLDER = {"educational": "Learning · Educational", "motivational": "Learning · Motivation", "psychology": "Learning · Psychology"}
+CATS = {"technology": "💻 Technology", "educational": "📚 Educational", "motivational": "🔥 Motivation", "psychology": "🧠 Psychology"}
+FOLDER = {"technology": "Learning · Technology", "educational": "Learning · Educational", "motivational": "Learning · Motivation",
+          "psychology": "Learning · Psychology"}
 
 # Verified channel ids (checked against YouTube's channel feeds).
 LEARN_CHANNELS: list[tuple[str, str, str]] = [
@@ -33,9 +34,14 @@ LEARN_CHANNELS: list[tuple[str, str, str]] = [
     ("UClHVl2N3jPEbkNJVx-ItQIQ", "HealthyGamerGG", "psychology"), ("UCUdettijNYvLAm4AixZv4RA", "SciShow Psych", "psychology"),
     ("UCpuqYFKLkcEryEieomiAv3Q", "Therapy in a Nutshell", "psychology"),
 ]
-SHELF_CAT = {"tech": "educational", "ai": "educational", "german": "educational", "motivation": "motivational"}
+SHELF_CAT = {"tech": "technology", "ai": "technology", "german": "educational", "motivation": "motivational"}
 
 KEYWORDS = {
+    "technology": ["ai", "artificial intelligence", "llm", "gpt", "chatgpt", "claude", "gemini", "openai", "machine learning", "deep learning",
+                   "robot", "robotics", "software", "developer", "programming", "python", "javascript", "typescript", "react", "cloud", "aws",
+                   "kubernetes", "docker", "open source", "github", "startup", "chip", "chips", "semiconductor", "quantum", "cybersecurity",
+                   "security", "data", "database", "api", "app", "apps", "smartphone", "tech", "technology", "engineering", "launch", "released",
+                   "electric", "battery", "space", "nasa", "spacex", "computing", "computer", "agents", "automation", "framework", "linux"],
     "educational": ["learn", "explained", "explain", "how to", "how does", "how do", "why do", "why does", "what is", "what are", "tutorial", "course",
                     "lesson", "guide", "science", "history", "physics", "chemistry", "biology", "math", "mathematics", "economics", "engineering",
                     "programming", "python", "sql", "data", "ai", "machine learning", "coding", "lecture", "beginner", "crash course", "study",
@@ -52,7 +58,7 @@ BLOCK = {
     "prank": "prank", "reaction": "reaction video", "reacts": "reaction video", "gossip": "gossip", "drama": "drama", "exposed": "drama / exposé",
     "beef": "drama", "diss": "drama", "roast": "roast", "mukbang": "mukbang", "asmr": "ASMR", "unboxing": "unboxing", "haul": "shopping haul",
     "gameplay": "gaming", "let's play": "gaming", "fortnite": "gaming", "minecraft": "gaming", "gta": "gaming", "free fire": "gaming", "pubg": "gaming",
-    "official music video": "music video", "lyric video": "music video", "trailer": "trailer", "fails": "fails compilation", "funny moments": "comedy clips",
+    "official music video": "music video", "lyric video": "music video", "trailer": "trailer", "epic fails": "fails compilation", "fails compilation": "fails compilation", "fail compilation": "fails compilation", "funny moments": "comedy clips",
     "you won't believe": "clickbait", "gone wrong": "clickbait", "celebrity": "celebrity news", "tiktok compilation": "compilation", "meme": "memes",
     "giveaway": "giveaway", "sexy": "adult",
     "hot girls": "adult", "18+": "adult", "nsfw": "adult", "betting": "gambling", "casino": "gambling",
@@ -165,7 +171,8 @@ def feed(my_channels: list[str], shorts: bool = False, ai: bool = False, only: s
 
 
 PLATFORMS = {"tiktok.com": "TikTok", "facebook.com": "Facebook", "fb.watch": "Facebook", "youtube.com": "YouTube", "youtu.be": "YouTube",
-             "instagram.com": "Instagram"}
+             "instagram.com": "Instagram", "linkedin.com": "LinkedIn", "ted.com": "TED", "vimeo.com": "Vimeo", "coursera.org": "Coursera",
+             "khanacademy.org": "Khan Academy"}
 
 
 def platform_of(url: str) -> str | None:

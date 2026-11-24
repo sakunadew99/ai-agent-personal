@@ -464,7 +464,7 @@ def body_delete(row_id: uuid.UUID, db: Session = Depends(get_db), user: User = D
 
 @router.get("/learn-feed")
 def learn_feed(channels: str = Query(default="", max_length=600), shorts: bool = False, ai: bool = False,
-               only: str | None = Query(default=None, pattern="^(educational|motivational|psychology)$"), user: User = Depends(get_current_user)):
+               only: str | None = Query(default=None, pattern="^(technology|educational|motivational|psychology)$"), user: User = Depends(get_current_user)):
     """Latest videos from trusted channels (+ yours), auto-filtered to learning topics, with what was hidden and why."""
     from app.services import learn_feed as lf
     return lf.feed([c.strip() for c in channels.split(",") if c.strip()], shorts, ai, only)
@@ -478,7 +478,7 @@ def learn_link(data: dto.LearnLinkIn, db: Session = Depends(get_db), user: User 
     url = data.url.strip()
     plat = lf.platform_of(url)
     if not url.lower().startswith("https://") or plat is None:
-        raise HTTPException(422, "Paste an https link from TikTok, Facebook, YouTube or Instagram")
+        raise HTTPException(422, "Paste an https link from LinkedIn, TikTok, Facebook, YouTube, Instagram, TED, Vimeo, Coursera or Khan Academy")
     c = lf.classify(data.title)
     if not c["category"] and not c["blocked"] and data.ai:
         lab = lf.ai_classify([data.title])[0]
@@ -512,3 +512,14 @@ def reels_events(data: dto.ReelEventsIn, db: Session = Depends(get_db), user: Us
     n = reels.record(db, user.id, [e.model_dump() for e in data.events])
     db.commit()
     return {"recorded": n}
+
+
+
+@router.get("/hub")
+def learning_hub(channels: str = Query(default="", max_length=600), only: str | None = Query(default=None, pattern="^(technology|educational|motivational|psychology)$"),
+                 exclude: str = Query(default="", max_length=3000), limit: int = Query(default=24, ge=6, le=48),
+                 db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Learning hub: posts + videos + your saved clips, ranked for you. `exclude` = ids already shown (for "load more")."""
+    from app.services import reels
+    return reels.hub(db, user.id, [c.strip() for c in channels.split(",") if c.strip()], _today(db, user), only,
+                     {e.strip() for e in exclude.split(",") if e.strip()}, limit)

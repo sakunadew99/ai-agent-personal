@@ -9,8 +9,8 @@ type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T
 const msg = (r: unknown) => (r instanceof Error ? r.message : "Something went wrong");
 const CH_KEY = "sakuna.watchChannels";            // shared with Watch, so your channels appear in both
 const OPT_KEY = "sakuna.learnFeedOpts";
-const TINT: Record<string, string> = { educational: "#5aa8ff", motivational: "#f5b65b", psychology: "#b48cff" };
-const LABEL: Record<string, string> = { all: "All", educational: "📚 Educational", motivational: "🔥 Motivation", psychology: "🧠 Psychology" };
+const TINT: Record<string, string> = { technology: "#4fd1c5", educational: "#5aa8ff", motivational: "#f5b65b", psychology: "#b48cff" };
+const LABEL: Record<string, string> = { all: "All", technology: "💻 Technology", educational: "📚 Educational", motivational: "🔥 Motivation", psychology: "🧠 Psychology" };
 
 function Chip({ label, on, onPress, color = C.green }: { label: string; on?: boolean; onPress: () => void; color?: string }) {
   return <TouchableOpacity onPress={onPress} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, borderWidth: 1,
