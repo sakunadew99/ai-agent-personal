@@ -117,3 +117,23 @@ def zero_shot(texts: list[str], labels: dict[str, str]) -> list[str | None]:
     if len(_zs_cache) > 3000:
         _zs_cache.clear()
     return out
+
+
+EMOTION_MODEL = "j-hartmann/emotion-english-distilroberta-base"
+
+
+def emotion(text: str) -> str | None:
+    """anger / disgust / fear / joy / neutral / sadness / surprise for a journal entry, or None if AI is off or unsure."""
+    if not text.strip() or not enabled():
+        return None
+    try:
+        res = _post(EMOTION_MODEL, {"inputs": text[:1000], "options": {"wait_for_model": True}})
+    except (httpx.HTTPError, ValueError, json.JSONDecodeError) as exc:
+        _fail("emotion", exc)
+        return None
+    if isinstance(res, list) and res and isinstance(res[0], list):
+        res = res[0]
+    if isinstance(res, list) and res and isinstance(res[0], dict):
+        top = max(res, key=lambda x: x.get("score", 0))
+        return str(top.get("label")).lower() if float(top.get("score", 0)) >= 0.4 else None
+    return None

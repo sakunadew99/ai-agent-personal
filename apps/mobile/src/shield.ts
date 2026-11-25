@@ -48,12 +48,17 @@ export type DayInsights =
       dayStart: number;
       totalMinutes: number;
       hourly: number[]; // 24 values, minutes
+      hourlyApps?: (AppInfo & { minutes: number })[][]; // 24 lists, top 3 apps per hour
       apps: (AppInfo & { minutes: number })[];
       pickups: number;
       continuousMinutes: number;
       longestFocusMinutes: number | null;
       peakHour: number | null;
     };
+
+/** Phone-based sleep estimate for the night before a day (longest screen-off stretch 20:00-12:00, short check-ins merged). */
+export type SleepWindow = { available: boolean; detected?: boolean; lastUse?: number; firstUse?: number; stillAsleep?: boolean; coreMinutes?: number;
+  spanMinutes?: number; interruptions?: { at: number; minutes: number }[]; reason?: string };
 
 type NativeShield = {
   getStatus(): ShieldStatus;
@@ -71,6 +76,7 @@ type NativeShield = {
   setAppMark(pkg: string, mark: Mark | ""): Record<string, Mark>;
   getInstalledApps(): Promise<AppInfo[]>;
   getInsights(daysAgo: number): Promise<DayInsights>;
+  getSleepWindow?(daysAgo: number): Promise<SleepWindow>;
 };
 
 export const Shield: NativeShield | null = Platform.OS === "android" ? requireOptionalNativeModule<NativeShield>("SakunaShield") : null;

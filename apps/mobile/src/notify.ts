@@ -222,3 +222,30 @@ export async function syncMedicineReminders(api: Api): Promise<number> {
     return n;
   } catch { return 0; }
 }
+
+
+const WATER_PREFIX = "water-";
+export const WATER_CATEGORY = "water-reminder";
+
+/** "Time for water" every 2 hours, 10:00-20:00, with a +250 ml button that logs without opening the app. */
+export async function scheduleWaterReminders(on: boolean): Promise<number> {
+  try {
+    if (!(await ready())) return -1;
+    await cancelWhere(id => id.startsWith(WATER_PREFIX));
+    if (!on) return 0;
+    await Notifications.setNotificationCategoryAsync(WATER_CATEGORY, [
+      { identifier: "water250", buttonTitle: "💧 +250 ml", options: { opensAppToForeground: false } },
+      { identifier: "water500", buttonTitle: "+500 ml", options: { opensAppToForeground: false } },
+    ]);
+    let n = 0;
+    for (const h of [10, 12, 14, 16, 18, 20]) {
+      await Notifications.scheduleNotificationAsync({
+        identifier: `${WATER_PREFIX}${h}`,
+        content: { title: "💧 Water time", body: "A glass now keeps energy and focus up. Tap +250 ml when you've had it.", categoryIdentifier: WATER_CATEGORY, data: { kind: "water" } },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: h, minute: 5, channelId: CHANNEL },
+      });
+      n++;
+    }
+    return n;
+  } catch { return 0; }
+}

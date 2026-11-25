@@ -143,6 +143,8 @@ def save_usage(db: Session, user_id, data) -> DeviceUsage:
     row.total_minutes, row.distracting_minutes, row.productive_minutes, row.pickups = data.total_minutes, data.distracting_minutes, data.productive_minutes, data.pickups
     row.apps = [a.model_dump() for a in data.apps[:20]]
     row.hourly = [max(0, min(60, int(x))) for x in (data.hourly or [])[:24]] + [0] * max(0, 24 - len(data.hourly or []))
+    if getattr(data, "hourly_apps", None) is not None:
+        row.hourly_apps = [[{"label": a.label, "category": a.category, "mark": a.mark, "minutes": a.minutes} for a in h[:3]] for h in data.hourly_apps[:24]]
     row.updated_at = now_utc()
     db.flush()
     return row

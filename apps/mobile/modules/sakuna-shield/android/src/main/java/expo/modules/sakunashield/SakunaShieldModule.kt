@@ -56,6 +56,7 @@ class SakunaShieldModule : Module() {
 
     AsyncFunction("getInstalledApps") { installedApps() }
     AsyncFunction("getInsights") { daysAgo: Int -> insights(daysAgo.coerceIn(0, 30)) }
+    AsyncFunction("getSleepWindow") { daysAgo: Int -> sleepWindow(daysAgo.coerceIn(0, 14)) }
   }
 
   private fun status(): Map<String, Any?> {
@@ -165,6 +166,7 @@ class SakunaShieldModule : Module() {
     val ev = UsageEvents.Event()
     val perApp = HashMap<String, Long>()
     val hourly = LongArray(24)
+    val hourApps = Array(24) { HashMap<String, Long>() }
     val screenOn = ArrayList<LongArray>()
     var current: String? = null
     var currentStart = 0L
@@ -185,6 +187,7 @@ class SakunaShieldModule : Module() {
         val hour = ((cursor - start) / HOUR).toInt().coerceIn(0, 23)
         val next = min(e, start + (hour + 1) * HOUR).let { if (it <= cursor) e else it }
         hourly[hour] += next - cursor
+        hourApps[hour][p] = (hourApps[hour][p] ?: 0L) + (next - cursor)
         cursor = next
       }
     }
@@ -231,11 +234,81 @@ class SakunaShieldModule : Module() {
       "dayStart" to start.toDouble(),
       "totalMinutes" to perApp.values.sum() / 60_000.0,
       "hourly" to hourly.map { it / 60_000.0 },
+      "hourlyApps" to hourApps.map { m -> m.entries.filter { it.value >= 60_000L }.sortedByDescending { it.value }.take(3).map {
+        mapOf("packageName" to it.key, "label" to label(pm, it.key), "category" to category(pm, it.key), "minutes" to it.value / 60_000.0) } },
       "apps" to apps,
       "pickups" to if (sawKeyguard) unlocks else wakes,
       "continuousMinutes" to continuous / 60_000.0,
       "longestFocusMinutes" to if (screenOn.isEmpty()) null else longestFocus / 60_000.0,
       "peakHour" to if (hourly[peak] > 0) peak else null,
+    )
+  }
+
+  /**
+   * Sleep estimate for the night before day (today - daysAgo): the longest screen-off stretch between 20:00 the evening
+   * before and 12:00, then extended across short night check-ins (screen on < 10 min) so a 3 a.m. glance doesn't split it.
+   * Returns the last use before sleep, the first use after, and those interruptions. Nothing is stored or uploaded here.
+   */
+  private fun sleepWindow(daysAgo: Int): Map<String, Any?> {
+    if (!usageAccessGranted()) return mapOf("available" to false)
+    val cal = Calendar.getInstance().apply {
+      set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+      add(Calendar.DAY_OF_YEAR, -daysAgo)
+    }
+    val midnight = cal.timeInMillis
+    val winStart = midnight - 4 * HOUR
+    val now = System.currentTimeMillis()
+    val winEnd = min(midnight + 12 * HOUR, now)
+    if (winEnd <= winStart + HOUR) return mapOf("available" to true, "detected" to false)
+    val usm = ctx.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+    val events = usm.queryEvents(winStart - 2 * HOUR, winEnd)
+    val ev = UsageEvents.Event()
+    val on = ArrayList<LongArray>()
+    var onAt = -1L
+    var sawScreen = false
+    while (events.hasNextEvent()) {
+      events.getNextEvent(ev)
+      val t = ev.timeStamp
+      when (ev.eventType) {
+        SCREEN_INTERACTIVE -> { sawScreen = true; onAt = t }
+        SCREEN_NON_INTERACTIVE -> { sawScreen = true; if (onAt >= 0) on.add(longArrayOf(max(onAt, winStart), min(t, winEnd))); onAt = -1 }
+      }
+    }
+    if (onAt >= 0) on.add(longArrayOf(max(onAt, winStart), winEnd))
+    if (!sawScreen) return mapOf("available" to true, "detected" to false, "reason" to "no screen events")
+    val periods = on.filter { it[1] > it[0] && it[1] > winStart && it[0] < winEnd }.sortedBy { it[0] }
+    // gaps between screen-on periods (and the window edges)
+    val gaps = ArrayList<LongArray>()
+    var cursor = winStart
+    for (pr in periods) { if (pr[0] > cursor) gaps.add(longArrayOf(cursor, pr[0])); cursor = max(cursor, pr[1]) }
+    if (winEnd > cursor) gaps.add(longArrayOf(cursor, winEnd))
+    if (gaps.isEmpty()) return mapOf("available" to true, "detected" to false)
+    val core = gaps.indices.maxByOrNull { gaps[it][1] - gaps[it][0] }!!
+    var first = core; var last = core
+    val breaks = ArrayList<Map<String, Double>>()
+    // merge across short interruptions (screen on < 10 min followed by >= 20 min off)
+    while (last + 1 < gaps.size) {
+      val wake = gaps[last + 1][0] - gaps[last][1]
+      if (wake < 10 * 60_000L && gaps[last + 1][1] - gaps[last + 1][0] >= 20 * 60_000L) {
+        breaks.add(mapOf("at" to gaps[last][1].toDouble(), "minutes" to wake / 60_000.0)); last++
+      } else break
+    }
+    while (first - 1 >= 0) {
+      val wake = gaps[first][0] - gaps[first - 1][1]
+      if (wake < 10 * 60_000L && gaps[first - 1][1] - gaps[first - 1][0] >= 20 * 60_000L) {
+        breaks.add(0, mapOf("at" to gaps[first - 1][1].toDouble(), "minutes" to wake / 60_000.0)); first--
+      } else break
+    }
+    val lastUse = gaps[first][0]
+    val firstUse = gaps[last][1]
+    val coreMin = (gaps[core][1] - gaps[core][0]) / 60_000.0
+    val spanMin = (firstUse - lastUse) / 60_000.0
+    return mapOf(
+      "available" to true, "detected" to (spanMin >= 180.0),
+      "lastUse" to lastUse.toDouble(), "firstUse" to firstUse.toDouble(),
+      "stillAsleep" to (firstUse >= winEnd && winEnd == now),
+      "coreMinutes" to coreMin, "spanMinutes" to spanMin, "interruptions" to breaks,
+      "windowStart" to winStart.toDouble(), "windowEnd" to winEnd.toDouble(),
     )
   }
 

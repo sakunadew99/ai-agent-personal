@@ -1658,6 +1658,7 @@ class DeviceUsage(Base):
     pickups: Mapped[int] = mapped_column(Integer, default=0)
     apps: Mapped[list] = mapped_column(JsonDict, default=list)       # [{package, label, category, mark, minutes}] top 20
     hourly: Mapped[list] = mapped_column(JsonDict, default=list)     # 24 values, minutes per hour
+    hourly_apps: Mapped[list | None] = mapped_column(JsonDict, nullable=True)   # 24 lists: top 3 apps per hour {label, category, mark, minutes}
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -2010,4 +2011,44 @@ class FeedEvent(Base):
     title: Mapped[str | None] = mapped_column(String(200), nullable=True)
     action: Mapped[str] = mapped_column(String(10))
     seconds: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WaterLog(Base):
+    """One drink (ml) on a local day."""
+    __tablename__ = "water_logs"
+    __table_args__ = (CheckConstraint("ml BETWEEN 1 AND 3000", name="ck_water_logs_ml"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    local_date: Mapped[date] = mapped_column(Date, index=True)
+    ml: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Affirmation(Base):
+    """Your affirmation cards (value-based, present tense)."""
+    __tablename__ = "affirmations"
+    __table_args__ = (CheckConstraint("category IN ('confidence','discipline','health','money','calm','study','custom')", name="ck_affirmations_category"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    text: Mapped[str] = mapped_column(String(300))
+    category: Mapped[str] = mapped_column(String(12), default="custom")
+    favorite: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class MindsetEntry(Base):
+    """Scripting, gratitude, a WOOP plan, or "I read my affirmations today"."""
+    __tablename__ = "mindset_entries"
+    __table_args__ = (CheckConstraint("kind IN ('scripting','gratitude','woop','affirm_read')", name="ck_mindset_entries_kind"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    kind: Mapped[str] = mapped_column(String(12))
+    local_date: Mapped[date] = mapped_column(Date, index=True)
+    body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    data: Mapped[dict | None] = mapped_column(JsonDict, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

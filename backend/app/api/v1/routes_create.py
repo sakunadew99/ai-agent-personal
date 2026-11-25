@@ -1,5 +1,6 @@
 """Content studio and travel guide."""
 import uuid
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -523,3 +524,140 @@ def learning_hub(channels: str = Query(default="", max_length=600), only: str | 
     from app.services import reels
     return reels.hub(db, user.id, [c.strip() for c in channels.split(",") if c.strip()], _today(db, user), only,
                      {e.strip() for e in exclude.split(",") if e.strip()}, limit)
+
+
+# ---------------- sleep from phone use + "what did you do this hour?" gaps
+
+@router.post("/sleep/phone", status_code=201)
+def sleep_phone(data: dto.PhoneSleepIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """The phone's estimate for one night (longest screen-off stretch). A Mi Band record for the same night wins in reports."""
+    from app.services import sleep_day
+    out = sleep_day.save_phone_sleep(db, user.id, data.night, data.last_use, data.first_use, [i.model_dump(mode="json") for i in data.interruptions], data.core_minutes)
+    db.commit()
+    return out
+
+
+@router.get("/sleep/insights")
+def sleep_insights(days: int = Query(default=14, ge=3, le=60), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services import sleep_day
+    return sleep_day.nights(db, user.id, days, _today(db, user))
+
+
+@router.get("/day/gaps")
+def day_gaps(day: date | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Waking hours with nothing logged, each with phone minutes, top apps and a suggested answer."""
+    from app.services import sleep_day
+    return sleep_day.gaps(db, user.id, day or _today(db, user))
+
+
+@router.post("/day/gaps/fill", status_code=201)
+def day_gaps_fill(data: dto.GapFillIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services import sleep_day
+    if data.day > _today(db, user):
+        raise HTTPException(422, "Can't fill in the future")
+    n = sleep_day.fill(db, user.id, data.day, [a.model_dump() for a in data.answers])
+    db.commit()
+    return {"saved": n}
+
+
+# ---------------- water + mindset studio
+
+def _day_start_utc(db: Session, user: User):
+    from datetime import datetime, time
+    from app.core.clock import zone
+    from app.models.entities import UserProfile
+    p = db.scalar(select(UserProfile).where(UserProfile.user_id == user.id))
+    return datetime.combine(_today(db, user), time.min, zone(p.timezone if p else "Asia/Colombo"))
+
+
+@router.get("/water")
+def water_today(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services import mindset
+    return mindset.water(db, user.id, _today(db, user), _day_start_utc(db, user))
+
+
+@router.post("/water", status_code=201)
+def water_add(data: dto.WaterIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services import mindset
+    mindset.add_water(db, user.id, _today(db, user), data.ml)
+    db.commit()
+    return mindset.water(db, user.id, _today(db, user), _day_start_utc(db, user))
+
+
+@router.delete("/water/{log_id}", status_code=204)
+def water_delete(log_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import WaterLog
+    db.delete(owned(db, WaterLog, user.id, log_id)); db.commit()
+
+
+@router.get("/mindset")
+def mindset_overview(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Affirmation of the day, your cards, streaks, 55x5 progress, WOOP plans, journal, videos."""
+    from app.services import mindset
+    out = mindset.overview(db, user.id, _today(db, user))
+    db.commit()
+    return out
+
+
+@router.post("/affirmations", status_code=201)
+def affirmation_add(data: dto.AffirmationIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import Affirmation
+    from app.services import mindset
+    mindset.ensure_starter(db, user.id)
+    row = Affirmation(user_id=user.id, text=data.text.strip(), category=data.category, favorite=True)
+    db.add(row); db.commit(); db.refresh(row)
+    return {"id": row.id, "text": row.text, "category": row.category, "favorite": row.favorite}
+
+
+@router.patch("/affirmations/{aff_id}")
+def affirmation_update(aff_id: uuid.UUID, data: dto.AffirmationUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import Affirmation
+    row = owned(db, Affirmation, user.id, aff_id)
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(row, k, v.strip() if isinstance(v, str) else v)
+    db.commit()
+    return {"id": row.id, "text": row.text, "category": row.category, "favorite": row.favorite, "active": row.active}
+
+
+@router.delete("/affirmations/{aff_id}", status_code=204)
+def affirmation_delete(aff_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import Affirmation
+    db.delete(owned(db, Affirmation, user.id, aff_id)); db.commit()
+
+
+@router.post("/mindset/entries", status_code=201)
+def mindset_entry(data: dto.MindsetEntryIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services import mindset
+    row = mindset.add_entry(db, user.id, _today(db, user), data.kind, data.body, data.data, data.ai_mood)
+    db.commit()
+    return {"id": row.id, "kind": row.kind, "date": row.local_date, "data": row.data}
+
+
+@router.delete("/mindset/entries/{entry_id}", status_code=204)
+def mindset_entry_delete(entry_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.models.entities import MindsetEntry
+    db.delete(owned(db, MindsetEntry, user.id, entry_id)); db.commit()
+
+
+# ---------------- consistency coach, Today ring, weekly review
+
+@router.get("/consistency")
+def consistency_view(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Habit strength (0-100), never-miss-twice nudges, tiny versions, 66-day journey and habit-stacking ideas."""
+    from app.services import consistency
+    return consistency.consistency(db, user.id, _today(db, user))
+
+
+@router.get("/today")
+def today_view(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Everything for the Today screen: 24-hour ring, sleep, water, top task, habits, affirmation, hours to fill in."""
+    from app.services import consistency
+    out = consistency.today(db, user, _today(db, user))
+    db.commit()
+    return out
+
+
+@router.get("/review/week")
+def review_week(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services import consistency
+    return consistency.weekly_review(db, user.id, _today(db, user))

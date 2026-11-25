@@ -8,6 +8,7 @@ import { scheduleHourlyCheckins } from "../notify";
 import { Shield, defaultMark, type BlockList, type Mark } from "../shield";
 import { Badge, Btn, C, Card, Empty, Field, H2, Kicker, Muted, Row as Line, Screen } from "../ui";
 import { WeekInsightsCard } from "./SmartCards";
+import { GapCards } from "./SleepDayScreens";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 type Props = { api: Api; onError: (m: string) => void; onNotice: (m: string) => void };
@@ -212,7 +213,9 @@ export async function uploadUsage(api: Api, day = new Date()): Promise<boolean> 
       .filter(a => a.minutes > 0).sort((a, b) => b.minutes - a.minutes);
     const sum = (m: Mark) => apps.filter(a => a.mark === m).reduce((n, a) => n + a.minutes, 0);
     await api("/day/usage", "PUT", { local_date: iso(day), total_minutes: Math.min(1440, Math.round(ins.totalMinutes)), distracting_minutes: Math.min(1440, sum("distracting")),
-      productive_minutes: Math.min(1440, sum("productive")), pickups: Math.min(5000, ins.pickups), apps: apps.slice(0, 20), hourly: ins.hourly.map(x => Math.min(60, Math.round(x))) });
+      productive_minutes: Math.min(1440, sum("productive")), pickups: Math.min(5000, ins.pickups), apps: apps.slice(0, 20), hourly: ins.hourly.map(x => Math.min(60, Math.round(x))),
+      ...(ins.hourlyApps ? { hourly_apps: ins.hourlyApps.map(h => h.slice(0, 3).map(a => ({ package: a.packageName, label: a.label, category: a.category,
+        mark: (marks[a.packageName] || defaultMark(a.category)) as Mark, minutes: Math.min(60, Math.round(a.minutes)) }))) } : {}) });
     return true;
   } catch { return false; }
 }
@@ -260,6 +263,7 @@ export function DayTrackerScreen({ api, onError, onNotice, initialHour }: Props 
   const t: Row = r?.totals || {};
   const nowH = new Date().getHours();
   return <Screen>
+    <GapCards api={api} day={day} onError={onError} onNotice={onNotice} onSaved={() => void load()}/>
     <Hero kicker={`DAY TRACKER · ${new Date(`${day}T12:00:00`).toLocaleDateString([], { weekday: "long", day: "numeric", month: "short" }).toUpperCase()}`}
       title={`${Math.floor((t.productive || 0) / 60)}h ${(t.productive || 0) % 60}m`} accent="productive" sub={`${t.waste_total ?? 0} min wasted (logged + distracting apps) · ${t.focus ?? 0} min focus · ${t.tasks_done ?? 0} tasks done`}
       right={<Ring value={Number(r?.score ?? 0)} size={96} label={`${r?.score ?? "—"}`} sub="DAY SCORE"/>}>

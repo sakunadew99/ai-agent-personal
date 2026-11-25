@@ -38,6 +38,7 @@ import { HabitManager, InboxPage, JobFinder, LearnRadar, PlannerBoard, RewardsGa
 import { BrainGymPage, NewsAndWatch } from "@/components/LifeOsPages3";
 import { SearchPage, VideosPage } from "@/components/LifeOsPages5";
 import { SchedulePage, SpeakingPage } from "@/components/LifeOsPages6";
+import { BoardPage, MindsetPage, SleepPage, TodayPage, WaterPage } from "@/components/LifeOsPages9";
 import { AskPage, BodyPage, ContentPage, HubPage, LearnFeedPage, ReelsPage, DisciplinePage, EnglishPage, FreelancePage, SportsPage, FitnessGuidePage, KegelPage, NotesPage, ReadingPage, ResourcesPage, RolePlayPage, TravelPage, WealthPage } from "@/components/LifeOsPages8";
 import { DreamsPage, DrillPage, HealthAdvicePanel, MedicinesPage, ReceiptPage, RitualsPage, SkillsPage, SkinPage } from "@/components/LifeOsPages7";
 import { DayPage, GymPage, LanguagesPage, ProgressPage } from "@/components/LifeOsPages4";
@@ -49,6 +50,11 @@ type Field = { name: string; label: string; type?: string; required?: boolean; o
 
 const navigation = [
   { label: "Home", icon: "home", group: "TODAY", hint: "Your day at a glance" },
+  { label: "Today", icon: "sun", hint: "24-hour ring, sleep, water, habits, week review" },
+  { label: "Life board", icon: "check", hint: "Tasks Now/Next/Later and habit strength" },
+  { label: "Sleep", icon: "moon", hint: "Bedtime and wake time from phone use and Mi Band" },
+  { label: "Water", icon: "heart", hint: "Daily target from your weight" },
+  { label: "Mindset studio", icon: "sparkle", hint: "Affirmations, scripting, WOOP, gratitude" },
   { label: "Ask Sakuna", icon: "sparkle", hint: "Today, top task, week, neglected, next + plan check" },
   { label: "Focus", icon: "timer", hint: "30 / 60-minute blocks with a break" },
   { label: "Planner", icon: "calendar", hint: "Time blocks for today and the week" },
@@ -487,6 +493,11 @@ export default function Home() {
       case "Learning feed": return <LearnFeedPage token={token} />;
       case "Learning reels": return <ReelsPage token={token} />;
       case "Learning hub": return <HubPage token={token} />;
+      case "Today": return <TodayPage token={token} />;
+      case "Life board": return <BoardPage token={token} />;
+      case "Sleep": return <SleepPage token={token} />;
+      case "Water": return <WaterPage token={token} />;
+      case "Mindset studio": return <MindsetPage token={token} />;
       case "English check": return <EnglishPage token={token} />;
       case "Freelancing kit": return <FreelancePage token={token} />;
       case "Ask Sakuna": return <AskPage token={token} onOpenApprovals={() => navigate("Approvals")} />;

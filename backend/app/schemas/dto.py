@@ -1522,6 +1522,7 @@ class DeviceUsageIn(BaseModel):
     pickups: int = Field(default=0, ge=0, le=5000)
     apps: list[UsageApp] = Field(default_factory=list, max_length=40)
     hourly: list[int] = Field(default_factory=list, max_length=24)
+    hourly_apps: list[list[UsageApp]] | None = Field(default=None, max_length=24)
 
 
 class PortfolioRowIn(BaseModel):
@@ -1981,3 +1982,50 @@ class ReelEvent(BaseModel):
 
 class ReelEventsIn(BaseModel):
     events: list[ReelEvent] = Field(min_length=1, max_length=50)
+
+
+class SleepBreak(BaseModel):
+    at: datetime
+    minutes: int = Field(ge=0, le=600)
+
+
+class PhoneSleepIn(BaseModel):
+    night: date                                  # the morning date the sleep ended on
+    last_use: datetime
+    first_use: datetime
+    core_minutes: int = Field(default=0, ge=0, le=1440)
+    interruptions: list[SleepBreak] = Field(default_factory=list, max_length=30)
+
+
+class GapAnswer(BaseModel):
+    hour: int = Field(ge=0, le=23)
+    category: str = Field(max_length=16)
+    note: str | None = Field(default=None, max_length=300)
+
+
+class GapFillIn(BaseModel):
+    day: date
+    answers: list[GapAnswer] = Field(min_length=1, max_length=24)
+
+
+class WaterIn(BaseModel):
+    ml: int = Field(ge=1, le=3000)
+
+
+class AffirmationIn(BaseModel):
+    text: str = Field(min_length=3, max_length=300)
+    category: Literal["confidence", "discipline", "health", "money", "calm", "study", "custom"] = "custom"
+
+
+class AffirmationUpdate(BaseModel):
+    text: str | None = Field(default=None, min_length=3, max_length=300)
+    category: Literal["confidence", "discipline", "health", "money", "calm", "study", "custom"] | None = None
+    favorite: bool | None = None
+    active: bool | None = None
+
+
+class MindsetEntryIn(BaseModel):
+    kind: Literal["scripting", "gratitude", "woop", "affirm_read"]
+    body: str | None = Field(default=None, max_length=20000)
+    data: dict | None = None
+    ai_mood: bool = False

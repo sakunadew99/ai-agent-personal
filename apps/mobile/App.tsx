@@ -57,6 +57,9 @@ import { BodyScreen } from "./src/screens/BodyScreen";
 import { LearnFeedScreen } from "./src/screens/LearnFeedScreen";
 import { ReelsScreen } from "./src/screens/ReelsScreen";
 import { HubScreen } from "./src/screens/HubScreen";
+import { SleepScreen, uploadSleep } from "./src/screens/SleepDayScreens";
+import { MindsetScreen, WaterScreen } from "./src/screens/MindsetScreens";
+import { BoardScreen, TodayScreen } from "./src/screens/TodayBoardScreens";
 import { DayTrackerScreen, GymScreen, LanguageScreen, ProgressScreen, uploadUsage } from "./src/screens/LifeOs4Screens";
 import { BrowserHost } from "./src/browser";
 import { LockGate } from "./src/lock";
@@ -69,7 +72,7 @@ import { appendSpeech, MicButton } from "./src/voice";
 import { Hero, Ring, StatTile, TileRow, WeekDots } from "./src/charts";
 
 type Tab = "Home" | "Plan" | "Capture" | "Focus" | "More";
-const SUB_TITLES: Record<MoreTarget, string> = { Hub: "Learning hub", Reels: "Learning reels", LearnFeed: "Learning feed", Body: "Body measurements", Sports: "Martial arts & swimming", English: "English check", Freelance: "Freelancing kit", Ask: "Ask Sakuna", Discipline: "Self-control", Notes: "Notes", Kegel: "Pelvic floor", Reading: "Reading", Resources: "Learn anything", Content: "Content studio", Travel: "Travel guide", Fitness: "Fitness guide", Wealth: "$1M journey & ideas", Roleplay: "Role-play coach", Dreams: "Dreams & goals", Skin: "Skin & glow", Meds: "Medicines", Skills: "Skills & trainers", Speak: "Speaking coach", Schedule: "My schedule", Videos: "My videos", Day: "Day tracker", Gym: "Gym", Brain: "Brain gym", Assistant: "Assistant", Journal: "Journal", Invest: "Invest (CSE)", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
+const SUB_TITLES: Record<MoreTarget, string> = { Today: "Today", Board: "Life board", Water: "Water", Mindset: "Mindset studio", Sleep: "Sleep", Hub: "Learning hub", Reels: "Learning reels", LearnFeed: "Learning feed", Body: "Body measurements", Sports: "Martial arts & swimming", English: "English check", Freelance: "Freelancing kit", Ask: "Ask Sakuna", Discipline: "Self-control", Notes: "Notes", Kegel: "Pelvic floor", Reading: "Reading", Resources: "Learn anything", Content: "Content studio", Travel: "Travel guide", Fitness: "Fitness guide", Wealth: "$1M journey & ideas", Roleplay: "Role-play coach", Dreams: "Dreams & goals", Skin: "Skin & glow", Meds: "Medicines", Skills: "Skills & trainers", Speak: "Speaking coach", Schedule: "My schedule", Videos: "My videos", Day: "Day tracker", Gym: "Gym", Brain: "Brain gym", Assistant: "Assistant", Journal: "Journal", Invest: "Invest (CSE)", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
 
 export default function Root() {
   return <CrashGuard><App/></CrashGuard>;
@@ -130,7 +133,7 @@ function App() {
   // Mi Band data every time the app comes back to the screen (at most every 30 minutes), not only on the Health screen.
   useEffect(() => {
     if (!token) return;
-    const sub = AppState.addEventListener("change", st => { if (st === "active") { void autoSyncHealth(api); void notifyStockAlerts(api); } });
+    const sub = AppState.addEventListener("change", st => { if (st === "active") { void autoSyncHealth(api); void notifyStockAlerts(api); void uploadSleep(api); } });
     return () => sub.remove();
   }, [token, api]);
 
@@ -147,6 +150,10 @@ function App() {
             .then(() => showNotice(`Logged ${String(h).padStart(2, "0")}:00 as ${action}`)).catch(() => undefined);
         } else { setCheckinHour(h); setTab("More"); setSub("Day"); }
       } else if (data.kind === "report") { setCheckinHour(null); setTab("More"); setSub("Day"); void uploadUsage(api); }
+      else if (data.kind === "water") {
+        const ml = resp.actionIdentifier === "water500" ? 500 : resp.actionIdentifier === "water250" ? 250 : 0;
+        if (ml) void api("/water", "POST", { ml }).then(() => showNotice(`💧 +${ml} ml logged`)).catch(() => undefined); else { setTab("More"); setSub("Water"); }
+      }
     });
     return () => sub.remove();
   }, [token, api, showNotice]);
@@ -157,6 +164,7 @@ function App() {
     void loadQueue().then(() => flushQueue(token)).then(n => { if (n) showNotice(`Sent ${n} item${n === 1 ? "" : "s"} saved while offline`); });
     void syncReminders(api); void syncHabitReminders(api); void autoSyncHealth(api); void notifyStockAlerts(api); void syncMedicineReminders(api);
     void uploadUsage(api); void uploadUsage(api, new Date(Date.now() - 86400000));   // phone screen time for today and yesterday's report
+    void uploadSleep(api);                                                            // last night's sleep from phone use
   }, [token, api, showNotice]);
 
   // Stay signed in: restore the saved session on start; renew the access token whenever it expires.
@@ -284,6 +292,11 @@ function App() {
       {tab === "More" && sub === "LearnFeed" && <LearnFeedScreen api={api} onError={showError} onNotice={showNotice} onOpenReels={() => setSub("Reels")}/>}
       {tab === "More" && sub === "Reels" && <ReelsScreen api={api} onError={showError} onNotice={showNotice} onClose={() => setSub("LearnFeed")}/>}
       {tab === "More" && sub === "Hub" && <HubScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "Sleep" && <SleepScreen api={api} onError={showError}/>}
+      {tab === "More" && sub === "Water" && <WaterScreen api={api} onError={showError} onNotice={showNotice}/>}
+      {tab === "More" && sub === "Today" && <TodayScreen api={api} onError={showError} onNotice={showNotice} onOpen={t => setSub(t as MoreTarget)}/>}
+      {tab === "More" && sub === "Board" && <BoardScreen api={api} onError={showError} onNotice={showNotice} onOpen={t => setSub(t as MoreTarget)}/>}
+      {tab === "More" && sub === "Mindset" && <MindsetScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "English" && <EnglishScreen api={api} onError={showError}/>}
       {tab === "More" && sub === "Freelance" && <FreelanceScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Skin" && <SkinScreen api={api} onError={showError} onNotice={showNotice}/>}

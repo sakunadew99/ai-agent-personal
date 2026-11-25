@@ -11,6 +11,10 @@ type Item = { key: MoreTarget; icon: string; title: string; hint: string; words?
 type Group = { name: string; emoji: string; color: string; items: Item[] };
 
 export const GROUPS: Group[] = [
+  { name: "Today", emoji: "🌞", color: "#00c853", items: [
+    { key: "Today", icon: "⭕", title: "Today", hint: "24-hour ring, sleep, water, habits, top task", words: "today day ring timeline clock schedule hours sleep water habits week review" },
+    { key: "Board", icon: "🗂", title: "Life board", hint: "Tasks Now/Next/Later, habit strength, goals", words: "board tasks todo to-do habits goals kanban now next later lists strength" },
+  ] },
   { name: "Money", emoji: "💰", color: "#5aa8ff", items: [
     { key: "Wealth", icon: "🚀", title: "$1M journey & ideas", hint: "Projections and income ideas", words: "million financial freedom net worth projection savings scenario income ideas opportunities side hustle business freelancing" },
     { key: "Invest", icon: "📈", title: "Invest (CSE)", hint: "Portfolio, review, alerts", words: "shares stock cse aspi atrad dividend portfolio" },
@@ -19,6 +23,9 @@ export const GROUPS: Group[] = [
   { name: "Body", emoji: "💪", color: "#3ee08f", items: [
     { key: "Health", icon: "❤️", title: "Health & Mi Band", hint: "Steps, sleep, heart rate", words: "mi fitness steps sleep heart health connect" },
     { key: "Fitness", icon: "🥗", title: "Fitness guide", hint: "Workouts, exercise how-to, meal plans", words: "workout plan exercise technique muscles meal plan diet nutrition protein calories food rice dhal shopping list belly fat" },
+    { key: "Mindset", icon: "🌅", title: "Mindset studio", hint: "Affirmations, scripting, 55x5, WOOP, gratitude", words: "affirmation affirmations scripting manifest law of attraction positive thinking gratitude woop 55x5 mindset motivation journal" },
+    { key: "Water", icon: "💧", title: "Water", hint: "Daily target from your weight, reminders", words: "water drink hydration glass bottle litre reminder thirsty" },
+    { key: "Sleep", icon: "😴", title: "Sleep", hint: "Bedtime and wake time from phone use + Mi Band", words: "sleep bedtime wake night phone last used first used insomnia rest tired debt" },
     { key: "Body", icon: "📏", title: "Body measurements", hint: "Weight, waist, body fat and trends", words: "body measurements weight waist chest hips arm thigh neck body fat bmi tape progress" },
     { key: "Sports", icon: "🥋", title: "Martial arts & swimming", hint: "Pathways, gear costs, safety, clubs near you", words: "karate kickboxing muay thai boxing swimming martial arts sport dojo pool lessons self defence fight" },
     { key: "Gym", icon: "🏋️", title: "Gym", hint: "Sets, kg × reps, records", words: "workout exercise weights" },
