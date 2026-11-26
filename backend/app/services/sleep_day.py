@@ -173,5 +173,7 @@ def fill(db: Session, user_id, day: date, answers: list[dict]) -> int:
         db.add(TimeEntry(user_id=user_id, local_date=day, start_time=time(h, 0), end_time=time(h, 59), category=a["category"],
                          note=(a.get("note") or "").strip()[:300] or None, source="prompt"))
         n += 1
+        from app.services import game
+        game.award_safely(db, user_id, "checkin", f"checkin:{day}:{h}", f"Logged {h:02d}:00")
     db.flush()
     return n

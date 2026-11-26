@@ -579,7 +579,7 @@ def water_today(db: Session = Depends(get_db), user: User = Depends(get_current_
 @router.post("/water", status_code=201)
 def water_add(data: dto.WaterIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     from app.services import mindset
-    mindset.add_water(db, user.id, _today(db, user), data.ml)
+    mindset.add_water(db, user.id, _today(db, user), data.ml, _day_start_utc(db, user))
     db.commit()
     return mindset.water(db, user.id, _today(db, user), _day_start_utc(db, user))
 
@@ -661,3 +661,40 @@ def today_view(db: Session = Depends(get_db), user: User = Depends(get_current_u
 def review_week(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     from app.services import consistency
     return consistency.weekly_review(db, user.id, _today(db, user))
+
+
+# ---------------- settings hub, app preferences, briefs
+
+@router.get("/settings")
+def settings_hub(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Everything for the Settings & profile screen: account, profile, schedule and app preferences."""
+    from app.services import app_settings
+    from app.models.entities import UserProfile
+    out = app_settings.prefs(db, user.id)
+    p = db.scalar(select(UserProfile).where(UserProfile.user_id == user.id))
+    t = lambda v: v.strftime("%H:%M") if v else None  # noqa: E731
+    db.commit()
+    return {"user": {"email": user.email, "full_name": user.full_name},
+            "profile": {"timezone": p.timezone, "currency": p.currency, "location": p.location, "bio": p.bio, "height_cm": p.height_cm, "sex": p.sex,
+                        "wake_time": t(p.wake_time), "sleep_time": t(p.sleep_time), "work_start": t(p.work_start), "work_end": t(p.work_end),
+                        "gym_time": t(p.gym_time), "work_days": p.work_days, "gym_days": p.gym_days},
+            "prefs": out}
+
+
+@router.patch("/settings/prefs")
+def settings_prefs(data: dto.PrefsPatch, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services import app_settings
+    out = app_settings.update_prefs(db, user.id, data.model_dump(exclude_unset=True))
+    db.commit()
+    return out
+
+
+@router.get("/brief/{kind}")
+def brief(kind: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Morning brief (sleep, affirmation, first tasks, water) or night review (hours to fill, habits left, tomorrow, bedtime)."""
+    from app.services import app_settings
+    if kind not in ("morning", "night"):
+        raise HTTPException(404, "Unknown brief")
+    out = app_settings.brief(db, user, kind, _today(db, user))
+    db.commit()
+    return out

@@ -220,6 +220,9 @@ def record(db: Session, user_id, items: list[dict]) -> int:
                          category=it.get("category") if it.get("category") in learn_feed.CATS else None, title=(it.get("title") or "")[:200] or None,
                          action=it["action"], seconds=max(0, min(int(it.get("seconds") or 0), 86400))))
         n += 1
+        if it["action"] == "complete" or (it["action"] == "view" and int(it.get("seconds") or 0) >= 60):
+            from app.services import game
+            game.award_safely(db, user_id, "learning", f"learn:{str(it['video_id'])[:40]}", (it.get("title") or "Learning reel")[:80])
     db.flush()
     return n
 

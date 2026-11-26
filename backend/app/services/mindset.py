@@ -49,9 +49,14 @@ def water(db: Session, user_id, today: date, day_start_utc: datetime) -> dict:
                    + (" + 500 ml because you trained today." if trained else ".") + " Drink more in hot weather; follow your doctor if you have kidney or heart conditions."}
 
 
-def add_water(db: Session, user_id, today: date, ml: int) -> WaterLog:
+def add_water(db: Session, user_id, today: date, ml: int, day_start_utc: datetime | None = None) -> WaterLog:
     row = WaterLog(user_id=user_id, local_date=today, ml=ml)
     db.add(row); db.flush()
+    if day_start_utc is not None:
+        w = water(db, user_id, today, day_start_utc)
+        if w["today_ml"] >= w["target_ml"]:
+            from app.services import game
+            game.award_safely(db, user_id, "water", f"water:{today}", "Daily water goal reached")
     return row
 
 
@@ -164,4 +169,7 @@ def add_entry(db: Session, user_id, today: date, kind: str, body: str | None, da
             data["mood"] = mood
     row = MindsetEntry(user_id=user_id, kind=kind, local_date=today, body=(body or "").strip()[:20000] or None, data=data)
     db.add(row); db.flush()
+    from app.services import game
+    game.award_safely(db, user_id, "mindset", f"mindset:{kind}:{today}", {"affirm_read": "Affirmations read", "scripting": "Scripting",
+                      "gratitude": "Gratitude", "woop": "WOOP plan"}.get(kind, kind))
     return row

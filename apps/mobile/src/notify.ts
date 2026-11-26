@@ -14,6 +14,24 @@ const FOCUS_ID = "focus-end";
 const CHANNEL = "reminders";
 const MAX_SCHEDULED = 50; // Android allows ~500 alarms per app; stay well below.
 let configured = false;
+export const TASK_CATEGORY = "task-reminder";
+export const HABIT_CATEGORY = "habit-reminder";
+export const APPROVAL_CATEGORY = "approval";
+
+/** Buttons shown on notifications. opensAppToForeground: false = the action runs without opening Sakuna. */
+async function setupCategories() {
+  await Notifications.setNotificationCategoryAsync(TASK_CATEGORY, [
+    { identifier: "task_done", buttonTitle: "✓ Done", options: { opensAppToForeground: false } },
+    { identifier: "task_snooze", buttonTitle: "⏰ +1 hour", options: { opensAppToForeground: false } },
+  ]);
+  await Notifications.setNotificationCategoryAsync(HABIT_CATEGORY, [
+    { identifier: "habit_done", buttonTitle: "✓ Done", options: { opensAppToForeground: false } },
+  ]);
+  await Notifications.setNotificationCategoryAsync(APPROVAL_CATEGORY, [
+    { identifier: "approve", buttonTitle: "✓ Approve", options: { opensAppToForeground: false } },
+    { identifier: "reject", buttonTitle: "✕ Reject", options: { opensAppToForeground: false, isDestructive: true } },
+  ]);
+}
 
 async function ready(): Promise<boolean> {
   if (!configured) {
@@ -26,6 +44,7 @@ async function ready(): Promise<boolean> {
         name: "Task reminders and focus timer", importance: Notifications.AndroidImportance.HIGH, vibrationPattern: [0, 250, 150, 250],
       });
     }
+    await setupCategories().catch(() => undefined);
   }
   const current = await Notifications.getPermissionsAsync();
   if (current.granted) return true;
@@ -52,7 +71,8 @@ export async function syncReminders(api: Api): Promise<number> {
       const due = new Date(String(item.due_at)).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       await Notifications.scheduleNotificationAsync({
         identifier: `${TASK_PREFIX}${item.task_id}`,
-        content: { title: String(item.title), body: item.moved_for_quiet_hours ? `Due ${due} (held until your quiet hours ended)` : `Due at ${due}`, data: { taskId: item.task_id } },
+        content: { title: String(item.title), body: item.moved_for_quiet_hours ? `Due ${due} (held until your quiet hours ended)` : `Due at ${due}`,
+          categoryIdentifier: TASK_CATEGORY, data: { kind: "task", taskId: item.task_id } },
         trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at, channelId: CHANNEL },
       });
       count++;
@@ -131,7 +151,7 @@ export async function syncHabitReminders(api: Api): Promise<number> {
         if (at.getTime() <= Date.now() + 5000) continue;
         await Notifications.scheduleNotificationAsync({
           identifier: `${HABIT_PREFIX}${h.id}-${n}`,
-          content: { title: `${h.icon || "🔁"} ${h.name}`, body: h.kind === "avoid" ? "Stay strong today. Open Sakuna to log a clean day." : "Time for your habit. Tap ✓ in Sakuna when it's done.", data: { habitId: h.id } },
+          content: { title: `${h.icon || "🔁"} ${h.name}`, body: h.kind === "avoid" ? "Stay strong today. Open Sakuna to log a clean day." : "Time for your habit. Tap ✓ Done when it's done.", categoryIdentifier: HABIT_CATEGORY, data: { kind: "habit", habitId: h.id } },
           trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at, channelId: CHANNEL },
         });
         count++;
@@ -248,4 +268,77 @@ export async function scheduleWaterReminders(on: boolean): Promise<number> {
     }
     return n;
   } catch { return 0; }
+}
+
+
+const APPROVAL_SEEN = "sakuna.seenApprovals";
+
+/** New pending approvals (plan check, MCP tools, assistant) as notifications with Approve / Reject buttons. */
+export async function notifyApprovals(api: Api): Promise<number> {
+  try {
+    if (!(await ready())) return -1;
+    const rows = (await api<Row[]>("/approvals")).filter(r => r.status === "pending");
+    const seen: string[] = JSON.parse((await SecureStore.getItemAsync(APPROVAL_SEEN)) || "[]");
+    const fresh = rows.filter(r => !seen.includes(String(r.id))).slice(0, 5);
+    for (const r of fresh) {
+      const body = String(r.payload?.preview || `${String(r.tool_name).replace(/_/g, " ")}: ${JSON.stringify(r.payload?.body || {}).slice(0, 120)}`);
+      await Notifications.scheduleNotificationAsync({
+        identifier: `approval-${r.id}`,
+        content: { title: "🛡 Sakuna wants your OK", body, categoryIdentifier: APPROVAL_CATEGORY, data: { kind: "approval", approvalId: r.id } },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 2, channelId: CHANNEL },
+      });
+    }
+    if (fresh.length) await SecureStore.setItemAsync(APPROVAL_SEEN, JSON.stringify([...fresh.map(r => String(r.id)), ...seen].slice(0, 200)));
+    return fresh.length;
+  } catch { return 0; }
+}
+
+const DAILY_PREFIX = "daily-";
+const DAILY_TEXT: Record<string, [string, string]> = {
+  morning: ["🌅 Good morning", "Your brief is ready: sleep, first task, water and today's affirmation."],
+  night: ["🌙 Night review", "Fill in today's hours, note 3 good things, and put the phone away."],
+  affirmation: ["✨ Your affirmation", "Take 20 seconds to read today's affirmation and picture one action."],
+};
+
+/** Morning brief, night review and affirmation prompts at your chosen times (every day). */
+export async function scheduleDailyPrompts(notify: Row): Promise<number> {
+  try {
+    if (!(await ready())) return -1;
+    await cancelWhere(id => id.startsWith(DAILY_PREFIX));
+    let n = 0;
+    for (const key of Object.keys(DAILY_TEXT)) {
+      const cfg = notify?.[key];
+      if (!cfg?.on || !cfg.time) continue;
+      const [hh, mm] = String(cfg.time).split(":").map(Number);
+      await Notifications.scheduleNotificationAsync({
+        identifier: `${DAILY_PREFIX}${key}`,
+        content: { title: DAILY_TEXT[key][0], body: DAILY_TEXT[key][1], data: { kind: "brief", brief: key } },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: hh, minute: mm, channelId: CHANNEL },
+      });
+      n++;
+    }
+    return n;
+  } catch { return 0; }
+}
+
+/** Apply the notification centre: turn each reminder family on or off on this phone. */
+export async function applyNotificationPrefs(api: Api, notify: Row): Promise<void> {
+  const on = (k: string) => !!notify?.[k]?.on;
+  await scheduleHourlyCheckins(on("checkins"));
+  await scheduleWaterReminders(on("water"));
+  if (on("tasks")) await syncReminders(api); else await cancelWhere(id => id.startsWith(TASK_PREFIX)).catch(() => undefined);
+  if (on("habits")) await syncHabitReminders(api); else await cancelWhere(id => id.startsWith(HABIT_PREFIX)).catch(() => undefined);
+  if (on("medicines")) await syncMedicineReminders(api); else await cancelWhere(id => id.startsWith(MED_PREFIX)).catch(() => undefined);
+  await scheduleDailyPrompts(notify);
+  await SecureStore.setItemAsync("sakuna.notifyPrefs", JSON.stringify(notify)).catch(() => undefined);
+}
+
+/** The notification centre saved on this phone (used before the API answers). */
+export async function savedNotifyPrefs(): Promise<Row | null> {
+  try { return JSON.parse((await SecureStore.getItemAsync("sakuna.notifyPrefs")) || "null"); } catch { return null; }
+}
+
+/** Is the phone allowing notifications? */
+export async function notificationsAllowed(): Promise<boolean> {
+  try { return (await Notifications.getPermissionsAsync()).granted; } catch { return false; }
 }

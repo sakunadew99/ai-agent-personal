@@ -8,73 +8,75 @@ import type { MoreTarget } from "./HealthReviewScreens";
 
 /** Every screen, grouped, with search words, so the app is easy to find your way around. */
 type Item = { key: MoreTarget; icon: string; title: string; hint: string; words?: string };
-type Group = { name: string; emoji: string; color: string; items: Item[] };
+type Group = { name: string; emoji: string; color: string; hint?: string; items: Item[] };
 
 export const GROUPS: Group[] = [
-  { name: "Today", emoji: "🌞", color: "#00c853", items: [
+  { name: "Today & plan", emoji: "🌞", color: "#00c853", hint: "Your day, plan, schedule and reviews", items: [
     { key: "Today", icon: "⭕", title: "Today", hint: "24-hour ring, sleep, water, habits, top task", words: "today day ring timeline clock schedule hours sleep water habits week review" },
     { key: "Board", icon: "🗂", title: "Life board", hint: "Tasks Now/Next/Later, habit strength, goals", words: "board tasks todo to-do habits goals kanban now next later lists strength" },
-    { key: "Appearance", icon: "🎨", title: "Appearance", hint: "Light, dark, AMOLED and accent colours", words: "theme themes colour color dark mode light mode amoled black accent appearance design" },
+    { key: "Day", icon: "⏱", title: "Day tracker", hint: "Hour by hour report", words: "time hours check-in" },
+    { key: "Schedule", icon: "⏰", title: "My schedule", hint: "Office, gym, sleep times", words: "office work time gym time wake sleep routine shift hours" },
+    { key: "Review", icon: "🗓", title: "Review", hint: "Weekly review & about you", words: "week insights patterns about you reflect" },
+    { key: "Life", icon: "🎯", title: "My life", hint: "Tasks, goals, habits", words: "todo goals habits" },
+    { key: "Balance", icon: "☀️", title: "Life balance", hint: "Target vs actual", words: "areas wheel" },
+    { key: "Ask", icon: "💬", title: "Ask Sakuna", hint: "Today, top task, week, neglected, next", words: "ask question today important priority focus next week progress neglect plan check overdue what should i do" },
   ] },
-  { name: "Money", emoji: "💰", color: C.blue, items: [
-    { key: "Wealth", icon: "🚀", title: "$1M journey & ideas", hint: "Projections and income ideas", words: "million financial freedom net worth projection savings scenario income ideas opportunities side hustle business freelancing" },
-    { key: "Invest", icon: "📈", title: "Invest (CSE)", hint: "Portfolio, review, alerts", words: "shares stock cse aspi atrad dividend portfolio" },
-    { key: "Finance", icon: "👛", title: "Money", hint: "Spending, lists, renewals, documents", words: "wallet net worth savings expense income budget finance passport visa bills subscriptions documents renewals buy list wishes" },
-  ] },
-  { name: "Body", emoji: "💪", color: C.green, items: [
+  { name: "Body", emoji: "💪", color: C.green, hint: "Health, gym, food, sleep, water and care", items: [
     { key: "Health", icon: "❤️", title: "Health & Mi Band", hint: "Steps, sleep, heart rate", words: "mi fitness steps sleep heart health connect" },
-    { key: "Fitness", icon: "🥗", title: "Fitness guide", hint: "Workouts, exercise how-to, meal plans", words: "workout plan exercise technique muscles meal plan diet nutrition protein calories food rice dhal shopping list belly fat" },
-    { key: "Mindset", icon: "🌅", title: "Mindset studio", hint: "Affirmations, scripting, 55x5, WOOP, gratitude", words: "affirmation affirmations scripting manifest law of attraction positive thinking gratitude woop 55x5 mindset motivation journal" },
-    { key: "Water", icon: "💧", title: "Water", hint: "Daily target from your weight, reminders", words: "water drink hydration glass bottle litre reminder thirsty" },
-    { key: "Sleep", icon: "😴", title: "Sleep", hint: "Bedtime and wake time from phone use + Mi Band", words: "sleep bedtime wake night phone last used first used insomnia rest tired debt" },
-    { key: "Body", icon: "📏", title: "Body measurements", hint: "Weight, waist, body fat and trends", words: "body measurements weight waist chest hips arm thigh neck body fat bmi tape progress" },
-    { key: "Sports", icon: "🥋", title: "Martial arts & swimming", hint: "Pathways, gear costs, safety, clubs near you", words: "karate kickboxing muay thai boxing swimming martial arts sport dojo pool lessons self defence fight" },
     { key: "Gym", icon: "🏋️", title: "Gym", hint: "Sets, kg × reps, records", words: "workout exercise weights" },
+    { key: "Fitness", icon: "🥗", title: "Fitness guide", hint: "Workouts, exercise how-to, meal plans", words: "workout plan exercise technique muscles meal plan diet nutrition protein calories food rice dhal shopping list belly fat" },
+    { key: "Body", icon: "📏", title: "Body measurements", hint: "Weight, waist, body fat and trends", words: "body measurements weight waist chest hips arm thigh neck body fat bmi tape progress" },
+    { key: "Sleep", icon: "😴", title: "Sleep", hint: "Bedtime and wake time from phone use + Mi Band", words: "sleep bedtime wake night phone last used first used insomnia rest tired debt" },
+    { key: "Water", icon: "💧", title: "Water", hint: "Daily target from your weight, reminders", words: "water drink hydration glass bottle litre reminder thirsty" },
+    { key: "Sports", icon: "🥋", title: "Martial arts & swimming", hint: "Pathways, gear costs, safety, clubs near you", words: "karate kickboxing muay thai boxing swimming martial arts sport dojo pool lessons self defence fight" },
     { key: "Skin", icon: "✨", title: "Skin & glow", hint: "Daily face scan, glow score", words: "face skin glow pimple acne spots redness beauty selfie" },
     { key: "Kegel", icon: "🧘", title: "Pelvic floor", hint: "Guided Kegel trainer", words: "kegel pelvic floor exercises bladder wellness men women physio squeeze" },
-    { key: "Discipline", icon: "🛡", title: "Self-control", hint: "Streaks, urges, triggers, blocking", words: "discipline self control porn free nofap no fap urge trigger habit streak quit addiction blocking digital wellbeing reset" },
-    { key: "Ask", icon: "💬", title: "Ask Sakuna", hint: "Today, top task, week, neglected, next", words: "ask question today important priority focus next week progress neglect plan check overdue what should i do" },
     { key: "Meds", icon: "💊", title: "Medicines", hint: "Doses, reminders, refills", words: "medicine pills tablets vitamins supplements doctor reminder" },
-    { key: "Day", icon: "⏱", title: "Day tracker", hint: "Hour by hour report", words: "time hours check-in" },
-    { key: "Balance", icon: "☀️", title: "Life balance", hint: "Target vs actual", words: "areas wheel" },
   ] },
-  { name: "Learning", emoji: "🎓", color: "#b18cff", items: [
+  { name: "Grow", emoji: "🎓", color: "#b18cff", hint: "Learning, reading, languages and skills", items: [
     { key: "Learning", icon: "📚", title: "Learning", hint: "Languages, cards, exams, speaking", words: "german english words leetcode course ielts goethe exam speaking speech presentation pronunciation" },
     { key: "Reading", icon: "📖", title: "Reading", hint: "Books, progress, highlights, yearly goal", words: "book books read reading novel pages library highlights quotes kindle audiobook" },
     { key: "Resources", icon: "🔎", title: "Learn anything", hint: "Best videos, posts and free resources", words: "learn resource video tutorial article course free wikipedia how to study topic" },
-    { key: "Roleplay", icon: "🎭", title: "Role-play coach", hint: "Negotiation, leadership, interviews", words: "soft skills negotiation salary client leadership conflict delegate interview feedback say no pitch sales communication confidence" },
     { key: "Skills", icon: "🎯", title: "Skills & trainers", hint: "Yoga, singing, guitar, boxing, leadership", words: "yoga singing vocal guitar music kickboxing fighting swimming leadership soft skills hard skills pose pitch tuner practice" },
     { key: "Speak", icon: "🎙", title: "Speaking coach", hint: "Public speaking, English & German", words: "speech talk presentation pronunciation fluency confidence communication whisper" },
     { key: "English", icon: "✍️", title: "English check", hint: "Grammar corrections for what you write or say", words: "english grammar correction spelling writing conversation languagetool soft skills" },
-
-
+    { key: "Roleplay", icon: "🎭", title: "Role-play coach", hint: "Negotiation, leadership, interviews", words: "soft skills negotiation salary client leadership conflict delegate interview feedback say no pitch sales communication confidence" },
+    { key: "Study", icon: "✈️", title: "Study abroad", hint: "DAAD, programs, checklist", words: "germany daad masters university" },
+  ] },
+  { name: "Discover", emoji: "📺", color: "#4fd1c5", hint: "Learning feed, reels, videos and news", items: [
     { key: "Hub", icon: "📰", title: "Learning hub", hint: "Facebook-style feed: tech, learning, motivation, psychology", words: "hub feed posts news technology tech ai linkedin facebook articles educational motivation psychology reels for you scroll" },
     { key: "Reels", icon: "🎬", title: "Learning reels", hint: "Swipe-up reels: only learning, ranked for you", words: "reels shorts tiktok swipe scroll for you feed videos learning motivation psychology educational facebook youtube" },
     { key: "LearnFeed", icon: "🎓", title: "Learning feed", hint: "Only educational, motivational & psychology videos", words: "youtube tiktok facebook instagram learning feed educational motivational motivation psychology filter videos watch shorts reels" },
     { key: "Videos", icon: "🎬", title: "My videos", hint: "Drive & YouTube in-app", words: "google drive youtube lectures" },
     { key: "News", icon: "📰", title: "Feed", hint: "News, videos, brain games", words: "news youtube watch brain gym games puzzle memory" },
-    { key: "Study", icon: "✈️", title: "Study abroad", hint: "DAAD, programs, checklist", words: "germany daad masters university" },
   ] },
-  { name: "Life", emoji: "🌱", color: C.amber, items: [
-    { key: "Dreams", icon: "🌟", title: "Dreams & goals", hint: "Today to 10 years, dream to plan", words: "dream goal vision future plan milestone why success 10 years million germany" },
-    { key: "Schedule", icon: "⏰", title: "My schedule", hint: "Office, gym, sleep times", words: "office work time gym time wake sleep routine shift hours" },
-    { key: "Travel", icon: "🗺", title: "Travel guide", hint: "Where to go, plans, LKR budgets", words: "travel trip holiday ella kandy sigiriya beach japan germany itinerary budget map wishlist visit" },
-    { key: "Content", icon: "🎬", title: "Content studio", hint: "Ideas, scripts, posting plan", words: "content youtube tiktok instagram linkedin post video script creator personal brand social media" },
-    { key: "Life", icon: "🎯", title: "My life", hint: "Tasks, goals, habits", words: "todo goals habits" },
-    { key: "Notes", icon: "📝", title: "Notes", hint: "Notebook, checklists, tags", words: "note notes notebook checklist list ideas write memo todo keep" },
+  { name: "Mind", emoji: "🌅", color: C.amber, hint: "Mindset, journal, notes, self-control, dreams", items: [
+    { key: "Mindset", icon: "🌅", title: "Mindset studio", hint: "Affirmations, scripting, 55x5, WOOP, gratitude", words: "affirmation affirmations scripting manifest law of attraction positive thinking gratitude woop 55x5 mindset motivation journal" },
     { key: "Journal", icon: "✍️", title: "Journal", hint: "Day, gratitude, lessons", words: "diary notes" },
+    { key: "Notes", icon: "📝", title: "Notes", hint: "Notebook, checklists, tags", words: "note notes notebook checklist list ideas write memo todo keep" },
+    { key: "Discipline", icon: "🛡", title: "Self-control", hint: "Streaks, urges, triggers, blocking", words: "discipline self control porn free nofap no fap urge trigger habit streak quit addiction blocking digital wellbeing reset" },
+    { key: "Dreams", icon: "🌟", title: "Dreams & goals", hint: "Today to 10 years, dream to plan", words: "dream goal vision future plan milestone why success 10 years million germany" },
+    { key: "Rewards", icon: "🎮", title: "Rewards game", hint: "Level, badges, missions", words: "points streak" },
+  ] },
+  { name: "Money & career", emoji: "💰", color: C.blue, hint: "Money, investing, $1M plan, jobs, freelancing", items: [
+    { key: "Finance", icon: "👛", title: "Money", hint: "Spending, lists, renewals, documents", words: "wallet net worth savings expense income budget finance passport visa bills subscriptions documents renewals buy list wishes" },
+    { key: "Wealth", icon: "🚀", title: "$1M journey & ideas", hint: "Projections and income ideas", words: "million financial freedom net worth projection savings scenario income ideas opportunities side hustle business freelancing" },
+    { key: "Invest", icon: "📈", title: "Invest (CSE)", hint: "Portfolio, review, alerts", words: "shares stock cse aspi atrad dividend portfolio" },
     { key: "Jobs", icon: "💼", title: "Jobs", hint: "Find jobs, tracker", words: "linkedin topjobs career cv" },
     { key: "Freelance", icon: "🧑‍💻", title: "Freelancing kit", hint: "Price estimator and proposal drafts", words: "freelance freelancing fiverr upwork proposal gig price estimate client side income" },
-    { key: "Rewards", icon: "🎮", title: "Rewards game", hint: "Level, badges, missions", words: "points streak" },
-    { key: "Review", icon: "🗓", title: "Review", hint: "Weekly review & about you", words: "week insights patterns about you reflect" },
+    { key: "Content", icon: "🎬", title: "Content studio", hint: "Ideas, scripts, posting plan", words: "content youtube tiktok instagram linkedin post video script creator personal brand social media" },
+    { key: "Travel", icon: "🗺", title: "Travel guide", hint: "Where to go, plans, LKR budgets", words: "travel trip holiday ella kandy sigiriya beach japan germany itinerary budget map wishlist visit" },
   ] },
-  { name: "AI & settings", emoji: "✨", color: C.red, items: [
+  { name: "Sakuna AI", emoji: "✨", color: C.red, hint: "Assistant, AI team, approvals and memory", items: [
     { key: "Assistant", icon: "💬", title: "Assistant", hint: "Chat with Sakuna", words: "chat ask ai" },
     { key: "Team", icon: "✨", title: "AI team", hint: "Coach, focus guard, reviewer", words: "agents" },
     { key: "Approvals", icon: "✅", title: "Approvals", hint: "AI proposals to confirm", words: "confirm" },
     { key: "Memory", icon: "🧩", title: "Memory", hint: "What Sakuna remembers", words: "facts" },
     { key: "AI", icon: "🔐", title: "AI & privacy", hint: "Usage, off switch", words: "privacy key usage" },
-    { key: "Profile", icon: "👤", title: "Profile", hint: "Account & sign out", words: "logout account" },
+  ] },
+  { name: "Settings", emoji: "⚙️", color: C.muted, hint: "Profile, notifications, appearance, privacy", items: [
+    { key: "Profile", icon: "⚙️", title: "Settings & profile", hint: "Account & sign out", words: "logout account" },
+    { key: "Appearance", icon: "🎨", title: "Appearance", hint: "Light, dark, AMOLED and accent colours", words: "theme themes colour color dark mode light mode amoled black accent appearance design" },
   ] },
 ];
 const ALL = GROUPS.flatMap(g => g.items.map(i => ({ ...i, color: g.color, group: g.name })));
@@ -87,20 +89,23 @@ export async function rememberScreen(key: string) {
   } catch { /* recents are a convenience */ }
 }
 
-function Tile({ item, color, open, wide }: { item: Item; color: string; open: (k: MoreTarget) => void; wide?: boolean }) {
-  return <TouchableOpacity onPress={() => open(item.key)} activeOpacity={0.8} accessibilityLabel={item.title}
+function Tile({ item, color, open, wide, onPin, pinned }: { item: Item; color: string; open: (k: MoreTarget) => void; wide?: boolean; onPin?: (k: string) => void; pinned?: boolean }) {
+  return <TouchableOpacity onPress={() => open(item.key)} onLongPress={() => onPin?.(item.key)} activeOpacity={0.8} accessibilityLabel={item.title}
     style={{ width: wide ? "100%" : "48%", backgroundColor: C.panel, borderRadius: 20, padding: 14, gap: 8, borderWidth: 1, borderColor: `${color}33`, overflow: "hidden", flexDirection: wide ? "row" : "column", alignItems: wide ? "center" : "flex-start" }}>
     <View style={{ position: "absolute", right: -18, top: -18, width: 70, height: 70, borderRadius: 35, backgroundColor: `${color}1f` }}/>
     <View style={{ width: 42, height: 42, borderRadius: 14, backgroundColor: `${color}26`, alignItems: "center", justifyContent: "center" }}><Text style={{ fontSize: 21 }}>{item.icon}</Text></View>
     <View style={{ flex: wide ? 1 : undefined, gap: 2 }}>
-      <Text style={{ color: C.text, fontWeight: "800", fontSize: 15 }} numberOfLines={1}>{item.title}</Text>
+      <Text style={{ color: C.text, fontWeight: "800", fontSize: 15 }} numberOfLines={1}>{`${pinned ? "📌 " : ""}${item.title}`}</Text>
       <Text style={{ color: C.muted, fontSize: 11.5 }} numberOfLines={2}>{item.hint}</Text></View>
   </TouchableOpacity>;
 }
 
 /** The "More" tab: search box, recently used, then colourful groups. */
-export function ExploreScreen({ open, api, openAny }: { open: (t: MoreTarget) => void; api?: <T = Row>(path: string) => Promise<T>; openAny?: (screen: string) => void }) {
+export function ExploreScreen({ open, api, openAny, pinned = [], onPin, bodyOverview }: { open: (t: MoreTarget) => void; api?: <T = Row>(path: string) => Promise<T>; openAny?: (screen: string) => void;
+  pinned?: string[]; onPin?: (k: string) => void; bodyOverview?: React.ReactNode }) {
   const [q, setQ] = useState("");
+  const [hub, setHub] = useState<Group | null>(null);
+  const pins = pinned.map(k => ALL.find(i => i.key === k)).filter(Boolean) as typeof ALL;
   const [found, setFound] = useState<Row | null>(null);
   useEffect(() => {
     const s = q.trim();
@@ -147,13 +152,24 @@ export function ExploreScreen({ open, api, openAny }: { open: (t: MoreTarget) =>
             <View style={{ width: 58, height: 58, borderRadius: 20, backgroundColor: `${i.color}26`, borderWidth: 1, borderColor: `${i.color}66`, alignItems: "center", justifyContent: "center" }}><Text style={{ fontSize: 26 }}>{i.icon}</Text></View>
             <Text style={{ color: C.text, fontSize: 11, fontWeight: "700", textAlign: "center" }} numberOfLines={1}>{i.title}</Text></TouchableOpacity>)}</ScrollView>
       </View>}
-      {GROUPS.map(g => <View key={g.name} style={{ gap: 10 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <View style={{ width: 6, height: 20, borderRadius: 3, backgroundColor: g.color }}/>
-          <Text style={{ color: C.text, fontWeight: "900", fontSize: 17 }}>{`${g.emoji}  ${g.name}`}</Text>
-          <Text style={{ color: C.muted, fontSize: 12 }}>{g.items.length}</Text></View>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", rowGap: 10, justifyContent: "space-between" }}>{g.items.map(i => <Tile key={i.key} item={i} color={g.color} open={go}/>)}</View>
-      </View>)}
+      {pins.length > 0 && <View style={{ gap: 10 }}>
+        <Text style={{ color: C.text, fontWeight: "900", fontSize: 16 }}>📌 Pinned</Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", rowGap: 10, justifyContent: "space-between" }}>{pins.map(i => <Tile key={i.key} item={i} color={i.color} open={go}/>)}</View></View>}
+      {hub ? <View style={{ gap: 10 }}>
+        <TouchableOpacity onPress={() => setHub(null)}><Text style={{ color: C.green, fontWeight: "800" }}>‹ All hubs</Text></TouchableOpacity>
+        <Text style={{ color: C.text, fontWeight: "900", fontSize: 22 }}>{`${hub.emoji}  ${hub.name}`}</Text><Text style={{ color: C.muted }}>{hub.hint}</Text>
+        {hub.name === "Body" && bodyOverview}
+        <View style={{ flexDirection: "row", flexWrap: "wrap", rowGap: 10, justifyContent: "space-between" }}>{hub.items.map(i => <Tile key={i.key} item={i} color={hub.color} open={go} onPin={onPin} pinned={pinned.includes(i.key)}/>)}</View>
+        <Text style={{ color: C.muted, fontSize: 11 }}>Long-press a screen to pin it to Today and the top of Hubs.</Text>
+      </View> : <View style={{ flexDirection: "row", flexWrap: "wrap", rowGap: 12, justifyContent: "space-between" }}>{GROUPS.map(g =>
+        <TouchableOpacity key={g.name} onPress={() => setHub(g)} activeOpacity={0.85} style={{ width: "48%", minHeight: 132, borderRadius: 24, padding: 16, gap: 6, backgroundColor: C.panel,
+          borderWidth: 1, borderColor: `${g.color}55`, overflow: "hidden" }}>
+          <View style={{ position: "absolute", right: -26, bottom: -26, width: 100, height: 100, borderRadius: 50, backgroundColor: `${g.color}22` }}/>
+          <Text style={{ fontSize: 30 }}>{g.emoji}</Text>
+          <Text style={{ color: C.text, fontWeight: "900", fontSize: 17 }}>{g.name}</Text>
+          <Text style={{ color: C.muted, fontSize: 11.5 }} numberOfLines={2}>{g.hint}</Text>
+          <Text style={{ color: g.color, fontSize: 11, fontWeight: "800" }}>{`${g.items.length} screens ›`}</Text>
+        </TouchableOpacity>)}</View>}
     </>}
   </ScrollView>;
 }
@@ -171,3 +187,32 @@ export function QuickLaunch({ open, onSearch }: { open: (t: MoreTarget) => void;
         <Text style={{ color: C.text, fontSize: 12, fontWeight: "800" }} numberOfLines={1}>{i.title.replace(" (CSE)", "").replace(" & Mi Band", "")}</Text></TouchableOpacity>)}</View>
   </View>;
 }
+
+
+/** The hub a screen belongs to (for the chip bar that links sibling screens). */
+export function hubOf(key: string): Group | null {
+  return GROUPS.find(g => g.items.some(i => i.key === key)) || null;
+}
+
+/** Chips across the top of a screen: the other screens in the same hub, so related screens feel like tabs. */
+export function HubTabs({ current, open }: { current: string; open: (t: MoreTarget) => void }) {
+  const g = hubOf(current);
+  if (!g || g.items.length < 2) return null;
+  return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingHorizontal: 16, paddingVertical: 8 }} style={{ flexGrow: 0 }}>
+    {g.items.map(i => { const on = i.key === current;
+      return <TouchableOpacity key={i.key} onPress={() => { if (!on) { void rememberScreen(i.key); open(i.key); } }}
+        style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 16, backgroundColor: on ? g.color : C.panel2 }}>
+        <Text style={{ fontSize: 13 }}>{i.icon}</Text><Text style={{ color: on ? "#fff" : C.text, fontSize: 12, fontWeight: "800" }}>{i.title.replace(" & Mi Band", "").replace(" (CSE)", "")}</Text></TouchableOpacity>; })}
+  </ScrollView>;
+}
+
+/** Your pinned screens (or a starter set) as big shortcuts. */
+export function PinnedLaunch({ pinned, open }: { pinned: string[]; open: (t: MoreTarget) => void }) {
+  const items = (pinned.length ? pinned : ["Water", "Mindset", "Reels", "Gym"]).map(k => ALL.find(i => i.key === k)).filter(Boolean) as typeof ALL;
+  return <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 10 }}>{items.slice(0, 8).map(i =>
+    <TouchableOpacity key={i.key} onPress={() => { void rememberScreen(i.key); open(i.key); }} style={{ width: "23.5%", alignItems: "center", gap: 4, backgroundColor: C.panel, borderRadius: 18, paddingVertical: 10 }}>
+      <View style={{ width: 42, height: 42, borderRadius: 14, backgroundColor: `${i.color}26`, alignItems: "center", justifyContent: "center" }}><Text style={{ fontSize: 21 }}>{i.icon}</Text></View>
+      <Text style={{ color: C.text, fontSize: 10.5, fontWeight: "800" }} numberOfLines={1}>{i.title.split(" ")[0]}</Text></TouchableOpacity>)}</View>;
+}
+
+export const ALL_SCREENS = ALL;

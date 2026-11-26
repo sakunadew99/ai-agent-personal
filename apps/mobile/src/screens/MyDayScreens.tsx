@@ -18,10 +18,10 @@ const pretty = (day: string) => new Date(`${day}T12:00:00`).toLocaleDateString([
 const minutesOf = (t?: string | null) => (t ? Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)) : null);
 
 /** Day / Week / Month switch shown at the top of the Plan tab. */
-export type PlanView = "day" | "week" | "month" | "board";
+export type PlanView = "day" | "week" | "month" | "board" | "life";
 export function PlanSwitch({ value, onChange }: { value: PlanView; onChange: (v: PlanView) => void }) {
-  return <View style={s.switch}>{(["day", "week", "month", "board"] as const).map(v => <TouchableOpacity key={v} style={[s.switchTab, value === v && s.switchOn]} onPress={() => onChange(v)}>
-    <Text style={[s.switchText, value === v && s.switchTextOn]}>{v === "day" ? "☀️ Day" : v === "week" ? "🗓 Week" : v === "month" ? "📅 Month" : "▦ Board"}</Text></TouchableOpacity>)}</View>;
+  return <View style={s.switch}>{(["day", "week", "board", "life", "month"] as const).map(v => <TouchableOpacity key={v} style={[s.switchTab, value === v && s.switchOn]} onPress={() => onChange(v)}>
+    <Text style={[s.switchText, value === v && s.switchTextOn]}>{v === "day" ? "☀️ Day" : v === "week" ? "🗓 Week" : v === "month" ? "📅 Month" : v === "life" ? "🗂 Life" : "▦ Tasks"}</Text></TouchableOpacity>)}</View>;
 }
 
 // =====================================================================================================================

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Text, TouchableOpacity, View } from "react-native";
+import { Animated, Switch, Text, TouchableOpacity, View } from "react-native";
 import type { ApiRecord as Row } from "../api";
 import { Btn, C, Card, Empty, Kicker, Muted, Row as Line, Screen } from "../ui";
 import { GapCards } from "./SleepDayScreens";
@@ -33,63 +33,94 @@ function Pop({ show }: { show: number }) {
   return <Animated.Text pointerEvents="none" style={{ position: "absolute", alignSelf: "center", top: 80, fontSize: 64, opacity: v, transform: [{ scale: v }] }}>🎉</Animated.Text>;
 }
 
-/** Today: the whole day on one screen. */
-export function TodayScreen({ api, onError, onNotice, onOpen }: { api: Api; onError: (m: string) => void; onNotice: (m: string) => void; onOpen: (t: string) => void }) {
+/** Today (the Home tab): brief, ring, hours to fill, sleep & water, affirmation, top task, habits, stacking, week, more. Cards can be reordered or hidden. */
+export function TodayScreen({ api, onError, onNotice, onOpen, extra, pinnedBar }: { api: Api; onError: (m: string) => void; onNotice: (m: string) => void; onOpen: (t: string) => void;
+  extra?: React.ReactNode; pinnedBar?: React.ReactNode }) {
   const [t, setT] = useState<Row | null>(null); const [rv, setRv] = useState<Row | null>(null); const [cons, setCons] = useState<Row | null>(null); const [pop, setPop] = useState(0);
+  const [prefs, setPrefs] = useState<Row | null>(null); const [brief, setBrief] = useState<Row | null>(null); const [edit, setEdit] = useState(false); const [more, setMore] = useState(false);
+  const hour = new Date().getHours();
+  const briefKind = hour < 12 ? "morning" : hour >= 19 ? "night" : null;
   const load = useCallback(() => {
     api<Row>("/today").then(setT).catch(e => onError(msg(e)));
     api<Row>("/review/week").then(setRv).catch(() => undefined);
     api<Row>("/consistency").then(setCons).catch(() => undefined);
-  }, [api, onError]);
+    api<Row>("/settings").then(r => setPrefs(r.prefs)).catch(() => undefined);
+    if (briefKind) api<Row>(`/brief/${briefKind}`).then(setBrief).catch(() => undefined);
+  }, [api, onError, briefKind]);
   useEffect(() => { load(); }, [load]);
   const habit = (h: Row) => { if (h.done_today) return; void api(`/habits/${h.id}/logs`, "POST", {}).then(() => { setPop(p => p + 1); onNotice(`${h.name} ✓`); load(); }).catch(e => onError(msg(e))); };
   const water = () => void api("/water", "POST", { ml: 250 }).then(() => { onNotice("💧 +250 ml"); load(); }).catch(e => onError(msg(e)));
+  const savePrefs = (patch: Row) => void api<Row>("/settings/prefs", "PATCH", patch).then(setPrefs).catch(e => onError(msg(e)));
   if (!t) return <Screen><Empty>Building your day…</Empty></Screen>;
   const totals = t.totals as Record<string, number>;
   const legend = Object.entries(totals).filter(([k, v]) => v > 0 && k !== "future").sort((a, b) => b[1] - a[1]);
-  const hour = new Date().getHours();
-  return <Screen onRefresh={load}>
-    <Text style={{ color: C.text, fontSize: 24, fontWeight: "900" }}>{`${hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"} 👋`}</Text>
-    <Card style={{ paddingVertical: 16 }}>
+  const order: string[] = prefs?.cards || ["brief", "ring", "gaps", "sleep_water", "affirmation", "top_task", "habits", "stacking", "week", "more"];
+  const hidden: string[] = prefs?.hidden_cards || [];
+  const CARD_NAME: Record<string, string> = { brief: "Morning / night brief", ring: "24-hour ring", gaps: "Hours to fill in", sleep_water: "Sleep & water", affirmation: "Affirmation",
+    top_task: "Most important task", habits: "Habits", stacking: "Habit stacking", week: "This week", more: "More for today" };
+  const move = (k: string, d: number) => { const o = [...order]; const i = o.indexOf(k); const j = i + d; if (j < 0 || j >= o.length) return; [o[i], o[j]] = [o[j], o[i]]; savePrefs({ cards: o }); };
+  const toggle = (k: string) => savePrefs({ hidden_cards: hidden.includes(k) ? hidden.filter(x => x !== k) : [...hidden, k] });
+  const cards: Record<string, React.ReactNode> = {
+    brief: brief && <Card style={{ gap: 6, borderColor: briefKind === "morning" ? "#ffb74d88" : "#7c4dff88" }}>
+      <Text style={{ color: C.text, fontWeight: "900", fontSize: 17 }}>{brief.title}</Text>
+      {!!brief.line && <Muted small>{brief.line}</Muted>}
+      {(brief.steps as string[]).map((x, i) => <Text key={i} style={{ color: C.text, lineHeight: 21 }}>{`${i + 1}. ${x}`}</Text>)}
+      {briefKind === "night" && <Btn kind="outline" title="🙏 Write gratitude" onPress={() => onOpen("Mindset")}/>}
+    </Card>,
+    ring: <Card style={{ paddingVertical: 16 }}>
       <DayRing ring={t.ring as Row[]} center={<View style={{ alignItems: "center" }}>
         <Text style={{ color: C.green, fontSize: 26, fontWeight: "900" }}>{hm(Number(t.productive_minutes))}</Text><Muted small>productive</Muted>
         <Text style={{ color: C.red, fontWeight: "800", marginTop: 6 }}>{hm(Number(t.wasted_minutes))}</Text><Muted small>time waste</Muted></View>}/>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, justifyContent: "center", marginTop: 8 }}>{legend.map(([k, v]) =>
         <View key={k} style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, backgroundColor: C.panel2 }}>
           <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: (t.colors as Row)[k] || "#455a64" }}/><Text style={{ color: C.text, fontSize: 11 }}>{`${NAME[k] || k} ${hm(v)}`}</Text></View>)}</View>
-    </Card>
-    <GapCards api={api} day={iso(new Date())} onError={onError} onNotice={onNotice} onSaved={load}/>
-    <View style={{ flexDirection: "row", gap: 10 }}>
-      <TouchableOpacity style={{ flex: 1 }} onPress={() => onOpen("Sleep")}><Card style={{ gap: 2, borderColor: "#7c4dff66" }}><Text style={{ fontSize: 22 }}>😴</Text>
+    </Card>,
+    gaps: <GapCards api={api} day={iso(new Date())} onError={onError} onNotice={onNotice} onSaved={load}/>,
+    sleep_water: <View style={{ flexDirection: "row", gap: 10 }}>
+      <TouchableOpacity style={{ flex: 1 }} onPress={() => onOpen("Sleep")}><Card style={{ gap: 2 }}><Text style={{ fontSize: 22 }}>😴</Text>
         <Text style={{ color: C.text, fontWeight: "900", fontSize: 18 }}>{t.sleep ? `${t.sleep.hours} h` : "—"}</Text>
         <Muted small>{t.sleep ? `${t.sleep.bed} → ${t.sleep.wake}` : "No sleep data yet"}</Muted></Card></TouchableOpacity>
-      <TouchableOpacity style={{ flex: 1 }} onPress={() => onOpen("Water")}><Card style={{ gap: 2, borderColor: "#4fc3f766" }}>
+      <TouchableOpacity style={{ flex: 1 }} onPress={() => onOpen("Water")}><Card style={{ gap: 2 }}>
         <Line><Text style={{ fontSize: 22 }}>💧</Text><View style={{ flex: 1 }}/><TouchableOpacity onPress={water}><Text style={{ color: "#4fc3f7", fontWeight: "900" }}>+250</Text></TouchableOpacity></Line>
         <Text style={{ color: C.text, fontWeight: "900", fontSize: 18 }}>{`${t.water.percent}%`}</Text>
         <View style={{ height: 6, borderRadius: 3, backgroundColor: C.line }}><View style={{ width: `${Math.min(100, Number(t.water.percent))}%`, height: 6, borderRadius: 3, backgroundColor: "#4fc3f7" }}/></View>
         <Muted small>{`${t.water.left_ml} ml to go`}</Muted></Card></TouchableOpacity>
-    </View>
-    {t.affirmation && <TouchableOpacity onPress={() => onOpen("Mindset")}><View style={{ borderRadius: 20, padding: 16, backgroundColor: "#7c4dff" }}>
+    </View>,
+    affirmation: t.affirmation && <TouchableOpacity onPress={() => onOpen("Mindset")}><View style={{ borderRadius: 20, padding: 16, backgroundColor: "#7c4dff" }}>
       <Text style={{ color: "#ffffffcc", fontSize: 11, fontWeight: "800" }}>{t.affirm_read ? "✨ AFFIRMATION · READ TODAY ✓" : "✨ TODAY'S AFFIRMATION · TAP TO READ"}</Text>
-      <Text style={{ color: "#fff", fontSize: 17, fontWeight: "900", lineHeight: 24, marginTop: 4 }}>{t.affirmation.text}</Text></View></TouchableOpacity>}
-    <Card style={{ gap: 4 }}><Kicker>🎯 MOST IMPORTANT NOW</Kicker><Text style={{ color: C.text, fontWeight: "800" }}>{t.top_task ? t.top_task.title : "No open tasks"}</Text>
+      <Text style={{ color: "#fff", fontSize: 17, fontWeight: "900", lineHeight: 24, marginTop: 4 }}>{t.affirmation.text}</Text></View></TouchableOpacity>,
+    top_task: <Card style={{ gap: 4 }}><Kicker>🎯 MOST IMPORTANT NOW</Kicker><Text style={{ color: C.text, fontWeight: "800" }}>{t.top_task ? t.top_task.title : "No open tasks"}</Text>
       <Muted small>{t.top_task_answer}</Muted>
-      {t.top_task && <Btn kind="outline" title="✓ Done" onPress={() => void api(`/tasks/${t.top_task.id}/complete`, "PATCH").then(() => { setPop(p => p + 1); load(); }).catch(e => onError(msg(e)))}/>}</Card>
-    {(t.habits as Row[]).length > 0 && <Card style={{ gap: 8 }}><Line><Kicker>HABITS TODAY</Kicker><View style={{ flex: 1 }}/>
+      {t.top_task && <Btn kind="outline" title="✓ Done" onPress={() => void api(`/tasks/${t.top_task.id}/complete`, "PATCH").then(() => { setPop(p => p + 1); load(); }).catch(e => onError(msg(e)))}/>}</Card>,
+    habits: (t.habits as Row[]).length > 0 && <Card style={{ gap: 8 }}><Line><Kicker>HABITS TODAY</Kicker><View style={{ flex: 1 }}/>
       <TouchableOpacity onPress={() => onOpen("Board")}><Text style={{ color: C.green, fontSize: 12 }}>Board →</Text></TouchableOpacity></Line>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>{(t.habits as Row[]).map(h => <TouchableOpacity key={h.id} onPress={() => habit(h)}
         style={{ paddingHorizontal: 12, paddingVertical: 10, borderRadius: 16, borderWidth: 1.5, minWidth: "46%", flexGrow: 1,
           borderColor: h.done_today ? C.green : h.status === "must" || h.status === "restart" ? C.amber : C.line, backgroundColor: h.done_today ? C.greenSoft : "transparent" }}>
         <Text style={{ color: C.text, fontWeight: "800" }}>{`${h.done_today ? "✅" : h.icon} ${h.name}`}</Text>
         <Muted small>{h.done_today ? `🔥 ${h.streak} · strength ${h.strength}` : h.status === "must" ? `Never miss twice · tiny: ${h.tiny}` : h.status === "restart" ? `Restart today · ${h.tiny}` : `strength ${h.strength}`}</Muted>
-      </TouchableOpacity>)}</View></Card>}
-    {cons && (cons.stacking as Row[]).length > 0 && <Card style={{ gap: 4 }}><Kicker>🔗 HABIT STACKING IDEAS</Kicker>{(cons.stacking as Row[]).map(s => <Text key={s.text} style={{ color: C.text }}>{`• ${s.text}`}</Text>)}</Card>}
-    {rv && <Card style={{ gap: 6, borderColor: "#5aa8ff66" }}>
+      </TouchableOpacity>)}</View></Card>,
+    stacking: cons && (cons.stacking as Row[]).length > 0 && <Card style={{ gap: 4 }}><Kicker>🔗 HABIT STACKING IDEAS</Kicker>{(cons.stacking as Row[]).map(s => <Text key={s.text} style={{ color: C.text }}>{`• ${s.text}`}</Text>)}</Card>,
+    week: rv && <Card style={{ gap: 6 }}>
       <Line><Kicker>📅 THIS WEEK</Kicker><View style={{ flex: 1 }}/><Text style={{ color: C.green, fontWeight: "900", fontSize: 18 }}>{`${rv.score}`}</Text></Line>
       <Muted small>{`Productive ${hm(Number(rv.productive_minutes))} · waste ${hm(Number(rv.wasted_minutes))} · sleep ${rv.sleep_avg_minutes ? `${(Number(rv.sleep_avg_minutes) / 60).toFixed(1)} h avg` : "—"} · water goal ${rv.water_days_met}/7 days · ${rv.tasks_done} tasks done`}</Muted>
       {(rv.wins as string[]).map(w => <Text key={w} style={{ color: C.green }}>{`✓ ${w}`}</Text>)}
       {(rv.fixes as string[]).map(w => <Text key={w} style={{ color: C.amber }}>{`→ ${w}`}</Text>)}
-      <Text style={{ color: C.text, fontWeight: "800" }}>{`One change for next week: ${rv.one_change}`}</Text></Card>}
+      <Text style={{ color: C.text, fontWeight: "800" }}>{`One change for next week: ${rv.one_change}`}</Text></Card>,
+    more: extra ? <View style={{ gap: 10 }}><TouchableOpacity onPress={() => setMore(m => !m)}><Card style={{ flexDirection: "row", alignItems: "center" }}>
+      <Text style={{ color: C.text, fontWeight: "900", flex: 1 }}>🧰 More for today: rituals, coach, compass</Text><Text style={{ color: C.muted }}>{more ? "▴" : "▾"}</Text></Card></TouchableOpacity>
+      {more && extra}</View> : null,
+  };
+  return <Screen onRefresh={load}>
+    <Line><Text style={{ color: C.text, fontSize: 24, fontWeight: "900", flex: 1 }}>{`${hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"} 👋`}</Text>
+      <TouchableOpacity onPress={() => setEdit(e => !e)}><Text style={{ color: C.green, fontWeight: "800" }}>{edit ? "Done" : "✏️ Customize"}</Text></TouchableOpacity></Line>
+    {pinnedBar}
+    {edit ? <Card style={{ gap: 8 }}><Kicker>ARRANGE YOUR TODAY</Kicker>{order.map((k, i) => <Line key={k}>
+      <Switch value={!hidden.includes(k)} onValueChange={() => toggle(k)}/><Text style={{ color: hidden.includes(k) ? C.muted : C.text, flex: 1 }}>{CARD_NAME[k] || k}</Text>
+      <TouchableOpacity disabled={i === 0} onPress={() => move(k, -1)}><Text style={{ color: i === 0 ? C.line : C.text, fontSize: 18, paddingHorizontal: 8 }}>▲</Text></TouchableOpacity>
+      <TouchableOpacity disabled={i === order.length - 1} onPress={() => move(k, 1)}><Text style={{ color: i === order.length - 1 ? C.line : C.text, fontSize: 18, paddingHorizontal: 8 }}>▼</Text></TouchableOpacity>
+    </Line>)}<Muted small>Pin screens from Settings & profile or by long-pressing them in Hubs.</Muted></Card>
+      : order.filter(k => !hidden.includes(k)).map(k => cards[k] ? <View key={k}>{cards[k]}</View> : null)}
     <Pop show={pop}/>
   </Screen>;
 }
@@ -140,4 +171,32 @@ export function BoardScreen({ api, onError, onNotice, onOpen }: { api: Api; onEr
       : <Empty>No active goals yet.</Empty>}</>}
     <Pop show={pop}/>
   </Screen>;
+}
+
+
+/** This week at a glance (same numbers as Today): score, productive vs waste, sleep, water, wins, fixes, one change. */
+export function WeekReviewCard({ api }: { api: Api }) {
+  const [rv, setRv] = useState<Row | null>(null);
+  useEffect(() => { api<Row>("/review/week").then(setRv).catch(() => undefined); }, [api]);
+  if (!rv) return null;
+  return <Card style={{ gap: 6 }} accent>
+    <Line><Kicker>📅 YOUR WEEK</Kicker><View style={{ flex: 1 }}/><Text style={{ color: C.green, fontWeight: "900", fontSize: 22 }}>{`${rv.score}`}</Text></Line>
+    <Muted small>{`Productive ${hm(Number(rv.productive_minutes))} · waste ${hm(Number(rv.wasted_minutes))} · sleep ${rv.sleep_avg_minutes ? `${(Number(rv.sleep_avg_minutes) / 60).toFixed(1)} h` : "—"} · water ${rv.water_days_met}/7 · ${rv.tasks_done} tasks · habits ${rv.habits_avg_strength ?? "—"}/100`}</Muted>
+    {(rv.wins as string[]).map(w => <Text key={w} style={{ color: C.green }}>{`✓ ${w}`}</Text>)}
+    {(rv.fixes as string[]).map(w => <Text key={w} style={{ color: C.amber }}>{`→ ${w}`}</Text>)}
+    <Text style={{ color: C.text, fontWeight: "800" }}>{`One change: ${rv.one_change}`}</Text>
+  </Card>;
+}
+
+/** Body hub overview: last night's sleep, water today, latest weight and this week's habit strength. */
+export function BodyOverview({ api, onOpen }: { api: Api; onOpen: (t: string) => void }) {
+  const [t, setT] = useState<Row | null>(null); const [b, setB] = useState<Row | null>(null);
+  useEffect(() => { api<Row>("/today").then(setT).catch(() => undefined); api<Row>("/body").then(setB).catch(() => undefined); }, [api]);
+  const w = b?.changes?.weight_kg;
+  const tiles: [string, string, string, string][] = [
+    ["😴", t?.sleep ? `${t.sleep.hours} h` : "—", "sleep", "Sleep"], ["💧", t ? `${t.water.percent}%` : "—", "water", "Water"],
+    ["⚖️", w ? `${w.latest} kg` : "—", "weight", "Body"], ["🏃", t ? `${Math.round(Number((t.totals as Row)?.exercise || 0))} min` : "—", "exercise today", "Gym"]];
+  return <View style={{ flexDirection: "row", gap: 8 }}>{tiles.map(([icon, val, label, target]) =>
+    <TouchableOpacity key={label} onPress={() => onOpen(target)} style={{ flex: 1, backgroundColor: C.panel, borderRadius: 16, padding: 10, alignItems: "center", gap: 2 }}>
+      <Text style={{ fontSize: 20 }}>{icon}</Text><Text style={{ color: C.text, fontWeight: "900" }}>{val}</Text><Text style={{ color: C.muted, fontSize: 10 }}>{label}</Text></TouchableOpacity>)}</View>;
 }

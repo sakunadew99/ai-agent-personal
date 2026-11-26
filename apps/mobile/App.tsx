@@ -8,7 +8,7 @@ import { BrainCard } from "./src/screens/BrainCard";
 import { LifeScreen } from "./src/screens/LifeScreen";
 import { ApprovalsScreen, FinanceScreen, MemoryScreen } from "./src/screens/MoneyMemoryScreens";
 import { HealthScreen, ReviewScreen, type MoreTarget } from "./src/screens/HealthReviewScreens";
-import { ExploreScreen, GROUPS, QuickLaunch, rememberScreen } from "./src/screens/Explore";
+import { ExploreScreen, GROUPS, HubTabs, PinnedLaunch, QuickLaunch, rememberScreen } from "./src/screens/Explore";
 import { WeeklyHealthCard } from "./src/screens/WeeklyHealthCard";
 import { notifyStockAlerts, syncMedicineReminders } from "./src/notify";
 import { CrashGuard, installCrashRecorder } from "./src/crash";
@@ -59,8 +59,10 @@ import { ReelsScreen } from "./src/screens/ReelsScreen";
 import { HubScreen } from "./src/screens/HubScreen";
 import { SleepScreen, uploadSleep } from "./src/screens/SleepDayScreens";
 import { MindsetScreen, WaterScreen } from "./src/screens/MindsetScreens";
-import { BoardScreen, TodayScreen } from "./src/screens/TodayBoardScreens";
+import { BoardScreen, BodyOverview, TodayScreen } from "./src/screens/TodayBoardScreens";
 import { AppearanceScreen } from "./src/screens/AppearanceScreen";
+import { Onboarding, SettingsScreen } from "./src/screens/SettingsScreen";
+import { applyNotificationPrefs, notifyApprovals, savedNotifyPrefs } from "./src/notify";
 import { subscribe as onThemeChange } from "./src/theme";
 import { DayTrackerScreen, GymScreen, LanguageScreen, ProgressScreen, uploadUsage } from "./src/screens/LifeOs4Screens";
 import { BrowserHost } from "./src/browser";
@@ -75,7 +77,7 @@ import { Hero, Ring, StatTile, TileRow, WeekDots } from "./src/charts";
 import { C } from "./src/ui";
 
 type Tab = "Home" | "Plan" | "Capture" | "Focus" | "More";
-const SUB_TITLES: Record<MoreTarget, string> = { Appearance: "Appearance", Today: "Today", Board: "Life board", Water: "Water", Mindset: "Mindset studio", Sleep: "Sleep", Hub: "Learning hub", Reels: "Learning reels", LearnFeed: "Learning feed", Body: "Body measurements", Sports: "Martial arts & swimming", English: "English check", Freelance: "Freelancing kit", Ask: "Ask Sakuna", Discipline: "Self-control", Notes: "Notes", Kegel: "Pelvic floor", Reading: "Reading", Resources: "Learn anything", Content: "Content studio", Travel: "Travel guide", Fitness: "Fitness guide", Wealth: "$1M journey & ideas", Roleplay: "Role-play coach", Dreams: "Dreams & goals", Skin: "Skin & glow", Meds: "Medicines", Skills: "Skills & trainers", Speak: "Speaking coach", Schedule: "My schedule", Videos: "My videos", Day: "Day tracker", Gym: "Gym", Brain: "Brain gym", Assistant: "Assistant", Journal: "Journal", Invest: "Invest (CSE)", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Profile" };
+const SUB_TITLES: Record<MoreTarget, string> = { Appearance: "Appearance", Today: "Today", Board: "Life board", Water: "Water", Mindset: "Mindset studio", Sleep: "Sleep", Hub: "Learning hub", Reels: "Learning reels", LearnFeed: "Learning feed", Body: "Body measurements", Sports: "Martial arts & swimming", English: "English check", Freelance: "Freelancing kit", Ask: "Ask Sakuna", Discipline: "Self-control", Notes: "Notes", Kegel: "Pelvic floor", Reading: "Reading", Resources: "Learn anything", Content: "Content studio", Travel: "Travel guide", Fitness: "Fitness guide", Wealth: "$1M journey & ideas", Roleplay: "Role-play coach", Dreams: "Dreams & goals", Skin: "Skin & glow", Meds: "Medicines", Skills: "Skills & trainers", Speak: "Speaking coach", Schedule: "My schedule", Videos: "My videos", Day: "Day tracker", Gym: "Gym", Brain: "Brain gym", Assistant: "Assistant", Journal: "Journal", Invest: "Invest (CSE)", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Settings & profile" };
 
 export default function Root() {
   return <CrashGuard><App/></CrashGuard>;
@@ -92,6 +94,9 @@ function App() {
   const [user, setUser] = useState<Row>({});
   const [tab, setTab] = useState<Tab>("Home");
   const [themeV, setThemeV] = useState(0);
+  const [prefs, setPrefs] = useState<Row | null>(null);
+  const [onboard, setOnboard] = useState(false);
+  const prefsRef = useRef<Row | null>(null); prefsRef.current = prefs;
   useEffect(() => onThemeChange(() => setThemeV(v => v + 1)), []);
   const [planView, setPlanView] = useState<PlanView>("day");
   const [dashboard, setDashboard] = useState<Row>(() => peek("/dashboard") || {});
@@ -138,7 +143,8 @@ function App() {
   // Mi Band data every time the app comes back to the screen (at most every 30 minutes), not only on the Health screen.
   useEffect(() => {
     if (!token) return;
-    const sub = AppState.addEventListener("change", st => { if (st === "active") { void autoSyncHealth(api); void notifyStockAlerts(api); void uploadSleep(api); } });
+    const sub = AppState.addEventListener("change", st => { if (st === "active") { void autoSyncHealth(api); void notifyStockAlerts(api); void uploadSleep(api);
+      if (prefsRef.current?.notifications?.approvals?.on !== false) void notifyApprovals(api); } });
     return () => sub.remove();
   }, [token, api]);
 
@@ -155,6 +161,19 @@ function App() {
             .then(() => showNotice(`Logged ${String(h).padStart(2, "0")}:00 as ${action}`)).catch(() => undefined);
         } else { setCheckinHour(h); setTab("More"); setSub("Day"); }
       } else if (data.kind === "report") { setCheckinHour(null); setTab("More"); setSub("Day"); void uploadUsage(api); }
+      else if (data.kind === "task") {
+        const id = String(data.taskId), a = resp.actionIdentifier;
+        if (a === "task_done") void api(`/tasks/${id}/complete`, "PATCH").then(() => showNotice("✓ Task done")).catch(() => undefined);
+        else if (a === "task_snooze") void api(`/tasks/${id}`, "PATCH", { due_at: new Date(Date.now() + 3600_000).toISOString() }).then(() => showNotice("⏰ Moved 1 hour later")).catch(() => undefined);
+        else { setTab("Plan"); setPlanView("life"); }
+      } else if (data.kind === "habit") {
+        if (resp.actionIdentifier === "habit_done") void api(`/habits/${String(data.habitId)}/logs`, "POST", {}).then(() => showNotice("✓ Habit done")).catch(() => undefined);
+        else { setTab("Home"); setSub(null); }
+      } else if (data.kind === "approval") {
+        const a = resp.actionIdentifier;
+        if (a === "approve" || a === "reject") void api(`/approvals/${String(data.approvalId)}/${a}`, "POST").then(() => showNotice(a === "approve" ? "✓ Approved and done" : "✕ Rejected")).catch(() => undefined);
+        else { setTab("More"); setSub("Approvals"); }
+      } else if (data.kind === "brief") { setTab("Home"); setSub(null); }
       else if (data.kind === "water") {
         const ml = resp.actionIdentifier === "water500" ? 500 : resp.actionIdentifier === "water250" ? 250 : 0;
         if (ml) void api("/water", "POST", { ml }).then(() => showNotice(`💧 +${ml} ml logged`)).catch(() => undefined); else { setTab("More"); setSub("Water"); }
@@ -167,7 +186,12 @@ function App() {
   useEffect(() => {
     if (!token) return;
     void loadQueue().then(() => flushQueue(token)).then(n => { if (n) showNotice(`Sent ${n} item${n === 1 ? "" : "s"} saved while offline`); });
-    void syncReminders(api); void syncHabitReminders(api); void autoSyncHealth(api); void notifyStockAlerts(api); void syncMedicineReminders(api);
+    void autoSyncHealth(api); void notifyStockAlerts(api);
+    void api<Row>("/settings").then(r => {
+      setPrefs(r.prefs); if (!r.prefs.onboarding_done) setOnboard(true);
+      void applyNotificationPrefs(api, r.prefs.notifications);
+      if (r.prefs.notifications?.approvals?.on !== false) void notifyApprovals(api);
+    }).catch(() => void savedNotifyPrefs().then(async n => { if (n) await applyNotificationPrefs(api, n); else await Promise.all([syncReminders(api), syncHabitReminders(api), syncMedicineReminders(api)]); }));
     void uploadUsage(api); void uploadUsage(api, new Date(Date.now() - 86400000));   // phone screen time for today and yesterday's report
     void uploadSleep(api);                                                            // last night's sleep from phone use
   }, [token, api, showNotice]);
@@ -238,14 +262,16 @@ function App() {
     onSignInAgain={() => { void clearSession(); setBootProblem(""); setBooting(false); }}/>;
   if (!token && !warm) return <LoginScreen onSignedIn={onSignedIn} initialError={authNote}/>;
 
-  return <LockGate><SafeAreaView key={themeV} style={[styles.safe, { backgroundColor: C.bg }]}><StatusBar barStyle={C.dark ? "light-content" : "dark-content"}/><KeyboardAvoidingView behavior="padding" style={styles.app}>
+  return <LockGate>{onboard && <Onboarding api={api} onDone={() => { setOnboard(false); void api<Row>("/settings").then(r => setPrefs(r.prefs)).catch(() => undefined); }}/>}<SafeAreaView key={themeV} style={[styles.safe, { backgroundColor: C.bg }]}><StatusBar barStyle={C.dark ? "light-content" : "dark-content"}/><KeyboardAvoidingView behavior="padding" style={styles.app}>
     <View style={styles.topbar}>{tab === "More" && sub
       ? <TouchableOpacity onPress={() => setSub(null)}><Text style={styles.kicker}>‹ ALL APPS</Text><Text style={styles.topTitle}>{SUB_TITLES[sub]}</Text></TouchableOpacity>
       : <View><Text style={styles.kicker}>SAKUNA AI</Text><Text style={styles.topTitle}>{tab === "Home" ? "Your day, in focus." : tab === "More" ? "All apps" : tab}</Text></View>}
       {!token && <Text style={{ color: C.muted, fontSize: 11 }}>connecting…</Text>}{!(tab === "More" && sub) && <TouchableOpacity onPress={() => void (token ? loadTab(tab) : restore())}><View style={styles.refreshBtn}><Text style={styles.refresh}>↻</Text></View></TouchableOpacity>}</View>
     {!!error && <Text style={styles.errorBox}>{error}</Text>}{!!notice && <TouchableOpacity onPress={() => setNotice("")}><Text style={styles.notice}>{notice}  ×</Text></TouchableOpacity>}
     <View style={[styles.screen, tab === "More" && sub === "Assistant" && keyboard === 0 && { marginBottom: 84 }]}>
-      {tab === "Home" && <HomeScreen name={String(user.full_name || "").split(" ")[0]} life={life} dashboard={dashboard} finance={finance} health={health} onOpen={openTarget} onComplete={completeTask} onOpenPlan={() => setTab("Plan")}
+      {tab === "Home" && <TodayScreen api={api} onError={showError} onNotice={showNotice} onOpen={t => openTarget(t)}
+        pinnedBar={<PinnedLaunch pinned={(prefs?.pinned as string[]) || []} open={t => openTarget(t)}/>}
+        extra={<HomeScreen name={String(user.full_name || "").split(" ")[0]} life={life} dashboard={dashboard} finance={finance} health={health} onOpen={openTarget} onComplete={completeTask} onOpenPlan={() => setTab("Plan")}
         quick={<QuickLaunch open={openTarget} onSearch={() => { setTab("More"); setSub(null); }}/>}
         top={<><RitualCard api={api} onError={showError} onNotice={showNotice}/><CompanionCard api={api} onOpen={openTarget}/><NudgeBanner api={api} onOpen={openTarget}/><TodayPlanCard api={api} onOpen={openTarget}/>
         <NowRoutineCard api={api} onOpen={() => { setPlanView("day"); setTab("Plan"); }}/><WeeklyHealthCard api={api} onOpen={() => openTarget("Health")}/></>}
@@ -253,12 +279,13 @@ function App() {
           { key: "team", label: "🤖 AI team", node: <TeamTodayCard api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/> },
           { key: "coach", label: "💬 Coach", node: <CoachCardMobile api={api} onError={showError}/> },
           { key: "compass", label: "🧭 Compass", node: <LifeCompass api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/> },
-          { key: "brain", label: "🧠 Brain", node: <BrainCard api={api}/> }]}/>}/>}
+          { key: "brain", label: "🧠 Brain", node: <BrainCard api={api}/> }]}/>}/>}/>}
       {tab === "Plan" && planView === "day" && <PlanScreen plan={plan} busy={busy} generate={generatePlan}
         top={<><PlanSwitch value={planView} onChange={setPlanView}/><TodayRoutines api={api} onError={showError} onNotice={showNotice}/><Text style={styles.sectionTitle}>Time plan</Text></>}
         extra={<TimeCard api={api}/>}/>}
       {tab === "Plan" && planView === "week" && <KbScroll contentContainerStyle={styles.scroll}><PlanSwitch value={planView} onChange={setPlanView}/><WeekPlan api={api} onError={showError} onNotice={showNotice}/></KbScroll>}
       {tab === "Plan" && planView === "board" && <KbScroll contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled"><PlanSwitch value={planView} onChange={setPlanView}/><PlanBoard api={api} onError={showError} onNotice={showNotice}/></KbScroll>}
+      {tab === "Plan" && planView === "life" && <BoardScreen api={api} onError={showError} onNotice={showNotice} onOpen={t => openTarget(t)}/>}
       {tab === "Plan" && planView === "month" && <KbScroll contentContainerStyle={styles.scroll}><PlanSwitch value={planView} onChange={setPlanView}/><MonthRoutines api={api} onError={showError}/><Text style={styles.sectionTitle}>Tasks and deadlines</Text><MonthAgenda api={api}/></KbScroll>}
       {tab === "Capture" && <InboxScreen api={api} onError={showError} onNotice={showNotice} top={<CommandCard api={api} onError={showError}/>}/>}
       {tab === "Focus" && <KbScroll contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
@@ -266,7 +293,11 @@ function App() {
         <View style={{ height: 14 }}/><ShieldPanel/>
         <Text style={styles.disclaimer}>The focus timer runs from the session's end time, so it keeps going if you switch tabs or close Sakuna; a phone alarm rings at the end. It is not an emergency or safety control.</Text>
       </KbScroll>}
-      {tab === "More" && !sub && <ExploreScreen api={api} openAny={openTarget} open={target => { setError(""); setNotice(""); setSub(target); }}/>}
+      {tab === "More" && !sub && <ExploreScreen api={api} openAny={openTarget} pinned={(prefs?.pinned as string[]) || []} open={target => { setError(""); setNotice(""); setSub(target); }}
+        bodyOverview={<BodyOverview api={api} onOpen={t => openTarget(t)}/>}
+        onPin={k => { const cur: string[] = (prefs?.pinned as string[]) || []; const next = cur.includes(k) ? cur.filter(x => x !== k) : [...cur, k].slice(-8);
+          void api<Row>("/settings/prefs", "PATCH", { pinned: next }).then(r => { setPrefs(r); showNotice(cur.includes(k) ? "Unpinned" : "📌 Pinned to Today"); }).catch(e => showError(e instanceof Error ? e.message : "Could not pin")); }}/>}
+      {tab === "More" && sub && sub !== "Reels" && <HubTabs current={sub} open={t => setSub(t)}/>}
       {tab === "More" && sub === "Assistant" && <ChatScreen api={api}/>}
       {tab === "More" && sub === "Life" && <LifeScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && (sub === "Learning" || sub === "Exams" || sub === "Speak") && <Switcher key={sub} initial={sub === "Exams" ? "exams" : sub === "Speak" ? "speak" : "lang"} options={["lang", "say", "study", "speak", "exams", "radar", "progress"] as const} labels={{ lang: "🗣 Lang", say: "🎯 Say it", study: "🎓 Cards", speak: "🎙 Speak", exams: "📝 Exams", radar: "📡 Radar", progress: "📈 Track" }} render={v => v === "say" ? <DrillScreen api={api} onError={showError}/> : v === "exams" ? <ExamScreen api={api} onError={showError} onNotice={showNotice}/> : v === "speak" ? <SpeakingScreen api={api} upload={(path, file, fields) => apiUpload<Row>(path, token, file, fields)} onError={showError} onNotice={showNotice}/> : v === "radar" ? <RadarScreen api={api} onError={showError} onNotice={showNotice}/> : v === "lang" ? <LanguageScreen api={api} onError={showError} onNotice={showNotice}/> : v === "progress" ? <ProgressScreen api={api} onError={showError} onNotice={showNotice}/> : <LearningScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
@@ -316,7 +347,7 @@ function App() {
       {tab === "More" && sub === "Memory" && <MemoryScreen api={api} onError={showError}/>}
       {tab === "More" && (sub === "Review" || sub === "You") && <Switcher key={sub} initial={sub === "You" ? "you" : "week"} options={["week", "you"] as const} labels={{ week: "🗓 Week", you: "🪞 About you" }} render={v => v === "you" ? <AboutYouScreen api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/> : <ReviewScreen api={api} onError={showError} onNotice={showNotice}/>}/>}
       {tab === "More" && sub === "Approvals" && <ApprovalsScreen api={api} onError={showError} onNotice={showNotice}/>}
-      {tab === "More" && sub === "Profile" && <ProfileScreen user={user} signOut={() => void signOut()} onHealth={() => setSub("Health")}/>}
+      {tab === "More" && sub === "Profile" && <SettingsScreen api={api} onError={showError} onNotice={showNotice} onOpen={t => openTarget(t)} signOut={() => void signOut()}/>}
     </View>
     <BrowserHost api={api} onNotice={showNotice}/>
     {keyboard === 0 && <View style={styles.tabbarWrap}><View style={styles.tabbar}>{(["Home", "Plan", "Capture", "Focus", "More"] as Tab[]).map(item => item === "Capture"
@@ -365,10 +396,6 @@ function PlanScreen({ plan, busy, generate, extra, top }: { plan: Row; busy: boo
   return <KbScroll contentContainerStyle={styles.scroll}>{top}<View style={styles.card}><Text style={styles.kicker}>DAILY PLANNER</Text><Text style={styles.sectionTitle}>{plan.plan_date || "Your day"}</Text><Text style={styles.muted}>{plan.summary || "Build a plan around your routine and open tasks."}</Text><TouchableOpacity style={styles.primary} onPress={generate} disabled={busy}><Text style={styles.primaryText}>{busy ? "Planning…" : "Build today’s plan"}</Text></TouchableOpacity></View>{items.length ? items.map(item => <View key={item.id} style={styles.planItem}><Text style={styles.time}>{new Date(item.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text><View style={styles.planBlock}><Text style={styles.taskTitle}>{item.title}</Text><Text style={styles.muted}>{item.kind} · {new Date(item.ends_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text></View></View>) : <Text style={styles.empty}>Generate a plan to see today’s time blocks.</Text>}{Array.isArray(plan.unscheduled) && plan.unscheduled.length > 0 && <Text style={styles.warning}>Could not schedule: {plan.unscheduled.join(", ")}</Text>}{extra}</KbScroll>;
 }
 
-
-function ProfileScreen({ user, signOut, onHealth }: { user: Row; signOut: () => void; onHealth: () => void }) {
-  return <KbScroll contentContainerStyle={styles.scroll}><View style={styles.profileCard}><View style={styles.avatar}><Text style={styles.avatarText}>{String(user.full_name || user.email || "S").slice(0, 1).toUpperCase()}</Text></View><Text style={styles.sectionTitle}>{user.full_name || "Your profile"}</Text><Text style={styles.muted}>{user.email || ""}</Text></View><View style={styles.card}><Text style={styles.kicker}>YOUR SPACE</Text><Text style={styles.taskTitle}>Privacy and control</Text><Text style={styles.muted}>Review saved memories, profile preferences, finance records, and approvals in the web workspace.</Text></View><TouchableOpacity style={styles.rowButton} onPress={onHealth}><Text style={styles.taskTitle}>Health Connect</Text><Text style={styles.linkSmall}>Manage →</Text></TouchableOpacity><TouchableOpacity style={styles.signout} onPress={signOut}><Text style={styles.signoutText}>Sign out</Text></TouchableOpacity></KbScroll>;
-}
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg }, app: { flex: 1, backgroundColor: C.bg },

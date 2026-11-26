@@ -7,6 +7,7 @@ import { connectHealthConnect, getHealthConnectStatus, type HealthConnectStatus,
 import { syncHealthNow } from "../health/autosync";
 import { HealthAdviceCard } from "./WellbeingScreens";
 import { Btn, C, Card, Empty, Field, H1, H2, Kicker, Muted, Progress, Row as Line, Screen } from "../ui";
+import { WeekReviewCard } from "./TodayBoardScreens";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 const LAST_SYNC = "sakuna.lastHealthSync";
@@ -152,6 +153,7 @@ export function ReviewScreen({ api, onError, onNotice }: { api: Api; onError: (m
   }
 
   return <Screen>
+    <WeekReviewCard api={api}/>
     <H1>Weekly review</H1><Muted>Ten minutes: see what happened, notice one pattern, pick at most three changes.</Muted>
     <Card><Line>
       {[["Tasks done", String(week.done.length)], ["Focus", `${(week.focusMin / 60).toFixed(1)} h`], ["Habits", week.habitRate === null ? "—" : `${week.habitRate}%`], ["Sleep", week.sleepAvg === null ? "—" : `${week.sleepAvg.toFixed(1)} h`]]

@@ -168,12 +168,14 @@ function niceDate(value: unknown) {
 }
 // Same groups as the phone's "All apps"; anything not listed lands in MORE so a new page is never hidden.
 const NAV_GROUPS: [string, string[]][] = [
-  ["TODAY", ["Home", "Notes", "Morning & evening", "Focus", "Planner", "My day", "Day tracker", "My schedule", "Capture inbox", "Search"]],
-  ["💰 MONEY", ["Finance", "$1M journey", "Scan receipt", "Invest", "Documents"]],
-  ["💪 BODY", ["Health", "Fitness guide", "Pelvic floor", "Gym", "Medicines", "Skin & glow", "Skills & trainers"]],
-  ["🎓 LEARNING", ["Learning", "Languages", "Say it", "Role-play coach", "Learn anything", "Reading", "Exam coach", "Speaking coach", "Progress", "Study abroad", "Career", "My videos", "News", "Brain gym"]],
-  ["🌱 LIFE", ["Dreams & goals", "Travel guide", "Content studio", "My life", "Journal", "Life balance", "Experiences", "Rewards", "Weekly review", "About you", "Insights"]],
-  ["✨ AI & SETTINGS", ["Assistant", "AI team", "Memory", "Approvals", "Settings"]],
+  ["🌞 TODAY & PLAN", ["Home", "Today", "Life board", "Ask Sakuna", "Focus", "Planner", "My day", "Day tracker", "My schedule", "Morning & evening", "Capture inbox", "Weekly review", "Life balance", "My life", "Search"]],
+  ["💪 BODY", ["Health", "Gym", "Fitness guide", "Body measurements", "Sleep", "Water", "Martial arts & swimming", "Skin & glow", "Pelvic floor", "Medicines"]],
+  ["🎓 GROW", ["Learning", "Reading", "Learn anything", "Languages", "Say it", "Speaking coach", "English check", "Role-play coach", "Exam coach", "Skills & trainers", "Study abroad", "Progress", "Brain gym"]],
+  ["📺 DISCOVER", ["Learning hub", "Learning reels", "Learning feed", "My videos", "News"]],
+  ["🌅 MIND", ["Mindset studio", "Journal", "Notes", "Self-control", "Dreams & goals", "Rewards", "Experiences", "Insights", "About you"]],
+  ["💰 MONEY & CAREER", ["Finance", "$1M journey", "Invest", "Scan receipt", "Career", "Freelancing kit", "Content studio", "Travel guide", "Documents"]],
+  ["✨ SAKUNA AI", ["Assistant", "AI team", "Approvals", "Memory"]],
+  ["⚙️ SETTINGS", ["Settings"]],
 ];
 function groupNavigation(query = "") {
   const q = query.trim().toLowerCase();

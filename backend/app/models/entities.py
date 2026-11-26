@@ -82,6 +82,7 @@ class UserProfile(Base):
     reading_daily_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height_cm: Mapped[int | None] = mapped_column(Integer, nullable=True)                 # for body-fat and waist-to-height
     sex: Mapped[str | None] = mapped_column(String(6), nullable=True)                      # male | female (body maths only)
+    app_prefs: Mapped[dict | None] = mapped_column(JsonDict, nullable=True)                # notification centre, onboarding, Today cards, pins
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 

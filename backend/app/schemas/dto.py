@@ -108,6 +108,8 @@ class ProfileUpdate(BaseModel):
     automation_policy: Literal["confirm", "auto"] | None = None
     bio: str | None = None
     location: str | None = None
+    height_cm: int | None = Field(default=None, ge=120, le=230)
+    sex: Literal["male", "female"] | None = None
 
     @field_validator("currency", "financial_target_currency")
     @classmethod
@@ -2029,3 +2031,11 @@ class MindsetEntryIn(BaseModel):
     body: str | None = Field(default=None, max_length=20000)
     data: dict | None = None
     ai_mood: bool = False
+
+
+class PrefsPatch(BaseModel):
+    onboarding_done: bool | None = None
+    notifications: dict[str, dict] | None = None
+    cards: list[str] | None = Field(default=None, max_length=20)
+    hidden_cards: list[str] | None = Field(default=None, max_length=20)
+    pinned: list[str] | None = Field(default=None, max_length=12)
