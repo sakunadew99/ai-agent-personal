@@ -5,7 +5,7 @@ import type { ApiRecord as Row } from "../api";
 import { openInApp } from "../browser";
 import { Bars } from "../charts";
 import { scheduleWaterReminders } from "../notify";
-import { Btn, C, Card, Empty, Field, Kicker, Muted, Row as Line, Screen } from "../ui";
+import { Btn, C, Card, Empty, Field, Kicker, Muted, Row as Line, Screen, soft } from "../ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 const msg = (r: unknown) => (r instanceof Error ? r.message : "Something went wrong");
@@ -25,7 +25,7 @@ export function WaterScreen({ api, onError, onNotice }: { api: Api; onError: (m:
   const pct = Number(w.percent);
   return <Screen onRefresh={load}>
     <Card style={{ alignItems: "center", gap: 10, paddingVertical: 20 }}>
-      <View style={{ width: 120, height: 220, borderRadius: 30, borderWidth: 3, borderColor: WATER, overflow: "hidden", justifyContent: "flex-end", backgroundColor: "#0b1a22" }}>
+      <View style={{ width: 120, height: 220, borderRadius: 30, borderWidth: 3, borderColor: WATER, overflow: "hidden", justifyContent: "flex-end", backgroundColor: soft("#4fc3f7", 0.12) }}>
         <View style={{ height: `${pct}%`, backgroundColor: WATER + "cc" }}/>
         <View style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center" }}>
           <Text style={{ color: "#fff", fontSize: 30, fontWeight: "900" }}>{`${pct}%`}</Text>
@@ -144,14 +144,14 @@ export function MindsetScreen({ api, onError, onNotice }: { api: Api; onError: (
       <Text style={{ color: "#ffffffcc", fontSize: 12 }}>{`🔥 ${m.read_streak} day affirmation streak · ✍️ ${m.scripting_streak} day scripting streak`}</Text></View>}
     <View style={{ flexDirection: "row", gap: 6 }}>{[["affirm", "✨ Affirm"], ["script", "✍️ Script"], ["woop", "🎯 WOOP"], ["thanks", "🙏 Thanks"]].map(([k, l]) =>
       <TouchableOpacity key={k} onPress={() => setTab(k)} style={{ flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 14, backgroundColor: tab === k ? C.green : C.panel2 }}>
-        <Text style={{ color: tab === k ? "#04170d" : C.text, fontWeight: "800", fontSize: 12 }}>{l}</Text></TouchableOpacity>)}</View>
+        <Text style={{ color: tab === k ? C.greenDark : C.text, fontWeight: "800", fontSize: 12 }}>{l}</Text></TouchableOpacity>)}</View>
     {tab === "affirm" && <AffirmationDeck {...props}/>}
     {tab === "script" && <Scripting {...props}/>}
     {tab === "woop" && <Woop {...props}/>}
     {tab === "thanks" && <Gratitude {...props}/>}
     <Card style={{ gap: 4 }}><Kicker>VIDEOS: AFFIRMATIONS, MEDITATION, MOTIVATION</Kicker>
       {(m.videos as Row[]).map(v => <TouchableOpacity key={v.url} onPress={() => openInApp(v.url, v.title, { category: "rest", note: "Mindset video" })}>
-        <Text style={{ color: "#5aa8ff", paddingVertical: 4 }}>{`▶ ${v.title}`}</Text></TouchableOpacity>)}
+        <Text style={{ color: C.blue, paddingVertical: 4 }}>{`▶ ${v.title}`}</Text></TouchableOpacity>)}
       <Muted small>Opens YouTube search inside Sakuna (works even when Shield blocks the YouTube app).</Muted></Card>
     <Muted small>{m.honest}</Muted>
   </Screen>;

@@ -14,13 +14,14 @@ export const GROUPS: Group[] = [
   { name: "Today", emoji: "🌞", color: "#00c853", items: [
     { key: "Today", icon: "⭕", title: "Today", hint: "24-hour ring, sleep, water, habits, top task", words: "today day ring timeline clock schedule hours sleep water habits week review" },
     { key: "Board", icon: "🗂", title: "Life board", hint: "Tasks Now/Next/Later, habit strength, goals", words: "board tasks todo to-do habits goals kanban now next later lists strength" },
+    { key: "Appearance", icon: "🎨", title: "Appearance", hint: "Light, dark, AMOLED and accent colours", words: "theme themes colour color dark mode light mode amoled black accent appearance design" },
   ] },
-  { name: "Money", emoji: "💰", color: "#5aa8ff", items: [
+  { name: "Money", emoji: "💰", color: C.blue, items: [
     { key: "Wealth", icon: "🚀", title: "$1M journey & ideas", hint: "Projections and income ideas", words: "million financial freedom net worth projection savings scenario income ideas opportunities side hustle business freelancing" },
     { key: "Invest", icon: "📈", title: "Invest (CSE)", hint: "Portfolio, review, alerts", words: "shares stock cse aspi atrad dividend portfolio" },
     { key: "Finance", icon: "👛", title: "Money", hint: "Spending, lists, renewals, documents", words: "wallet net worth savings expense income budget finance passport visa bills subscriptions documents renewals buy list wishes" },
   ] },
-  { name: "Body", emoji: "💪", color: "#3ee08f", items: [
+  { name: "Body", emoji: "💪", color: C.green, items: [
     { key: "Health", icon: "❤️", title: "Health & Mi Band", hint: "Steps, sleep, heart rate", words: "mi fitness steps sleep heart health connect" },
     { key: "Fitness", icon: "🥗", title: "Fitness guide", hint: "Workouts, exercise how-to, meal plans", words: "workout plan exercise technique muscles meal plan diet nutrition protein calories food rice dhal shopping list belly fat" },
     { key: "Mindset", icon: "🌅", title: "Mindset studio", hint: "Affirmations, scripting, 55x5, WOOP, gratitude", words: "affirmation affirmations scripting manifest law of attraction positive thinking gratitude woop 55x5 mindset motivation journal" },
@@ -54,7 +55,7 @@ export const GROUPS: Group[] = [
     { key: "News", icon: "📰", title: "Feed", hint: "News, videos, brain games", words: "news youtube watch brain gym games puzzle memory" },
     { key: "Study", icon: "✈️", title: "Study abroad", hint: "DAAD, programs, checklist", words: "germany daad masters university" },
   ] },
-  { name: "Life", emoji: "🌱", color: "#f5b65b", items: [
+  { name: "Life", emoji: "🌱", color: C.amber, items: [
     { key: "Dreams", icon: "🌟", title: "Dreams & goals", hint: "Today to 10 years, dream to plan", words: "dream goal vision future plan milestone why success 10 years million germany" },
     { key: "Schedule", icon: "⏰", title: "My schedule", hint: "Office, gym, sleep times", words: "office work time gym time wake sleep routine shift hours" },
     { key: "Travel", icon: "🗺", title: "Travel guide", hint: "Where to go, plans, LKR budgets", words: "travel trip holiday ella kandy sigiriya beach japan germany itinerary budget map wishlist visit" },
@@ -67,7 +68,7 @@ export const GROUPS: Group[] = [
     { key: "Rewards", icon: "🎮", title: "Rewards game", hint: "Level, badges, missions", words: "points streak" },
     { key: "Review", icon: "🗓", title: "Review", hint: "Weekly review & about you", words: "week insights patterns about you reflect" },
   ] },
-  { name: "AI & settings", emoji: "✨", color: "#ff7a8a", items: [
+  { name: "AI & settings", emoji: "✨", color: C.red, items: [
     { key: "Assistant", icon: "💬", title: "Assistant", hint: "Chat with Sakuna", words: "chat ask ai" },
     { key: "Team", icon: "✨", title: "AI team", hint: "Coach, focus guard, reviewer", words: "agents" },
     { key: "Approvals", icon: "✅", title: "Approvals", hint: "AI proposals to confirm", words: "confirm" },

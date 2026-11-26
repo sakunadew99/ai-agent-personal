@@ -4,7 +4,7 @@ import { Alert, KeyboardAvoidingView, Modal, ScrollView, StyleSheet, Switch, Tex
 import { peek, type ApiRecord as Row } from "../api";
 import { syncRoutineReminders } from "../notify";
 import { DateField, TimeField } from "../pickers";
-import { Badge, Btn, C, Card, Chips, Empty, H2, Kicker, Muted, Progress, Row as Line } from "../ui";
+import { Badge, Btn, C, Card, Chips, Empty, H2, Kicker, Muted, Progress, Row as Line, soft } from "../ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 type Props = { api: Api; onError: (m: string) => void; onNotice: (m: string) => void };
@@ -385,7 +385,7 @@ export function MonthRoutines({ api, onError }: { api: Api; onError: (m: string)
   const cells = useMemo(() => v ? [...Array((v.first_weekday as number) - 1).fill(null), ...(v.days as Row[])] : [], [v]);
   if (!v) return <Empty>Loading your month…</Empty>;
   const moveMonth = (n: number) => { const [y, m] = String(month).split("-").map(Number); const d = new Date(y, m - 1 + n, 1); load(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`); };
-  const shade = (score: number | null | undefined, future: boolean) => future || score == null ? C.panel2 : score >= 0.99 ? C.green : score >= 0.66 ? "#2f8f5f" : score >= 0.33 ? "#245c40" : "#3a2f1d";
+  const shade = (score: number | null | undefined, future: boolean) => future || score == null ? C.panel2 : score >= 0.99 ? C.green : score >= 0.66 ? "#2f8f5f" : score >= 0.33 ? "#245c40" : soft(C.amber);
 
   return <View style={{ gap: 12 }}>
     <Card accent>
@@ -398,7 +398,7 @@ export function MonthRoutines({ api, onError }: { api: Api; onError: (m: string)
       <View style={s.cal}>{cells.map((c, i) => <View key={i} style={s.calCell}>{c && <View style={[s.calDay, { backgroundColor: shade(c.score, c.future) }]}>
         <Text style={[s.calNum, c.score >= 0.99 && { color: C.greenDark }]}>{Number(String(c.date).slice(8))}</Text>
         {c.gym_done && <Text style={{ fontSize: 9 }}>🏋️</Text>}</View>}</View>)}</View>
-      <Line style={{ flexWrap: "wrap" }}><Muted small>Less</Muted>{["#3a2f1d", "#245c40", "#2f8f5f", C.green].map(col => <View key={col} style={[s.legend, { backgroundColor: col }]}/>)}<Muted small>All routines done · 🏋️ gym</Muted></Line>
+      <Line style={{ flexWrap: "wrap" }}><Muted small>Less</Muted>{[soft(C.amber), "#245c40", "#2f8f5f", C.green].map(col => <View key={col} style={[s.legend, { backgroundColor: col }]}/>)}<Muted small>All routines done · 🏋️ gym</Muted></Line>
     </Card>
     <View style={s.statRow}>
       <View style={s.statCard}><Text style={s.statValue}>{v.score == null ? "—" : `${Math.round(v.score * 100)}%`}</Text><Muted small>month score</Muted></View>
@@ -445,16 +445,16 @@ const s = StyleSheet.create({
   navText: { color: C.text, fontSize: 20 },
   dayIcon: { fontSize: 30 },
   dayLabel: { color: C.text, fontSize: 18, fontWeight: "800" },
-  theme: { color: "#b9c7be", fontSize: 13, fontStyle: "italic", textAlign: "center" },
+  theme: { color: C.text2, fontSize: 13, fontStyle: "italic", textAlign: "center" },
   big: { color: C.text, fontSize: 24, fontWeight: "900", fontVariant: ["tabular-nums"] },
   section: { color: C.text, fontSize: 16, fontWeight: "800", marginTop: 4 },
   cardTitle: { color: C.text, fontSize: 15, fontWeight: "800" },
   chev: { color: C.muted, fontSize: 22 },
   action: { color: C.green, fontWeight: "700", fontSize: 13 },
   routine: { backgroundColor: C.panel, borderColor: C.line, borderWidth: 1, borderRadius: 18, padding: 14, gap: 10 },
-  routineDone: { borderColor: "#2f6b4b", backgroundColor: "#122019" },
+  routineDone: { borderColor: "#2f6b4b", backgroundColor: C.panel2 },
   iconBubble: { width: 46, height: 46, borderRadius: 14, backgroundColor: C.panel2, alignItems: "center", justifyContent: "center" },
-  nowCard: { backgroundColor: "#15281e", borderColor: C.green, borderWidth: 1, borderRadius: 18, padding: 14, gap: 6 },
+  nowCard: { backgroundColor: C.panel2, borderColor: C.green, borderWidth: 1, borderRadius: 18, padding: 14, gap: 6 },
   nowKicker: { color: C.green, fontSize: 10, fontWeight: "900", letterSpacing: 1.5 },
   nowTitle: { color: C.text, fontSize: 17, fontWeight: "800" },
   nowGo: { color: C.green, fontSize: 22, fontWeight: "900" },
@@ -464,7 +464,7 @@ const s = StyleSheet.create({
   stepCard: { backgroundColor: C.panel2, borderColor: C.green, borderWidth: 1, borderRadius: 20, padding: 18, gap: 12 },
   stepKicker: { color: C.green, fontSize: 10, fontWeight: "900", letterSpacing: 1.4 },
   stepTitle: { color: C.text, fontSize: 22, fontWeight: "800", lineHeight: 28 },
-  doneCard: { alignItems: "center", gap: 6, backgroundColor: "#122019", borderRadius: 20, padding: 22, borderColor: "#2f6b4b", borderWidth: 1 },
+  doneCard: { alignItems: "center", gap: 6, backgroundColor: C.panel2, borderRadius: 20, padding: 22, borderColor: "#2f6b4b", borderWidth: 1 },
   doneTitle: { color: C.text, fontSize: 22, fontWeight: "900" },
   stepRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomColor: C.line, borderBottomWidth: StyleSheet.hairlineWidth },
   stepText: { color: C.text, fontSize: 14, flex: 1 },
@@ -485,7 +485,7 @@ const s = StyleSheet.create({
   dayText: { color: C.muted, fontWeight: "700", fontSize: 12 },
   dayTextOn: { color: C.greenDark },
   footer: { position: "absolute", left: 0, right: 0, bottom: 0, padding: 16, paddingBottom: 22, backgroundColor: C.bg, borderTopColor: C.line, borderTopWidth: 1, gap: 8 },
-  rule: { color: "#d1ddd4", fontSize: 14, lineHeight: 21 },
+  rule: { color: C.text2, fontSize: 14, lineHeight: 21 },
   mealRow: { gap: 4, paddingVertical: 8, borderBottomColor: C.line, borderBottomWidth: StyleSheet.hairlineWidth },
   statRow: { flexDirection: "row", gap: 8 },
   stat: { flex: 1, alignItems: "center", backgroundColor: C.field, borderRadius: 14, paddingVertical: 10 },

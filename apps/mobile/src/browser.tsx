@@ -80,13 +80,13 @@ export function BrowserHost({ api, onNotice }: { api: Api; onNotice: (m: string)
 
 const s = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: C.bg },
-  bar: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 8, backgroundColor: "#0d1512", borderBottomColor: C.line, borderBottomWidth: 1 },
+  bar: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 8, backgroundColor: C.panel, borderBottomColor: C.line, borderBottomWidth: 1 },
   btn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: C.panel2 },
   btnText: { color: C.text, fontSize: 18, fontWeight: "800" },
   title: { color: C.text, fontWeight: "800", fontSize: 14 },
   host: { color: C.muted, fontSize: 11 },
   track: { height: 3, backgroundColor: C.line },
   fill: { height: 3, backgroundColor: C.green },
-  footer: { paddingVertical: 6, alignItems: "center", backgroundColor: "#0d1512" },
+  footer: { paddingVertical: 6, alignItems: "center", backgroundColor: C.panel },
   footerText: { color: C.green, fontSize: 11, fontWeight: "700" },
 });

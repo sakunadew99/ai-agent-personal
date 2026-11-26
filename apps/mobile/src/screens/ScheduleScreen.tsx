@@ -29,7 +29,7 @@ function DayPick({ value, onChange, color }: { value: number[]; onChange: (v: nu
   return <View style={{ flexDirection: "row", gap: 6 }}>{DAYS.map((d, i) => { const on = value.includes(i + 1);
     return <TouchableOpacity key={i} onPress={() => onChange(on ? value.filter(x => x !== i + 1) : [...value, i + 1].sort())}
       style={{ flex: 1, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: on ? color : C.panel2 }}>
-      <Text style={{ color: on ? "#04170d" : C.muted, fontWeight: "900" }}>{d}</Text></TouchableOpacity>; })}</View>;
+      <Text style={{ color: on ? C.greenDark : C.muted, fontWeight: "900" }}>{d}</Text></TouchableOpacity>; })}</View>;
 }
 
 /** Office, gym, wake and sleep times + every routine's time, set by hand or detected from what you logged. */

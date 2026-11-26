@@ -3,7 +3,7 @@ import { Alert, KeyboardAvoidingView, Modal, ScrollView, Text, TextInput, Toucha
 import { KbScroll } from "../keyboard";
 import type { ApiRecord as Row } from "../api";
 import { Segments } from "../charts";
-import { Btn, C, Card, Kicker, Muted, Row as Line } from "../ui";
+import { Btn, C, Card, Kicker, Muted, Row as Line, soft } from "../ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 const msg = (r: unknown) => (r instanceof Error ? r.message : "Something went wrong");
@@ -56,7 +56,7 @@ export function EditHolding({ api, h, onClose, onDone, onError }: { api: Api; h:
     <Segments options={["set", "buy", "sell"] as const} value={mode} onChange={setMode} labels={{ set: "✎ Set exactly", buy: "＋ I bought more", sell: "－ I sold some" }}/>
     {mode === "set" ? <>
       <Line><BigInput label="SHARES" value={qty} onChange={setQty}/><BigInput label="AVERAGE COST" value={avg} onChange={setAvg} color={C.blue}/></Line>
-      <Line>{[-100, -10, 10, 100].map(d => <TouchableOpacity key={d} onPress={() => step(d)} style={{ flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 12, backgroundColor: d > 0 ? C.greenSoft : "#3a2222" }}>
+      <Line>{[-100, -10, 10, 100].map(d => <TouchableOpacity key={d} onPress={() => step(d)} style={{ flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 12, backgroundColor: d > 0 ? C.greenSoft : soft(C.red) }}>
         <Text style={{ color: d > 0 ? C.green : C.red, fontWeight: "900" }}>{d > 0 ? `+${d}` : d}</Text></TouchableOpacity>)}</Line>
     </> : <Line><BigInput label={mode === "buy" ? "SHARES BOUGHT" : "SHARES SOLD"} value={moreQ} onChange={setMoreQ}/>
       {mode === "buy" && <BigInput label="PRICE PAID" value={moreP} onChange={setMoreP} color={C.blue}/>}</Line>}
@@ -90,7 +90,7 @@ export function MoneyEntries({ api, onError, onChanged }: { api: Api; onError: (
   return <Card>
     <Line><Kicker>{`RECENT ENTRIES · ${items.length}`}</Kicker><View style={{ flex: 1 }}/><Muted small>tap to edit</Muted></Line>
     {(all ? items : items.slice(0, 8)).map(r => <TouchableOpacity key={`${r.kind}-${r.id}`} onPress={() => open(r)} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.line }}>
-      <View style={{ width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: r.kind === "income" ? C.greenSoft : "#3a2222" }}>
+      <View style={{ width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: r.kind === "income" ? C.greenSoft : soft(C.red) }}>
         <Text>{r.kind === "income" ? "↓" : "↑"}</Text></View>
       <View style={{ flex: 1 }}><Text style={{ color: C.text, fontWeight: "800", textTransform: "capitalize" }}>{String(r.label).replaceAll("_", " ")}</Text>
         <Muted small>{`${r.occurred_at ? new Date(r.occurred_at).toLocaleDateString() : ""}${r.notes ? ` · ${r.notes}` : ""}`}</Muted></View>

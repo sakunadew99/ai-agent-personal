@@ -9,7 +9,7 @@ import { ReelsScreen } from "./ReelsScreen";
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 const msg = (r: unknown) => (r instanceof Error ? r.message : "Something went wrong");
 const CH_KEY = "sakuna.watchChannels";
-const TINT: Record<string, string> = { technology: "#4fd1c5", educational: "#5aa8ff", motivational: "#f5b65b", psychology: "#b48cff" };
+const TINT: Record<string, string> = { technology: "#4fd1c5", educational: C.blue, motivational: C.amber, psychology: "#b48cff" };
 const TABS: [string, string][] = [["", "✨ For you"], ["technology", "💻 Tech"], ["educational", "📚 Learn"], ["motivational", "🔥 Motivation"], ["psychology", "🧠 Mind"]];
 const ago = (d?: string) => { if (!d) return ""; const n = Math.round((Date.now() - new Date(d).getTime()) / 86400000); return n <= 0 ? "today" : n === 1 ? "yesterday" : `${n}d ago`; };
 
@@ -87,7 +87,7 @@ export function HubScreen({ api, onError, onNotice }: { api: Api; onError: (m: s
       <Muted small>Only learning content is added. LinkedIn, TikTok and Facebook posts play with their official embeds when the post is public.</Muted></Card>}
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>{TABS.map(([k, l]) => <TouchableOpacity key={k} onPress={() => pickTab(k)}
       style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, backgroundColor: tab === k ? C.green : C.panel2 }}>
-      <Text style={{ color: tab === k ? "#04170d" : C.text, fontWeight: "800" }}>{l}</Text></TouchableOpacity>)}</View>
+      <Text style={{ color: tab === k ? C.greenDark : C.text, fontWeight: "800" }}>{l}</Text></TouchableOpacity>)}</View>
     {reels.length > 0 && <View style={{ gap: 6 }}>
       <Text style={{ color: C.text, fontWeight: "900" }}>🎬 Reels for you</Text>
       <FlatList horizontal data={reels} keyExtractor={r => r.id} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}
@@ -104,7 +104,7 @@ export function HubScreen({ api, onError, onNotice }: { api: Api; onError: (m: s
       <Text style={{ color: C.text, fontWeight: "900" }}>💼 LinkedIn learning posts</Text>
       <Muted small>LinkedIn has no public feed, so these open LinkedIn's own search for your goals and topics. Share good posts above.</Muted>
       {(meta.linkedin as Row[]).map(l => <TouchableOpacity key={l.url} onPress={() => openInApp(l.url, l.title, { category: "study", note: "LinkedIn learning" })}>
-        <Text style={{ color: "#5aa8ff", paddingVertical: 3 }}>{`→ ${l.title}`}</Text></TouchableOpacity>)}
+        <Text style={{ color: C.blue, paddingVertical: 3 }}>{`→ ${l.title}`}</Text></TouchableOpacity>)}
       <Muted small>{`🚫 ${meta.hidden_count} non-learning items hidden. ${meta.how}`}</Muted></Card>}
     {reel !== undefined && <ReelsScreen api={api} onError={onError} onNotice={onNotice} first={reel} onClose={() => setReel(undefined)}/>}
   </Screen>;

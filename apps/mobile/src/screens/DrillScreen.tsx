@@ -59,7 +59,7 @@ export function DrillScreen({ api, onError }: { api: Api; onError: (m: string) =
       <Text style={{ color: C.text, textAlign: "center" }}>{res.tip}</Text>
       <View style={{ flexDirection: "row", gap: 8 }}>
         <TouchableOpacity onPress={() => void say()} style={{ flex: 1, alignItems: "center", padding: 12, borderRadius: 14, borderWidth: 1, borderColor: C.line }}><Text style={{ color: C.text, fontWeight: "800" }}>↻ Try again</Text></TouchableOpacity>
-        <TouchableOpacity onPress={next} style={{ flex: 1, alignItems: "center", padding: 12, borderRadius: 14, backgroundColor: C.green }}><Text style={{ color: "#04170d", fontWeight: "900" }}>Next ›</Text></TouchableOpacity></View>
+        <TouchableOpacity onPress={next} style={{ flex: 1, alignItems: "center", padding: 12, borderRadius: 14, backgroundColor: C.green }}><Text style={{ color: C.greenDark, fontWeight: "900" }}>Next ›</Text></TouchableOpacity></View>
     </Card>}
     {!res && <TouchableOpacity onPress={next}><Text style={{ color: C.muted, textAlign: "center" }}>Skip ›</Text></TouchableOpacity>}
     <Muted small>Uses your phone's own speech recogniser (German needs the Google German voice pack: Settings → Google → Voice). Your German flashcards come first.</Muted>

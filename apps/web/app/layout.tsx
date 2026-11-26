@@ -13,7 +13,7 @@ export const viewport: Viewport = {
 };
 
 // Applies the saved theme before first paint, so there is no flash of the wrong theme.
-const themeBoot = `try{var t=localStorage.getItem("sakuna-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}`;
+const themeBoot = `try{var t=localStorage.getItem("sakuna-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t;var a=localStorage.getItem("sakuna-accent");if(a&&/^(blue|purple|orange|pink|teal|red|gold)$/.test(a))document.documentElement.dataset.accent=a}catch(e){}`;
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <html lang="en" className={inter.variable} suppressHydrationWarning>

@@ -3,13 +3,13 @@ import { Image, Text, TouchableOpacity, View } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import type { ApiRecord as Row } from "../api";
 import { openInApp } from "../browser";
-import { Btn, C, Card, Empty, Field, Kicker, Muted, Row as Line, Screen } from "../ui";
+import { Btn, C, Card, Empty, Field, Kicker, Muted, Row as Line, Screen, soft } from "../ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 const msg = (r: unknown) => (r instanceof Error ? r.message : "Something went wrong");
 const CH_KEY = "sakuna.watchChannels";            // shared with Watch, so your channels appear in both
 const OPT_KEY = "sakuna.learnFeedOpts";
-const TINT: Record<string, string> = { technology: "#4fd1c5", educational: "#5aa8ff", motivational: "#f5b65b", psychology: "#b48cff" };
+const TINT: Record<string, string> = { technology: "#4fd1c5", educational: C.blue, motivational: C.amber, psychology: "#b48cff" };
 const LABEL: Record<string, string> = { all: "All", technology: "💻 Technology", educational: "📚 Educational", motivational: "🔥 Motivation", psychology: "🧠 Psychology" };
 
 function Chip({ label, on, onPress, color = C.green }: { label: string; on?: boolean; onPress: () => void; color?: string }) {
@@ -64,7 +64,7 @@ export function LearnFeedScreen({ api, onError, onNotice, onOpenReels }: { api: 
     setLinkRes(r); if (r.saved) { setLink(""); setCap(""); onNotice(`Saved to ${r.folder}`); loadSaved(); } }).catch(e => onError(msg(e)));
   const videos = ((res?.videos || []) as Row[]).filter(v => cat === "all" || v.category === cat);
   return <Screen onRefresh={() => void load(mine, ai, shorts)}>
-    {onOpenReels && <TouchableOpacity activeOpacity={0.85} onPress={onOpenReels}><Card style={{ backgroundColor: "#1a1030", borderColor: "#b48cff", gap: 4 }}>
+    {onOpenReels && <TouchableOpacity activeOpacity={0.85} onPress={onOpenReels}><Card style={{ backgroundColor: soft("#7c4dff", 0.2), borderColor: "#b48cff", gap: 4 }}>
       <Text style={{ color: "#fff", fontSize: 20, fontWeight: "900" }}>▶ Watch reels</Text>
       <Muted small>Swipe up like TikTok or Facebook Reels: only learning videos, ranked for you. Plays inside Sakuna, so Shield can block the other apps.</Muted>
     </Card></TouchableOpacity>}

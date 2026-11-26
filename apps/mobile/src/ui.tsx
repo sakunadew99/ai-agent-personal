@@ -1,14 +1,14 @@
 import React, { ReactNode } from "react";
 import { ActivityIndicator, ScrollView, StyleProp, StyleSheet, Text, TextInput, TextInputProps, TouchableOpacity, View, ViewStyle } from "react-native";
 
+import { bind, initial, type Palette } from "./theme";
 import { appendSpeech, MicButton } from "./voice";
 import { KbScroll } from "./keyboard";
 
-/** Shared look for all mobile screens (matches the web app's dark theme). */
-export const C = {
-  bg: "#070b09", panel: "#0f1613", panel2: "#141d19", line: "#1d2a24", text: "#eef6f1", muted: "#8a9b92",
-  green: "#3ee08f", greenDark: "#04170d", greenSoft: "#123222", amber: "#f5b65b", red: "#ff7a8a", field: "#0b110e", blue: "#5aa8ff",
-};
+/** Shared colours for all mobile screens. Filled from the saved theme (mode + accent) and updated in place on a switch. */
+export const C: Palette = { ...initial() };
+bind(C);
+export { tint as soft } from "./theme";
 
 export function Screen({ children, onRefresh }: { children: ReactNode; onRefresh?: () => void }) {
   return <KbScroll contentContainerStyle={u.scroll}>{children}{onRefresh && <View style={{ height: 8 }}/>}</KbScroll>;

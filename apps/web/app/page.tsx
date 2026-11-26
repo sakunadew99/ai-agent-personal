@@ -9,6 +9,7 @@ import { FocusPage } from "@/components/FocusPage";
 import { WeeklyReview } from "@/components/WeeklyReview";
 import { CommandPalette, type PaletteAction } from "@/components/CommandPalette";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AccentPicker } from "@/components/AccentPicker";
 import { ChatPage } from "@/components/ChatPage";
 import { SecondBrainCard } from "@/components/SecondBrainCard";
 import { Milestones } from "@/components/Milestones";
@@ -32,6 +33,7 @@ import "./home.css";
 import "./upgrade.css";
 import "./polish.css";
 import "./dash.css";
+import "./accent.css";
 import { FinanceDashboard, HealthDashboard, LifeDashboard } from "@/components/Dashboards";
 import { AboutYouPage, AiTeamPage, ExamsPage, InvestPage, JournalPage, MyDayPage, NewsPage } from "@/components/LifeOsPages";
 import { HabitManager, InboxPage, JobFinder, LearnRadar, PlannerBoard, RewardsGame, SubscriptionsPanel } from "@/components/LifeOsPages2";
@@ -383,7 +385,7 @@ export default function Home() {
   }
 
   if (!token) return <main className="auth">
-    <div className="auth-theme"><ThemeToggle compact/></div>
+    <div className="auth-theme" style={{ display: "flex", gap: 6 }}><AccentPicker/><ThemeToggle compact/></div>
     <div className="auth-split">
       <section className="auth-hero" aria-hidden="true">
         <div className="auth-hero-brand"><BrandMark/><span className="auth-hero-name">Sakuna<span className="brand-ai"> AI</span></span></div>
@@ -446,7 +448,7 @@ export default function Home() {
       <header className={page === "Home" ? "home-header" : ""}><div>{page === "Home" ? <p className="eyebrow">SAKUNA AI · LIFE OS</p> : <><p className="eyebrow">{current.hint.toUpperCase()}</p><h1>{page}</h1></>}</div>
         <div className="header-actions"><HeaderTimer onOpen={() => navigate("Focus")}/><span className="sync-state">{loading ? "Syncing…" : "● Connected"}</span>
           <button className="outline search-button" onClick={() => setPaletteOpen(true)}><Icon name="search" size={15}/><span className="refresh-label">Capture or jump</span><kbd>Ctrl K</kbd></button>
-          <ThemeToggle compact/><button className="outline icon-only" aria-label="Refresh" title="Refresh" onClick={() => void fetchPage()}><Icon name="refresh" size={15}/></button></div></header>
+          <AccentPicker/><ThemeToggle compact/><button className="outline icon-only" aria-label="Refresh" title="Refresh" onClick={() => void fetchPage()}><Icon name="refresh" size={15}/></button></div></header>
       {error && <ErrorNotice>{error}</ErrorNotice>}
       {toast && <div className="toast" role="status">✓ {toast}</div>}
       {loading && !Object.keys(data).length ? <Panel><div className="loading"><span className="spinner"/>Loading your data…</div></Panel> : <div className="page-enter" key={page}>{renderPage()}</div>}

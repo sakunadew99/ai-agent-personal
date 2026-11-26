@@ -4,7 +4,7 @@ import * as SecureStore from "expo-secure-store";
 import type { ApiRecord as Row } from "../api";
 import { Bars, Hero, Meter, PALETTE, Ring, Segments, SplitBar, StatTile, TileRow } from "../charts";
 import { DateField, isoDate, TimeField } from "../pickers";
-import { Badge, Btn, C, Card, Empty, Field, H2, Kicker, Muted, Row as Line, Screen } from "../ui";
+import { Badge, Btn, C, Card, Empty, Field, H2, Kicker, Muted, Row as Line, Screen, soft } from "../ui";
 import { syncHabitReminders } from "../notify";
 import { openInApp, type Track } from "../browser";
 import { LinkedInCard } from "./LifeOs3Screens";
@@ -34,8 +34,8 @@ export function Switcher<T extends string>({ options, labels, render, initial }:
 // INBOX (Capture tab): write anything, move it to task / goal / habit / wish / buy / memory
 // =====================================================================================================================
 
-const TARGETS: [string, string, string][] = [["task", "✓ Task", "#3ee08f"], ["goal", "🎯 Goal", "#b48cff"], ["habit", "🔁 Habit", "#4fd1c5"],
-  ["wish", "✨ Wish", "#e6e15a"], ["buy", "🛒 Buy", "#ff9f5a"], ["memory", "🧠 Memory", "#5aa8ff"]];
+const TARGETS: [string, string, string][] = [["task", "✓ Task", C.green], ["goal", "🎯 Goal", "#b48cff"], ["habit", "🔁 Habit", "#4fd1c5"],
+  ["wish", "✨ Wish", "#e6e15a"], ["buy", "🛒 Buy", "#ff9f5a"], ["memory", "🧠 Memory", C.blue]];
 const SUGGEST: Record<string, string> = { task: "task", event: "task", reminder: "task", note: "memory", idea: "memory", expense: "buy", goal: "goal", habit: "habit", shopping: "buy" };
 
 export function InboxScreen({ api, onError, onNotice, top }: Props & { top?: React.ReactNode }) {
@@ -139,8 +139,8 @@ export function HabitsPanel({ api, onError, onNotice }: Props) {
 // PLANNER BOARD (Plan tab → Board): week strip with layers + agenda
 // =====================================================================================================================
 
-const LAYERS: [string, string, string][] = [["task", "✓ Tasks", "#3ee08f"], ["plan", "▦ Plan", "#5aa8ff"], ["routine", "☀️ Routines", "#4fd1c5"], ["bill", "💳 Bills", "#ff7a8a"],
-  ["goal", "🎯 Goals", "#b48cff"], ["exam", "🎓 Exams", "#f5b65b"], ["wish", "✨ Wishes", "#e6e15a"], ["buy", "🛒 Shopping", "#ff9f5a"]];
+const LAYERS: [string, string, string][] = [["task", "✓ Tasks", C.green], ["plan", "▦ Plan", C.blue], ["routine", "☀️ Routines", "#4fd1c5"], ["bill", "💳 Bills", C.red],
+  ["goal", "🎯 Goals", "#b48cff"], ["exam", "🎓 Exams", C.amber], ["wish", "✨ Wishes", "#e6e15a"], ["buy", "🛒 Shopping", "#ff9f5a"]];
 type Ev = { id: string; layer: string; title: string; day: string; start: number | null; color: string; done?: boolean };
 const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 const monday = (d: Date) => addDays(new Date(d.getFullYear(), d.getMonth(), d.getDate()), -((d.getDay() + 6) % 7));
@@ -193,7 +193,7 @@ export function PlanBoard({ api, onError, onNotice }: Props) {
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>{LAYERS.map(([k, label, color]) => <TouchableOpacity key={k} style={[chip(on[k], color), !on[k] && { opacity: 0.5 }]} onPress={() => setOn(o => ({ ...o, [k]: !o[k] }))}>
       <Text style={{ color: C.text, fontWeight: "700", fontSize: 12 }}>{label}</Text></TouchableOpacity>)}</ScrollView>
     <View style={{ flexDirection: "row", gap: 4 }}>{days.map(d => { const k = isoDate(d); const evs = events.filter(e => e.day === k); const sel = k === day; const today = k === isoDate(new Date());
-      return <TouchableOpacity key={k} onPress={() => setDay(k)} style={{ flex: 1, borderRadius: 16, paddingVertical: 8, alignItems: "center", gap: 4, borderWidth: 1, borderColor: sel ? C.green : today ? "#2a6b4a" : C.line, backgroundColor: sel ? "#123222" : C.panel, minHeight: 92 }}>
+      return <TouchableOpacity key={k} onPress={() => setDay(k)} style={{ flex: 1, borderRadius: 16, paddingVertical: 8, alignItems: "center", gap: 4, borderWidth: 1, borderColor: sel ? C.green : today ? "#2a6b4a" : C.line, backgroundColor: sel ? C.greenSoft : C.panel, minHeight: 92 }}>
         <Text style={{ color: C.muted, fontSize: 10, fontWeight: "800" }}>{["MO", "TU", "WE", "TH", "FR", "SA", "SU"][(d.getDay() + 6) % 7]}</Text>
         <Text style={{ color: C.text, fontSize: 17, fontWeight: "900" }}>{d.getDate()}</Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 2, justifyContent: "center", paddingHorizontal: 2 }}>{evs.slice(0, 8).map(e => <View key={e.id} style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: e.color }}/>)}</View>
@@ -363,12 +363,12 @@ export function RewardsGameScreen({ api }: { api: Api }) {
     ["💎", "4 areas in a day", (g.today.areas || []).length >= 4], ["💯", "Max day", g.today.points >= g.today.cap], ["🎯", "3 quests", (g.quests || []).length >= 3],
     ["🎁", "Treat ready", (g.treats || []).some((t: Row) => t.affordable)], ["🪙", "1,000 points", g.total_earned >= 1000], ["👑", "10,000 points", g.total_earned >= 10000]];
   return <Screen>
-    <View style={{ borderRadius: 26, padding: 18, gap: 10, backgroundColor: "#1a1430", borderWidth: 1, borderColor: "#4b3a80", overflow: "hidden" }}>
+    <View style={{ borderRadius: 26, padding: 18, gap: 10, backgroundColor: soft("#7c4dff", 0.2), borderWidth: 1, borderColor: "#4b3a80", overflow: "hidden" }}>
       <View style={{ position: "absolute", width: 220, height: 220, borderRadius: 110, right: -70, top: -80, backgroundColor: "#b48cff", opacity: 0.18 }}/>
-      <View style={{ position: "absolute", width: 200, height: 200, borderRadius: 100, left: -70, bottom: -90, backgroundColor: "#f5b65b", opacity: 0.14 }}/>
+      <View style={{ position: "absolute", width: 200, height: 200, borderRadius: 100, left: -70, bottom: -90, backgroundColor: C.amber, opacity: 0.14 }}/>
       <Text style={{ color: C.amber, fontWeight: "800", fontSize: 11, letterSpacing: 1.5 }}>{`LIFE QUEST · LEVEL ${g.level}${g.paused ? " · PAUSED" : ""}`}</Text>
       <Text style={{ color: C.text, fontSize: 34, fontWeight: "900" }}>{`${Number(g.balance).toLocaleString()} 🪙`}</Text>
-      <View style={{ height: 14, borderRadius: 7, backgroundColor: "#2b2350", overflow: "hidden" }}><View style={{ width: `${pct}%`, height: 14, borderRadius: 7, backgroundColor: C.amber }}/></View>
+      <View style={{ height: 14, borderRadius: 7, backgroundColor: soft("#7c4dff", 0.32), overflow: "hidden" }}><View style={{ width: `${pct}%`, height: 14, borderRadius: 7, backgroundColor: C.amber }}/></View>
       <Muted small>{`${g.into_level} / ${g.next_level_at} XP to level ${g.level + 1}`}</Muted>
       <Line style={{ flexWrap: "wrap" }}>{Object.entries(GEMS).map(([a, ic]) => <Text key={a} style={{ fontSize: 22, opacity: (g.today.areas as string[]).includes(a) ? 1 : 0.25 }}>{ic}</Text>)}</Line>
       <Muted small>{`${(g.today.areas as string[]).length}/${g.today.areas_for_bonus} life areas today for the bonus`}</Muted>

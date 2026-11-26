@@ -3,7 +3,7 @@ import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "reac
 
 import { peek, type ApiRecord as Row } from "../api";
 import { DateField, isoDate, prettyDate } from "../pickers";
-import { Btn, C, Empty, Muted, Row as Line, Screen } from "../ui";
+import { Btn, C, Empty, Muted, Row as Line, Screen, soft } from "../ui";
 import { Bars, Ring } from "../charts";
 import { appendSpeech, MicButton } from "../voice";
 
@@ -113,7 +113,7 @@ export function JournalScreen({ api, onError, onNotice }: { api: Api; onError: (
 
     <View style={s.card}>
       <Text style={s.section}>Moods this month</Text>
-      <Bars data={MOODS.map(([n, face]) => ({ label: face, value: Object.values(month.moods as Record<string, number>).filter(x => x === n).length, color: ["#ff7a8a", "#f5b65b", "#8a9b92", "#5aa8ff", "#3ee08f"][n - 1] }))} height={90}/>
+      <Bars data={MOODS.map(([n, face]) => ({ label: face, value: Object.values(month.moods as Record<string, number>).filter(x => x === n).length, color: [C.red, C.amber, C.muted, C.blue, C.green][n - 1] }))} height={90}/>
     </View>
 
     <View style={s.card}>
@@ -162,7 +162,7 @@ function Lines({ items, onChange, placeholder, max }: { items: string[]; onChang
 }
 
 const s = StyleSheet.create({
-  hero: { backgroundColor: "#141f2a", borderColor: "#2a3d52", borderWidth: 1, borderRadius: 20, padding: 16, gap: 12 },
+  hero: { backgroundColor: soft(C.blue), borderColor: "#2a3d52", borderWidth: 1, borderRadius: 20, padding: 16, gap: 12 },
   kicker: { color: C.muted, fontSize: 10, letterSpacing: 1.4, fontWeight: "800" },
   heroTitle: { color: C.text, fontSize: 22, fontWeight: "900", marginTop: 2 },
   stat: { alignItems: "center", minWidth: 52 },
@@ -179,12 +179,12 @@ const s = StyleSheet.create({
   lineRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: C.panel2, borderRadius: 10, padding: 9 },
   add: { width: 44, borderRadius: 12, backgroundColor: C.greenSoft, borderColor: C.green, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   addText: { color: C.green, fontSize: 20, fontWeight: "900" },
-  body: { color: "#d1ddd4", fontSize: 14, lineHeight: 21 },
+  body: { color: C.text2, fontSize: 14, lineHeight: 21 },
   prompts: { gap: 6 },
   prompt: { borderColor: C.line, borderWidth: 1, borderStyle: "dashed", borderRadius: 10, padding: 8 },
-  promptText: { color: "#b9c7be", fontSize: 13 },
+  promptText: { color: C.text2, fontSize: 13 },
   saveRow: { flexDirection: "row", gap: 8 },
-  reflection: { backgroundColor: "#1d1a2e", borderColor: "#5b4380", borderWidth: 1, borderRadius: 18, padding: 14, gap: 6 },
+  reflection: { backgroundColor: soft("#7c4dff"), borderColor: "#5b4380", borderWidth: 1, borderRadius: 18, padding: 14, gap: 6 },
   cal: { flexDirection: "row", flexWrap: "wrap" },
   calCell: { width: `${100 / 7}%`, aspectRatio: 1, padding: 2 },
   calDay: { flex: 1, borderRadius: 9, alignItems: "center", justifyContent: "center" },

@@ -108,7 +108,7 @@ export function AboutYouScreen({ api, onError, onNotice, onOpen }: { api: Api; o
 
 const s = StyleSheet.create({
   change: { color: C.green, fontSize: 19, fontWeight: "900" },
-  body: { color: "#d1ddd4", fontSize: 14, lineHeight: 21 },
+  body: { color: C.text2, fontSize: 14, lineHeight: 21 },
   bold: { fontWeight: "800", color: C.text },
   chart: { flexDirection: "row", height: 120, gap: 6, alignItems: "flex-end" },
   col: { flex: 1, alignItems: "center", gap: 3, height: "100%" },
@@ -116,5 +116,5 @@ const s = StyleSheet.create({
   track: { flex: 1, width: "70%", justifyContent: "flex-end", backgroundColor: C.field, borderRadius: 5, overflow: "hidden" },
   bar: { width: "100%", backgroundColor: C.green, borderRadius: 5 },
   colLabel: { color: C.muted, fontSize: 10 },
-  past: { color: "#b9c7be", fontSize: 13, paddingVertical: 6 },
+  past: { color: C.text2, fontSize: 13, paddingVertical: 6 },
 });

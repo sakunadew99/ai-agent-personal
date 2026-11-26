@@ -6,7 +6,7 @@ import { C } from "./ui";
  * Charts and dashboard pieces made only of Views (no native chart library, so they work in every build).
  * Colours: green = good/primary, blue = info, amber = attention, red = over/negative, violet = extra series.
  */
-export const PALETTE = ["#3ee08f", "#5aa8ff", "#f5b65b", "#b48cff", "#ff7a8a", "#4fd1c5", "#e6e15a", "#ff9f5a"];
+export const PALETTE = [C.green, C.blue, C.amber, "#b48cff", C.red, "#4fd1c5", "#e6e15a", "#ff9f5a"];
 const clamp = (v: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, Number.isFinite(v) ? v : 0));
 
 /** A ring of dots that fills clockwise to `value` (0-100), with text in the middle. */
@@ -24,7 +24,7 @@ export function Ring({ value, size = 120, color = C.green, label, sub, dots = 44
       return <View key={i} style={{
         position: "absolute", width: dot, height: dot, borderRadius: dot / 2,
         left: size / 2 + r * Math.cos(a) - dot / 2, top: size / 2 + r * Math.sin(a) - dot / 2,
-        backgroundColor: on ? color : "#22302a", opacity: on ? 0.55 + 0.45 * (i / Math.max(1, lit)) : 1,
+        backgroundColor: on ? color : C.line, opacity: on ? 0.55 + 0.45 * (i / Math.max(1, lit)) : 1,
       }}/>;
     })}
     <View style={{ alignItems: "center" }}>
@@ -145,9 +145,9 @@ export function StatTile({ label, value, hint, tone = "plain", icon, onPress, st
       {!!icon && <Text style={k.tileIcon}>{icon}</Text>}
     </View>
     {typeof value === "string" || typeof value === "number"
-      ? <Text style={[k.tileValue, { color: solid ? "#04170d" : accent }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text> : value}
+      ? <Text style={[k.tileValue, { color: solid ? C.greenDark : accent }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text> : value}
     {(hint || (trend !== undefined && trend !== null)) && <Text style={[k.tileHint, solid && { color: "#124a2c" }]} numberOfLines={2}>
-      {trend !== undefined && trend !== null ? <Text style={{ color: solid ? "#04170d" : trend >= 0 ? C.green : C.red, fontWeight: "800" }}>{`${trend >= 0 ? "↑" : "↓"} ${Math.abs(Math.round(trend))}%  `}</Text> : null}
+      {trend !== undefined && trend !== null ? <Text style={{ color: solid ? C.greenDark : trend >= 0 ? C.green : C.red, fontWeight: "800" }}>{`${trend >= 0 ? "↑" : "↓"} ${Math.abs(Math.round(trend))}%  `}</Text> : null}
       {hint}
     </Text>}
   </View>;
@@ -213,13 +213,13 @@ const k = StyleSheet.create({
   between: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
   ringLabel: { color: C.text, fontWeight: "900", letterSpacing: -1 },
   ringSub: { color: C.muted, fontSize: 10, fontWeight: "700", letterSpacing: 0.6, marginTop: -2 },
-  track: { backgroundColor: "#1d2924", overflow: "hidden" },
+  track: { backgroundColor: C.line, overflow: "hidden" },
   meterLabel: { color: C.text, fontSize: 13, fontWeight: "600", flex: 1 },
   meterRight: { fontSize: 12, fontWeight: "800" },
   goalLine: { position: "absolute", left: 0, right: 0, borderTopWidth: 1, borderStyle: "dashed", borderColor: "#6b7d73" },
   barValue: { color: C.text, fontSize: 10, fontWeight: "800", marginBottom: 4 },
   axis: { color: C.muted, fontSize: 10, textAlign: "center" },
-  grid: { position: "absolute", left: 0, right: 0, height: 1, backgroundColor: "#1a2520" },
+  grid: { position: "absolute", left: 0, right: 0, height: 1, backgroundColor: C.panel2 },
   legendRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   legendDot: { width: 10, height: 10, borderRadius: 3 },
   legendLabel: { color: C.text, fontSize: 13, flex: 1, textTransform: "capitalize" },
@@ -234,18 +234,18 @@ const k = StyleSheet.create({
   dotRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   dotHead: { width: 24, textAlign: "center", color: C.muted, fontSize: 10, fontWeight: "800" },
   dotLabel: { flex: 1, color: C.text, fontSize: 13 },
-  dot: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, borderColor: "#2c3a33" },
+  dot: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, borderColor: C.line },
   dotOn: { backgroundColor: C.green, borderColor: C.green },
-  hero: { backgroundColor: "#0f1814", borderColor: "#1f3a2c", borderWidth: 1, borderRadius: 26, padding: 18, gap: 14, overflow: "hidden" },
+  hero: { backgroundColor: C.panel, borderColor: "#1f3a2c", borderWidth: 1, borderRadius: 26, padding: 18, gap: 14, overflow: "hidden" },
   glow: { position: "absolute", width: 220, height: 220, borderRadius: 110, opacity: 0.1 },
   heroKicker: { color: C.green, fontSize: 10, letterSpacing: 1.6, fontWeight: "800" },
   heroTitle: { color: C.text, fontSize: 26, fontWeight: "900", letterSpacing: -0.8, lineHeight: 31 },
   heroSub: { color: C.muted, fontSize: 13, lineHeight: 19 },
   sectionTitle: { color: C.text, fontSize: 17, fontWeight: "800", letterSpacing: -0.3 },
   sectionAction: { color: C.green, fontSize: 12, fontWeight: "700" },
-  seg: { flexDirection: "row", backgroundColor: "#0c1210", borderColor: C.line, borderWidth: 1, borderRadius: 99, padding: 4, gap: 4 },
+  seg: { flexDirection: "row", backgroundColor: C.panel, borderColor: C.line, borderWidth: 1, borderRadius: 99, padding: 4, gap: 4 },
   segItem: { flex: 1, paddingVertical: 9, borderRadius: 99, alignItems: "center" },
   segOn: { backgroundColor: C.green },
   segText: { color: C.muted, fontWeight: "700", fontSize: 13, textTransform: "capitalize" },
-  segTextOn: { color: "#04170d" },
+  segTextOn: { color: C.greenDark },
 });

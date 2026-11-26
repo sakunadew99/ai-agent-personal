@@ -5,7 +5,7 @@ import { ShieldBlocking } from "./screens/ShieldBlocking";
 import { ShieldInsights } from "./screens/ShieldInsights";
 import { ShieldStrict } from "./screens/ShieldStrict";
 import { type BlockList, errorText, parseLists, Shield, type ShieldStatus } from "./shield";
-import { C } from "./ui";
+import { C, soft } from "./ui";
 
 export type ShieldCtx = {
   status: ShieldStatus;
@@ -105,5 +105,5 @@ const s = StyleSheet.create({
   tabOn: { backgroundColor: C.green },
   tabText: { color: C.muted, fontWeight: "700", fontSize: 12 },
   tabTextOn: { color: C.greenDark },
-  message: { color: C.amber, backgroundColor: "#2b2418", borderRadius: 10, padding: 10, fontSize: 13, textAlign: "center", overflow: "hidden" },
+  message: { color: C.amber, backgroundColor: soft(C.amber), borderRadius: 10, padding: 10, fontSize: 13, textAlign: "center", overflow: "hidden" },
 });

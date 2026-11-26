@@ -3,7 +3,7 @@ import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import type { ApiRecord as Row } from "../api";
 import { DateField } from "../pickers";
 import { Hero, Meter, PALETTE, Ring, Segments, SplitBar, StatTile, TileRow } from "../charts";
-import { Badge, Btn, C, Card, Chips, Empty, Field, H2, Kicker, Muted, Progress, Row as Line, Screen } from "../ui";
+import { Badge, Btn, C, Card, Chips, Empty, Field, H2, Kicker, Muted, Progress, Row as Line, Screen, soft } from "../ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 type Props = { api: Api; onError: (m: string) => void; onNotice: (m: string) => void };
@@ -146,11 +146,11 @@ function Buy({ api, onError, onNotice }: Props) {
       <DateField label="Need it by (optional)" value={needBy} allowClear onChange={setNeedBy}/>
       <Btn title="Add" disabled={!name.trim()} onPress={() => { run(api("/money/buy-list", "POST", { name, currency: "LKR", staple: staple === "staple", ...(clean(est) ? { est_price: clean(est) } : {}), ...(needBy ? { need_by: needBy } : {}) }), "Added."); setName(""); setEst(""); setNeedBy(null); }}/>
     </Card>
-    <View style={{ borderRadius: 24, padding: 18, backgroundColor: "#123a6b", borderWidth: 1, borderColor: "#2d64a8", overflow: "hidden", gap: 4 }}>
-      <View style={{ position: "absolute", width: 180, height: 180, borderRadius: 90, right: -60, top: -70, backgroundColor: "#5aa8ff", opacity: 0.2 }}/>
-      <Text style={{ color: "#cfe3ff", fontWeight: "800", fontSize: 12, letterSpacing: 1 }}>{`ITEMS ${selected.length}/${rows.length} PICKED`}</Text>
+    <View style={{ borderRadius: 24, padding: 18, backgroundColor: soft("#2f7fe0", 0.3), borderWidth: 1, borderColor: "#2d64a8", overflow: "hidden", gap: 4 }}>
+      <View style={{ position: "absolute", width: 180, height: 180, borderRadius: 90, right: -60, top: -70, backgroundColor: C.blue, opacity: 0.2 }}/>
+      <Text style={{ color: C.blue, fontWeight: "800", fontSize: 12, letterSpacing: 1 }}>{`ITEMS ${selected.length}/${rows.length} PICKED`}</Text>
       <Text style={{ color: "#fff", fontSize: 30, fontWeight: "900" }}>{fmt(total, "LKR")}</Text>
-      <Text style={{ color: "#cfe3ff", fontSize: 12 }}>estimated total for your list</Text>
+      <Text style={{ color: C.blue, fontSize: 12 }}>estimated total for your list</Text>
     </View>
     <Card><Kicker>{`${rows.length} TO BUY`}</Kicker>
       {rows.length ? rows.map(r => { const on = selected.includes(r.id); return <TouchableOpacity key={r.id} onPress={() => setSelected(s => on ? s.filter(x => x !== r.id) : [...s, r.id])}>

@@ -4,7 +4,7 @@ import { KbScroll } from "../keyboard";
 import type { ApiRecord as Row } from "../api";
 import { Bars, Hero, Ring } from "../charts";
 import { syncMedicineReminders } from "../notify";
-import { Badge, Btn, C, Card, Empty, Kicker, Muted, Row as Line, Screen } from "../ui";
+import { Badge, Btn, C, Card, Empty, Kicker, Muted, Row as Line, Screen, soft } from "../ui";
 import { Trainer, type TrainerResult } from "./Trainer";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
@@ -73,9 +73,9 @@ export function MedicinesScreen({ api, onError, onNotice }: { api: Api; onError:
   const doses: Row[] = v.doses;
   const done = doses.filter(d => d.status === "taken").length;
   return <Screen onRefresh={load}>
-    <Hero kicker="MEDICINES & SUPPLEMENTS" title={doses.length ? `${done} of ${doses.length}` : "No doses"} accent={doses.length ? "taken" : "today"} color="#5aa8ff"
+    <Hero kicker="MEDICINES & SUPPLEMENTS" title={doses.length ? `${done} of ${doses.length}` : "No doses"} accent={doses.length ? "taken" : "today"} color={C.blue}
       sub={v.next ? `Next: ${v.next.icon} ${v.next.name} at ${v.next.slot}` : doses.length ? "All done for today 🎉" : "Add a medicine to get reminders."}
-      right={<Ring value={v.adherence_7d ?? 0} size={92} color="#5aa8ff" label={v.adherence_7d != null ? `${v.adherence_7d}%` : "—"} sub="7 DAYS"/>}/>
+      right={<Ring value={v.adherence_7d ?? 0} size={92} color={C.blue} label={v.adherence_7d != null ? `${v.adherence_7d}%` : "—"} sub="7 DAYS"/>}/>
     {(v.refill as Row[]).map(m => <Card key={m.id} style={{ borderColor: C.amber }}><Text style={{ color: C.amber, fontWeight: "800" }}>{`⚠ ${m.name}: ${m.stock} left (about ${m.days_left} days). Time to refill.`}</Text></Card>)}
     <Card><Kicker>TODAY</Kicker>
       {doses.length ? doses.map(d => <View key={`${d.medicine_id}-${d.slot}`} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.line }}>
@@ -84,7 +84,7 @@ export function MedicinesScreen({ api, onError, onNotice }: { api: Api; onError:
         {d.status === "taken" ? <TouchableOpacity onPress={() => mark(d, null)}><Badge>✓ taken</Badge></TouchableOpacity>
           : d.status === "skipped" ? <TouchableOpacity onPress={() => mark(d, null)}><Badge tone="muted">skipped</Badge></TouchableOpacity>
           : <View style={{ flexDirection: "row", gap: 6 }}>
-            <TouchableOpacity onPress={() => mark(d, "taken")} style={{ backgroundColor: C.green, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}><Text style={{ color: "#04170d", fontWeight: "900" }}>✓ Take</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => mark(d, "taken")} style={{ backgroundColor: C.green, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}><Text style={{ color: C.greenDark, fontWeight: "900" }}>✓ Take</Text></TouchableOpacity>
             <TouchableOpacity onPress={() => mark(d, "skipped")} style={{ borderWidth: 1, borderColor: C.line, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 }}><Text style={{ color: C.muted }}>Skip</Text></TouchableOpacity></View>}
       </View>) : <Muted>No doses today.</Muted>}
     </Card>
@@ -104,7 +104,7 @@ export function MedicinesScreen({ api, onError, onNotice }: { api: Api; onError:
 // ------------------------------------------------------------------ skills
 
 const CATS: [string, string][] = [["body", "💪 Body"], ["fight", "🥊 Fighting"], ["music", "🎵 Music"], ["soft", "🤝 Soft skills"], ["hard", "🛠 Hard skills"], ["mind", "🧠 Mind"], ["other", "✨ Other"]];
-const CAT_COLOR: Record<string, string> = { body: "#3ee08f", fight: "#ff7a8a", music: "#b48cff", soft: "#f5b65b", hard: "#5aa8ff", mind: "#4fd1c5", other: "#8a9b92" };
+const CAT_COLOR: Record<string, string> = { body: C.green, fight: C.red, music: "#b48cff", soft: C.amber, hard: C.blue, mind: "#4fd1c5", other: C.muted };
 
 function metricText(m: Row | null | undefined) {
   if (!m) return "";
@@ -209,7 +209,7 @@ export function SkillsScreen({ api, onError, onNotice, onOpen }: { api: Api; onE
     </Sheet>}
     {trainer && <Trainer kind={trainer.kind} onClose={() => setTrainer(null)} onResult={onTrainer}/>}
     {advice && <Sheet title="🎙 Your coach" onClose={() => setAdvice(null)}>
-      {advice.progress && <View style={{ backgroundColor: advice.progress.change >= 0 ? C.greenSoft : "#3a2222", borderRadius: 14, padding: 12 }}>
+      {advice.progress && <View style={{ backgroundColor: advice.progress.change >= 0 ? C.greenSoft : soft(C.red), borderRadius: 14, padding: 12 }}>
         <Text style={{ color: advice.progress.change >= 0 ? C.green : C.red, fontWeight: "900", fontSize: 16 }}>{`${advice.progress.previous} → ${advice.progress.now}`}</Text>
         <Muted small>{advice.progress.text}</Muted></View>}
       <Kicker>FROM YOUR SCORES</Kicker>

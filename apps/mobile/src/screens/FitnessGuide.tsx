@@ -125,7 +125,7 @@ function Meals({ api, onError }: { api: Api; onError: (m: string) => void }) {
 export function FitnessGuideScreen({ api, onError, onOpen }: { api: Api; onError: (m: string) => void; onOpen?: (t: string) => void }) {
   const [tab, setTab] = useState<"today" | "library" | "meals">("today");
   return <Screen>
-    <Hero kicker="FITNESS GUIDE" title="Stronger," accent="leaner, safer" color="#3ee08f" sub="Workout plans with technique, plus meals from Sri Lankan food that fit your budget."
+    <Hero kicker="FITNESS GUIDE" title="Stronger," accent="leaner, safer" color={C.green} sub="Workout plans with technique, plus meals from Sri Lankan food that fit your budget."
       right={<Ring value={tab === "today" ? 33 : tab === "library" ? 66 : 100} size={70} label={tab === "today" ? "🏋️" : tab === "library" ? "📖" : "🥗"}/>}/>
     <Segments options={["today", "library", "meals"] as const} value={tab} onChange={setTab} labels={{ today: "🏋️ Today", library: "📖 Exercises", meals: "🥗 Meals" }}/>
     {tab === "today" ? <Today api={api} onError={onError} onOpen={onOpen}/> : tab === "library" ? <Library api={api} onError={onError}/> : <Meals api={api} onError={onError}/>}

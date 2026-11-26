@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import type { ApiRecord as Row } from "../api";
-import { Btn, C, H2, Muted } from "../ui";
+import { Btn, C, H2, Muted, soft } from "../ui";
 import { appendSpeech, MicButton } from "../voice";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
@@ -116,18 +116,18 @@ const m = StyleSheet.create({
   link: { color: C.green, fontWeight: "700" },
   pill: { color: C.muted, fontSize: 11, fontWeight: "700", borderColor: C.line, borderWidth: 1, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4 },
   pillOn: { color: C.green, borderColor: "#2f6b4a" },
-  banner: { marginHorizontal: 16, padding: 10, borderRadius: 10, fontSize: 12, color: C.text, backgroundColor: "#2e2416", borderColor: "#7a5a2a", borderWidth: 1 },
+  banner: { marginHorizontal: 16, padding: 10, borderRadius: 10, fontSize: 12, color: C.text, backgroundColor: soft(C.amber), borderColor: "#7a5a2a", borderWidth: 1 },
   bannerErr: { backgroundColor: "#381f1f", borderColor: "#663535" },
   thread: { padding: 16, paddingBottom: 24, gap: 12 },
   starter: { borderColor: C.line, borderWidth: 1, borderRadius: 12, padding: 12 },
   msg: { maxWidth: "88%", padding: 12, borderRadius: 16, gap: 6 },
-  user: { alignSelf: "flex-end", backgroundColor: "#1f3a2b", borderBottomRightRadius: 4 },
+  user: { alignSelf: "flex-end", backgroundColor: C.greenSoft, borderBottomRightRadius: 4 },
   bot: { alignSelf: "flex-start", backgroundColor: C.panel, borderColor: C.line, borderWidth: 1, borderBottomLeftRadius: 4, maxWidth: "94%" },
   errMsg: { borderColor: "#663535" },
   p: { color: C.text, fontSize: 14, lineHeight: 21 },
   h: { color: C.text, fontSize: 15, fontWeight: "800", marginTop: 4 },
   li: { flexDirection: "row", gap: 6 },
-  code: { fontFamily: Platform.OS === "android" ? "monospace" : "Menlo", backgroundColor: "#0e1411", color: C.text },
+  code: { fontFamily: Platform.OS === "android" ? "monospace" : "Menlo", backgroundColor: C.panel, color: C.text },
   note: { color: C.amber, fontSize: 12 },
   small: { color: C.muted, fontSize: 11 },
   composer: { flexDirection: "row", gap: 8, alignItems: "flex-end", padding: 10, paddingBottom: 14, borderTopColor: C.line, borderTopWidth: 1, backgroundColor: C.bg },

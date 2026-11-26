@@ -6,7 +6,7 @@ import { Btn, C, Card, Empty, Field, Kicker, Muted, Row as Line, Screen } from "
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 const msg = (r: unknown) => (r instanceof Error ? r.message : "Something went wrong");
-const SKILL_COLOR: Record<string, string> = { negotiation: "#f5b65b", leadership: "#b48cff", interview: "#5aa8ff", communication: "#3ee08f", speaking: "#ff9ecf", sales: "#4fd1c5" };
+const SKILL_COLOR: Record<string, string> = { negotiation: C.amber, leadership: "#b48cff", interview: C.blue, communication: C.green, speaking: "#ff9ecf", sales: "#4fd1c5" };
 const tone = (s: number) => (s >= 75 ? C.green : s >= 50 ? C.amber : C.red);
 
 /** Soft-skills academy: pick a real situation, talk it through, get a rubric score, tips and (optional) AI coaching. */
@@ -57,9 +57,9 @@ export function RolePlayScreen({ api, onError }: { api: Api; onError: (m: string
   }
   const skills: Row[] = cat.skills;
   return <Screen onRefresh={load}>
-    <Hero kicker="SOFT-SKILLS ACADEMY · ROLE-PLAY" title="Practise the" accent="real conversation" color="#f5b65b"
+    <Hero kicker="SOFT-SKILLS ACADEMY · ROLE-PLAY" title="Practise the" accent="real conversation" color={C.amber}
       sub={cat.ai_partner ? "The other person is played by AI. Reply like real life." : "Scripted partner (turn on AI for a live one). Your replies are scored the same way."}
-      right={<Ring value={Math.round(skills.reduce((a, k) => a + k.done / k.total, 0) / Math.max(1, skills.length) * 100)} size={86} color="#f5b65b"
+      right={<Ring value={Math.round(skills.reduce((a, k) => a + k.done / k.total, 0) / Math.max(1, skills.length) * 100)} size={86} color={C.amber}
         label={`${skills.reduce((a, k) => a + k.done, 0)}`} sub="TRIED"/>}/>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{skills.map(k => <View key={k.skill}
       style={{ padding: 10, borderRadius: 16, backgroundColor: C.panel, borderWidth: 1, borderColor: `${SKILL_COLOR[k.skill]}55`, minWidth: 120 }}>

@@ -2,12 +2,12 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import type { ApiRecord as Row } from "../api";
 import { Hero, Ring } from "../charts";
-import { Btn, C, Card, Empty, Kicker, Muted, Row as Line, Screen } from "../ui";
+import { Btn, C, Card, Empty, Kicker, Muted, Row as Line, Screen, soft } from "../ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 const msg = (r: unknown) => (r instanceof Error ? r.message : "Something went wrong");
 const HORIZONS: [string, string][] = [["week", "This week"], ["month", "This month"], ["year", "This year"], ["3y", "3 years"], ["5y", "5 years"], ["10y", "10 years"]];
-const H_COLOR: Record<string, string> = { today: "#3ee08f", week: "#3ee08f", month: "#5aa8ff", year: "#b48cff", "3y": "#f5b65b", "5y": "#ff9ecf", "10y": "#ff7a8a", unsorted: "#8a9b92" };
+const H_COLOR: Record<string, string> = { today: C.green, week: C.green, month: C.blue, year: "#b48cff", "3y": C.amber, "5y": "#ff9ecf", "10y": C.red, unsorted: C.muted };
 const input = { color: C.text, backgroundColor: C.panel2, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: C.line, fontSize: 15 } as const;
 const EXAMPLES = ["I want to learn swimming", "I want to study in Germany", "I want to build $1 million net worth", "I want to start a new Fiverr gig", "I want to improve my leadership", "I want to visit Ella"];
 
@@ -103,7 +103,7 @@ export function CompanionCard({ api, onOpen }: { api: Api; onOpen: (t: string) =
   useEffect(() => { load(); }, [load]);
   if (!q || (!q.question && !reply && !settings)) return null;
   const choose = (key: string) => void api<Row>("/companion/answer", "POST", { choice: key, goal_id: q.question?.goal_id }).then(setReply).catch(() => undefined);
-  return <View style={{ borderRadius: 24, padding: 16, gap: 10, backgroundColor: "#16122a", borderWidth: 1, borderColor: "#b48cff55" }}>
+  return <View style={{ borderRadius: 24, padding: 16, gap: 10, backgroundColor: soft("#7c4dff"), borderWidth: 1, borderColor: "#b48cff55" }}>
     <View style={{ flexDirection: "row", alignItems: "center" }}>
       <Text style={{ color: "#b48cff", fontSize: 10, letterSpacing: 1.6, fontWeight: "800", flex: 1 }}>✨ SAKUNA ASKS</Text>
       <TouchableOpacity onPress={() => setSettings(s => !s)} hitSlop={10}><Text style={{ color: C.muted }}>⚙</Text></TouchableOpacity></View>

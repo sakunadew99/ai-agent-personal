@@ -114,7 +114,7 @@ export function BoardScreen({ api, onError, onNotice, onOpen }: { api: Api; onEr
   return <Screen onRefresh={load}>
     <View style={{ flexDirection: "row", gap: 6 }}>{([["tasks", "✅ Tasks"], ["habits", "🔁 Habits"], ["goals", "🎯 Goals"]] as const).map(([k, l]) =>
       <TouchableOpacity key={k} onPress={() => setTab(k)} style={{ flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 14, backgroundColor: tab === k ? C.green : C.panel2 }}>
-        <Text style={{ color: tab === k ? "#04170d" : C.text, fontWeight: "800" }}>{l}</Text></TouchableOpacity>)}</View>
+        <Text style={{ color: tab === k ? C.greenDark : C.text, fontWeight: "800" }}>{l}</Text></TouchableOpacity>)}</View>
     {tab === "tasks" && <>{COLS.map(([k, label, color]) => { const list = tasks.filter(x => col(x) === k);
       return <View key={k} style={{ gap: 8 }}>
         <Text style={{ color, fontWeight: "900", fontSize: 15 }}>{`${label} · ${list.length}`}</Text>

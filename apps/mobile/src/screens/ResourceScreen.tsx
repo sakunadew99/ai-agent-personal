@@ -23,7 +23,7 @@ export function ResourceScreen({ api, onError, onNotice }: { api: Api; onError: 
       { text: "Approve", onPress: () => void api("/dreams/accept", "POST", { ...plan, next_action: r!.next_action.slice(0, 300) }).then(() => onNotice("Learning goal created 🎯")).catch(e => onError(msg(e))) }]))
     .catch(e => onError(msg(e)));
   return <Screen>
-    <Hero kicker="LEARN ANYTHING · TRUSTED RESOURCES" title="What do you" accent="want to learn?" color="#5aa8ff"
+    <Hero kicker="LEARN ANYTHING · TRUSTED RESOURCES" title="What do you" accent="want to learn?" color={C.blue}
       sub="Real search links on reliable sites and a Wikipedia summary. Sakuna never makes up video titles or links.">
       <Field voice value={topic} onChangeText={setTopic} placeholder="e.g. swimming, pandas, German A1, negotiation" onSubmitEditing={() => find()} returnKeyType="search"/>
       <Line>{["beginner", "intermediate", "advanced"].map(l => <TouchableOpacity key={l} onPress={() => setLevel(l)} style={{ flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 12,

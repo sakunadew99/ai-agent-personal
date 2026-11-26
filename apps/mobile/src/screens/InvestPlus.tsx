@@ -114,7 +114,7 @@ export function PortfolioReview({ api, onClose, onError }: { api: Api; onClose: 
     {r && !(r.holdings as Row[]).length && <Card accent><Kicker>NO SHARES SAVED YET</Kicker>
       <Muted>Your portfolio is empty, so values show Rs 0. Close this and tap “📄 Import ATrad PDF” (or “＋ Share I own”) on the Invest screen, then run the review again.</Muted></Card>}
     {!r ? <Empty>{busy ? "Reading a year of CSE prices, oil, rupee and news… (first time ~20 s)" : "No data"}</Empty> : <>
-      <View style={{ borderRadius: 24, padding: 16, gap: 8, backgroundColor: "#0f1a15", borderWidth: 1, borderColor: "#2a6b4a" }}>
+      <View style={{ borderRadius: 24, padding: 16, gap: 8, backgroundColor: C.panel, borderWidth: 1, borderColor: "#2a6b4a" }}>
         <Line><View style={{ flex: 1 }}><Text style={{ color: C.green, fontWeight: "800", fontSize: 11, letterSpacing: 1.4 }}>PORTFOLIO · TODAY</Text>
           <Text style={{ color: C.text, fontSize: 28, fontWeight: "900" }}>{rs(r.value)}</Text>
           <Text style={{ color: col(r.unrealised), fontWeight: "800" }}>{`Unrealised ${sg(r.unrealised, "", 0)} (${sg(r.unrealised_pct, "%")})`}</Text>

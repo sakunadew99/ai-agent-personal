@@ -110,7 +110,7 @@ const s = StyleSheet.create({
   dotRead: { backgroundColor: C.green },
   who: { color: C.muted, fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
   title: { color: C.text, fontSize: 16, fontWeight: "800" },
-  body: { color: "#d1ddd4", fontSize: 14, lineHeight: 21 },
+  body: { color: C.text2, fontSize: 14, lineHeight: 21 },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   action: { borderColor: C.green, borderWidth: 1, borderRadius: 99, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: C.greenSoft },
   actionQuiet: { borderColor: C.line, backgroundColor: "transparent" },

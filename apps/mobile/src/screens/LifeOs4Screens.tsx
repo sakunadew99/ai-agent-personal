@@ -195,9 +195,9 @@ export function ProgressScreen({ api, onError, onNotice }: Props) {
 // DAY TRACKER: hour by hour, phone usage, end-of-day report, tomorrow's block list
 // =====================================================================================================================
 
-export const CATS: [string, string, string][] = [["work", "💼 Work", "#5aa8ff"], ["deep_work", "🎯 Deep work", "#3ee08f"], ["meeting", "👥 Meeting", "#4fd1c5"], ["study", "📚 Study", "#b48cff"],
-  ["exercise", "🏋️ Exercise", "#e6e15a"], ["commute", "🚌 Commute", "#8a9b92"], ["chores", "🧹 Chores", "#8a9b92"], ["family", "🏠 Family", "#ff9f5a"], ["social", "🤝 Social", "#ff9f5a"],
-  ["rest", "😌 Rest", "#8a9b92"], ["entertainment", "🎬 Fun", "#f5b65b"], ["wasted", "📱 Wasted", "#ff7a8a"], ["sleep", "😴 Sleep", "#4b5d54"], ["other", "• Other", "#8a9b92"]];
+export const CATS: [string, string, string][] = [["work", "💼 Work", C.blue], ["deep_work", "🎯 Deep work", C.green], ["meeting", "👥 Meeting", "#4fd1c5"], ["study", "📚 Study", "#b48cff"],
+  ["exercise", "🏋️ Exercise", "#e6e15a"], ["commute", "🚌 Commute", C.muted], ["chores", "🧹 Chores", C.muted], ["family", "🏠 Family", "#ff9f5a"], ["social", "🤝 Social", "#ff9f5a"],
+  ["rest", "😌 Rest", C.muted], ["entertainment", "🎬 Fun", C.amber], ["wasted", "📱 Wasted", C.red], ["sleep", "😴 Sleep", "#4b5d54"], ["other", "• Other", C.muted]];
 const COLOR = Object.fromEntries(CATS.map(c => [c[0], c[2]]));
 const LABEL = Object.fromEntries(CATS.map(c => [c[0], c[1]]));
 

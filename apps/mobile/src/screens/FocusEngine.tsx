@@ -4,7 +4,7 @@ import { StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "rea
 import { peek, type ApiRecord as Row } from "../api";
 import { cancelFocusEnd, scheduleFocusEnd } from "../notify";
 import { defaultMark, parseLists, Shield, type BlockList } from "../shield";
-import { Badge, Btn, C, Card, Empty, H2, Kicker, Muted, Progress, Row as Line } from "../ui";
+import { Badge, Btn, C, Card, Empty, H2, Kicker, Muted, Progress, Row as Line, soft } from "../ui";
 import { MicButton, appendSpeech } from "../voice";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
@@ -297,7 +297,7 @@ function BrainGame() {
   return <Card>
     <Line><Kicker>🧩 BRAIN GAME</Kicker><View style={{ flex: 1 }}/><Badge>{`streak ${streak}`}</Badge></Line>
     <Text style={s.game}>{q.a} × {q.b} = ?</Text>
-    <View style={s.chips}>{q.opts.map(n => <TouchableOpacity key={n} onPress={() => choose(n)} style={[s.gameOpt, pick === n && { backgroundColor: n === q.answer ? C.greenSoft : "#3a2222", borderColor: n === q.answer ? C.green : C.red }]}>
+    <View style={s.chips}>{q.opts.map(n => <TouchableOpacity key={n} onPress={() => choose(n)} style={[s.gameOpt, pick === n && { backgroundColor: n === q.answer ? C.greenSoft : soft(C.red), borderColor: n === q.answer ? C.green : C.red }]}>
       <Text style={s.gameOptText}>{n}</Text></TouchableOpacity>)}</View>
   </Card>;
 }
@@ -368,7 +368,7 @@ const s = StyleSheet.create({
   countHint: { color: C.muted, fontSize: 14, letterSpacing: 1 },
   countNum: { color: C.green, fontSize: 120, fontWeight: "900" },
   countTarget: { color: C.text, fontSize: 16, textAlign: "center", paddingHorizontal: 20 },
-  focusCard: { backgroundColor: "#122019", borderColor: C.green, borderWidth: 1, borderRadius: 22, padding: 20, gap: 12, alignItems: "stretch" },
+  focusCard: { backgroundColor: C.panel2, borderColor: C.green, borderWidth: 1, borderRadius: 22, padding: 20, gap: 12, alignItems: "stretch" },
   focusKicker: { color: C.green, fontSize: 11, fontWeight: "900", letterSpacing: 1.4, textAlign: "center" },
   timer: { color: C.text, fontSize: 64, fontWeight: "900", textAlign: "center", fontVariant: ["tabular-nums"] },
   focusTarget: { color: C.text, fontSize: 17, fontWeight: "700", textAlign: "center" },
@@ -397,6 +397,6 @@ const s = StyleSheet.create({
   dotSlip: { backgroundColor: C.amber },
   pill: { borderColor: C.line, borderWidth: 1, borderRadius: 99, paddingHorizontal: 12, paddingVertical: 6 },
   pillClean: { borderColor: C.green, backgroundColor: C.greenSoft },
-  pillSlip: { borderColor: C.amber, backgroundColor: "#3a2f1d" },
+  pillSlip: { borderColor: C.amber, backgroundColor: soft(C.amber) },
   pillText: { color: C.text, fontSize: 12, fontWeight: "700" },
 });

@@ -31,7 +31,7 @@ export function BodyScreen({ api, onError, onNotice }: { api: Api; onError: (m: 
   const ch = v.changes as Record<string, Row>; const w = ch.weight_kg, wa = ch.waist_cm;
   const whtr = v.waist_to_height as number | null;
   return <Screen onRefresh={load}>
-    <Hero kicker="BODY MEASUREMENTS" title={w ? `${w.latest}` : wa ? `${wa.latest}` : "—"} accent={w ? "kg" : wa ? "cm waist" : "start today"} color="#5aa8ff"
+    <Hero kicker="BODY MEASUREMENTS" title={w ? `${w.latest}` : wa ? `${wa.latest}` : "—"} accent={w ? "kg" : wa ? "cm waist" : "start today"} color={C.blue}
       sub={[w && `${w.since_start > 0 ? "+" : ""}${w.since_start} kg since start`, wa && `waist ${wa.since_start > 0 ? "+" : ""}${wa.since_start} cm`, v.due ? "time to measure" : null].filter(Boolean).join(" · ")}
       right={<Ring value={whtr ? Math.min(100, whtr / 0.7 * 100) : 0} size={88} color={whtr && whtr >= 0.5 ? C.amber : C.green} label={whtr ? `${whtr}` : "—"} sub="WAIST/HT"/>}/>
     {(v.insights as string[]).map(t => <Card key={t}><Text style={{ color: C.text, lineHeight: 21 }}>{`💡 ${t}`}</Text></Card>)}
@@ -43,7 +43,7 @@ export function BodyScreen({ api, onError, onNotice }: { api: Api; onError: (m: 
       <Btn title="Save" onPress={save}/><Muted small>Same day again updates that day's entry. {v.note}</Muted></Card>
     {Object.entries(ch).map(([k, c]) => <Card key={k} style={{ gap: 4 }}>
       <Line><Text style={{ color: C.text, fontWeight: "800", flex: 1 }}>{c.label}</Text><Text style={{ color: C.text, fontWeight: "900" }}>{c.latest}</Text></Line>
-      <Spark series={c.series} color="#5aa8ff"/>
+      <Spark series={c.series} color={C.blue}/>
       <Muted small>{`Since start ${c.since_start > 0 ? "+" : ""}${c.since_start}${c.since_month != null ? ` · last month ${c.since_month > 0 ? "+" : ""}${c.since_month}` : ""}`}</Muted></Card>)}
     <Card style={{ gap: 8 }}><Kicker>FOR BODY-FAT & WAIST-TO-HEIGHT</Kicker>
       <Line><Field label="Height (cm)" value={height} onChangeText={setHeight} keyboardType="number-pad" style={{ flex: 1 }}/>

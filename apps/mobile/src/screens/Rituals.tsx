@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { KeyboardAvoidingView, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import type { ApiRecord as Row } from "../api";
-import { Btn, C, Kicker, Muted } from "../ui";
+import { Btn, C, Kicker, Muted, soft } from "../ui";
 import { Trainer, type TrainerResult } from "./Trainer";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
@@ -96,7 +96,7 @@ export function RitualCard({ api, onError, onNotice }: { api: Api; onError: (m: 
   const morning = which === "morning";
   return <>
     <TouchableOpacity activeOpacity={0.85} onPress={() => setOpen(which)} style={{ borderRadius: 24, padding: 16, flexDirection: "row", alignItems: "center", gap: 12,
-      backgroundColor: morning ? "#3a2f1d" : "#1d1a3a", borderWidth: 1, borderColor: morning ? "#f5b65b66" : "#b48cff66" }}>
+      backgroundColor: morning ? soft(C.amber) : "#1d1a3a", borderWidth: 1, borderColor: morning ? "#f5b65b66" : "#b48cff66" }}>
       <Text style={{ fontSize: 34 }}>{morning ? "☀️" : "🌙"}</Text>
       <View style={{ flex: 1 }}><Text style={{ color: C.text, fontWeight: "900", fontSize: 17 }}>{morning ? "Morning check-in" : "Close your day"}</Text>
         <Muted small>{morning ? "2 minutes: energy, mood and one focus" : "2 minutes: mood, wins, lesson, tomorrow's top 3"}</Muted></View>

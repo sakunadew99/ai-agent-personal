@@ -227,7 +227,7 @@ const s = StyleSheet.create({
   classTag: { color: C.green, borderColor: C.green, borderWidth: 1, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2, fontSize: 10, fontWeight: "800", overflow: "hidden" },
   value: { color: C.text, fontSize: 32, fontWeight: "900", fontVariant: ["tabular-nums"] },
   stat: { fontSize: 16, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  index: { color: "#d1ddd4", fontSize: 13, fontWeight: "700" },
+  index: { color: C.text2, fontSize: 13, fontWeight: "700" },
   alert: { color: "#ffd38a", fontSize: 14, lineHeight: 20 },
   holding: { gap: 4, paddingVertical: 8, borderBottomColor: C.line, borderBottomWidth: StyleSheet.hairlineWidth },
   sym: { color: C.text, fontSize: 15, fontWeight: "800", marginRight: 6 },
@@ -245,6 +245,6 @@ const s = StyleSheet.create({
   closeText: { color: C.text, fontSize: 18 },
   chart: { flexDirection: "row", alignItems: "flex-end", height: 110, gap: 1 },
   bar: { flex: 1, backgroundColor: C.green, borderRadius: 2, minHeight: 2 },
-  body: { color: "#d1ddd4", fontSize: 14, lineHeight: 20 },
+  body: { color: C.text2, fontSize: 14, lineHeight: 20 },
   news: { color: C.text, fontSize: 13, lineHeight: 20, paddingVertical: 3 },
 });

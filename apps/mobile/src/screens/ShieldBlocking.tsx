@@ -6,7 +6,7 @@ import {
   type AppCategory, type AppInfo, type BlockList, CATEGORY_ICON, CATEGORY_LABEL, CATEGORY_ORDER, clock, clockMin, DAY_SHORT,
   errorText, type ListMode, parseLists, scheduleText, Shield,
 } from "../shield";
-import { C } from "../ui";
+import { C, soft } from "../ui";
 import { DateField, TimeField } from "../pickers";
 
 const QUICK = [15, 30, 60, 120, 240];
@@ -327,14 +327,14 @@ export const s = StyleSheet.create({
   pillOn: { color: C.green, backgroundColor: C.greenSoft },
   pillOff: { color: C.muted, backgroundColor: C.line },
   counts: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  count: { color: "#b9c7be", fontSize: 12 },
+  count: { color: C.text2, fontSize: 12 },
   empty: { borderColor: C.line, borderWidth: 1, borderStyle: "dashed", borderRadius: 18, padding: 22, alignItems: "center", gap: 6 },
   modal: { flex: 1, backgroundColor: C.bg },
   modalTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 44, paddingBottom: 8 },
   modalTitle: { color: C.text, fontSize: 20, fontWeight: "800" },
   roundBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: C.panel2, alignItems: "center", justifyContent: "center" },
   roundBtnText: { color: C.text, fontSize: 24, marginTop: -2 },
-  notice: { color: "#ffd38a", backgroundColor: "#2b2418", borderRadius: 12, padding: 12, fontSize: 12, lineHeight: 18, overflow: "hidden" },
+  notice: { color: "#ffd38a", backgroundColor: soft(C.amber), borderRadius: 12, padding: 12, fontSize: 12, lineHeight: 18, overflow: "hidden" },
   input: { backgroundColor: C.field, borderColor: C.line, borderWidth: 1, borderRadius: 12, color: C.text, paddingHorizontal: 12, paddingVertical: 11, fontSize: 14 },
   addBtn: { backgroundColor: C.green, borderRadius: 12, paddingHorizontal: 16, justifyContent: "center" },
   segment: { flexDirection: "row", borderBottomColor: C.line, borderBottomWidth: 1 },
@@ -356,13 +356,13 @@ export const s = StyleSheet.create({
   chev: { color: C.muted, fontSize: 18, width: 14, textAlign: "center" },
   catIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.panel2, alignItems: "center", justifyContent: "center" },
   appRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9 },
-  avatar: { width: 32, height: 32, borderRadius: 10, backgroundColor: "#203128", alignItems: "center", justifyContent: "center" },
+  avatar: { width: 32, height: 32, borderRadius: 10, backgroundColor: C.line, alignItems: "center", justifyContent: "center" },
   avatarText: { color: "#a5e3be", fontWeight: "800", fontSize: 14 },
   check: { width: 24, height: 24, borderRadius: 7, borderColor: "#476051", borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   checkOn: { backgroundColor: C.green, borderColor: C.green },
   checkText: { color: C.greenDark, fontWeight: "900", fontSize: 14 },
   option: { borderColor: C.line, borderWidth: 1, borderStyle: "dashed", borderRadius: 18, padding: 14, gap: 6 },
-  optionOn: { borderStyle: "solid", borderColor: C.green, backgroundColor: "#121c17" },
+  optionOn: { borderStyle: "solid", borderColor: C.green, backgroundColor: C.panel },
   optionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   optionIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.panel2, alignItems: "center", justifyContent: "center" },
   footer: { position: "absolute", left: 0, right: 0, bottom: 0, padding: 16, paddingBottom: 22, backgroundColor: C.bg, borderTopColor: C.line, borderTopWidth: 1, gap: 8 },

@@ -76,7 +76,7 @@ export function GapCards({ api, day, onError, onNotice, onSaved }: { api: Api; d
   };
   if (!g || !(g.gaps as Row[]).length) return null;
   const gaps = g.gaps as Row[]; const choices = g.choices as Row[];
-  return <Card style={{ gap: 10, borderColor: "#5aa8ff" }}>
+  return <Card style={{ gap: 10, borderColor: C.blue }}>
     <TouchableOpacity onPress={() => setOpen(o => !o)}><Text style={{ color: C.text, fontWeight: "900", fontSize: 16 }}>{`🧩 ${g.message} ${open ? "▲" : "▼"}`}</Text></TouchableOpacity>
     {open && <>
       {gaps.map(x => <View key={x.hour} style={{ gap: 6, padding: 10, borderRadius: 14, backgroundColor: C.panel2 }}>
@@ -85,7 +85,7 @@ export function GapCards({ api, day, onError, onNotice, onSaved }: { api: Api; d
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{choices.map(c => { const on = pick[x.hour] === c.key;
           return <TouchableOpacity key={c.key} onPress={() => setPick(p => ({ ...p, [x.hour]: c.key }))} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14,
             backgroundColor: on ? (c.key === "wasted" ? C.red : C.green) : "transparent", borderWidth: 1, borderColor: on ? "transparent" : C.line }}>
-            <Text style={{ color: on ? "#04170d" : C.text, fontSize: 12, fontWeight: "700" }}>{c.label}</Text></TouchableOpacity>; })}</View>
+            <Text style={{ color: on ? C.greenDark : C.text, fontSize: 12, fontWeight: "700" }}>{c.label}</Text></TouchableOpacity>; })}</View>
       </View>)}
       <Btn title={`✓ Save ${Object.keys(pick).length} answer${Object.keys(pick).length === 1 ? "" : "s"}`} onPress={() => save(gaps.map(x => x.hour))}/>
       <Muted small>Suggestions come from the apps you used in that hour (Shield's app marks). Change any before saving.</Muted>

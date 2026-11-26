@@ -3,12 +3,12 @@ import { Alert, Animated, Easing, KeyboardAvoidingView, Modal, ScrollView, Text,
 import type { ApiRecord as Row } from "../api";
 import { openInApp } from "../browser";
 import { Bars, Hero, Ring } from "../charts";
-import { Btn, C, Card, Empty, Field, Kicker, Muted, Row as Line, Screen } from "../ui";
+import { Btn, C, Card, Empty, Field, Kicker, Muted, Row as Line, Screen, soft } from "../ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 const msg = (r: unknown) => (r instanceof Error ? r.message : "Something went wrong");
-const NOTE_BG: Record<string, string> = { default: "#141d19", green: "#123222", blue: "#13243a", amber: "#3a2f1d", red: "#3a2222", violet: "#261d3a", pink: "#3a1d2f", teal: "#123333" };
-const NOTE_DOT: Record<string, string> = { default: "#8a9b92", green: "#3ee08f", blue: "#5aa8ff", amber: "#f5b65b", red: "#ff7a8a", violet: "#b48cff", pink: "#ff9ecf", teal: "#4fd1c5" };
+const NOTE_BG: Record<string, string> = { default: C.panel2, green: C.greenSoft, blue: soft(C.blue), amber: soft(C.amber), red: soft(C.red), violet: soft("#b48cff"), pink: soft("#ff9ecf"), teal: soft("#4fd1c5") };
+const NOTE_DOT: Record<string, string> = { default: C.muted, green: C.green, blue: C.blue, amber: C.amber, red: C.red, violet: "#b48cff", pink: "#ff9ecf", teal: "#4fd1c5" };
 
 // ------------------------------------------------------------------ notes
 
@@ -73,7 +73,7 @@ export function NotesScreen({ api, onError }: { api: Api; onError: (m: string) =
         : <Empty>{q || tag ? "No notes match." : "No notes yet. Tap ＋ to write your first one."}</Empty>}
     </Screen>
     <TouchableOpacity onPress={() => setEdit("new")} style={{ position: "absolute", right: 20, bottom: 100, width: 60, height: 60, borderRadius: 30, backgroundColor: C.green,
-      alignItems: "center", justifyContent: "center", elevation: 8 }}><Text style={{ fontSize: 30, color: "#04170d", fontWeight: "900" }}>＋</Text></TouchableOpacity>
+      alignItems: "center", justifyContent: "center", elevation: 8 }}><Text style={{ fontSize: 30, color: C.greenDark, fontWeight: "900" }}>＋</Text></TouchableOpacity>
     {edit && <NoteEditor api={api} note={edit === "new" ? null : edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }} onError={onError}/>}
   </View>;
 }

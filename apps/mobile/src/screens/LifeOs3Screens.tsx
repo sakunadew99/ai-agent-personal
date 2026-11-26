@@ -4,13 +4,13 @@ import * as SecureStore from "expo-secure-store";
 import type { ApiRecord as Row } from "../api";
 import { openInApp, type Track } from "../browser";
 import { Hero, PALETTE, Ring, Segments, WeekDots } from "../charts";
-import { Badge, Btn, C, Card, Empty, Field, H2, Kicker, Muted, Row as Line, Screen } from "../ui";
+import { Badge, Btn, C, Card, Empty, Field, H2, Kicker, Muted, Row as Line, Screen, soft } from "../ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 type Props = { api: Api; onError: (m: string) => void; onNotice: (m: string) => void };
 const msg = (r: unknown) => (r instanceof Error ? r.message : "Something went wrong");
 const open = (url?: string, title?: string, track?: Track) => openInApp(url, title, track);
-const SKILL_COLOR: Record<string, string> = { Memory: "#f5b65b", Concentration: "#5aa8ff", Logic: "#ff7a8a", Speed: "#3ee08f", Perception: "#b48cff" };
+const SKILL_COLOR: Record<string, string> = { Memory: C.amber, Concentration: C.blue, Logic: C.red, Speed: C.green, Perception: "#b48cff" };
 
 /** Brain gym: today's 5-game workout (one per skill), all 33 BrainGymmer games by skill, and a streak. */
 export function BrainGymScreen({ api, onError, onNotice }: Props) {
@@ -22,8 +22,8 @@ export function BrainGymScreen({ api, onError, onNotice }: Props) {
   const played = () => void api<Row>("/brain/played", "POST").then(x => { setV(x); onNotice("🧠 Brain workout logged · streak and points updated"); }).catch(e => onError(msg(e)));
   const group = (v.skills as Row[]).find(s => s.skill === skill);
   return <Screen onRefresh={load}>
-    <View style={{ borderRadius: 26, padding: 18, gap: 10, backgroundColor: "#151a33", borderWidth: 1, borderColor: "#3a4a8a", overflow: "hidden" }}>
-      <View style={{ position: "absolute", width: 220, height: 220, borderRadius: 110, right: -80, top: -90, backgroundColor: "#5aa8ff", opacity: 0.18 }}/>
+    <View style={{ borderRadius: 26, padding: 18, gap: 10, backgroundColor: soft("#5c6bc0"), borderWidth: 1, borderColor: "#3a4a8a", overflow: "hidden" }}>
+      <View style={{ position: "absolute", width: 220, height: 220, borderRadius: 110, right: -80, top: -90, backgroundColor: C.blue, opacity: 0.18 }}/>
       <View style={{ position: "absolute", width: 180, height: 180, borderRadius: 90, left: -70, bottom: -90, backgroundColor: "#b48cff", opacity: 0.16 }}/>
       <Line><View style={{ flex: 1, gap: 4 }}><Text style={{ color: C.blue, fontWeight: "800", fontSize: 11, letterSpacing: 1.5 }}>BRAIN GYM</Text>
         <Text style={{ color: C.text, fontSize: 26, fontWeight: "900" }}>Train your <Text style={{ color: C.blue }}>brain</Text></Text>

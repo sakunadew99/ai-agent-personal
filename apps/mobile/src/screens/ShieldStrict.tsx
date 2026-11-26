@@ -3,7 +3,7 @@ import { Alert, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-n
 
 import type { ShieldCtx } from "../ShieldPanel";
 import { clock, errorText, scheduleText, Shield, type StrictMethod } from "../shield";
-import { C } from "../ui";
+import { C, soft } from "../ui";
 import { s as b } from "./ShieldBlocking";
 
 const DURATIONS = [30, 60, 120, 240, 480, 1440];
@@ -117,7 +117,7 @@ const s = StyleSheet.create({
   levelMedium: { color: C.blue, borderColor: "#2f4c6e" },
   levelLater: { color: C.muted, borderColor: C.line },
   lockCard: { alignItems: "center", paddingVertical: 24, borderColor: C.amber },
-  lockIcon: { width: 84, height: 84, borderRadius: 42, backgroundColor: "#2b2418", alignItems: "center", justifyContent: "center" },
+  lockIcon: { width: 84, height: 84, borderRadius: 42, backgroundColor: soft(C.amber), alignItems: "center", justifyContent: "center" },
   lockTitle: { color: C.text, fontSize: 24, fontWeight: "800" },
   method: { color: C.muted, fontSize: 13, fontWeight: "600" },
   big: { color: C.text, fontSize: 20, fontWeight: "800" },

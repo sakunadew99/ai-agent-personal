@@ -8,7 +8,7 @@ type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T
 const msg = (r: unknown) => (r instanceof Error ? r.message : "Something went wrong");
 const usd = (n: number) => `$${Math.round(n).toLocaleString()}`;
 const short = (n: number) => (n >= 1e6 ? `$${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `$${Math.round(n / 1e3)}k` : `$${Math.round(n)}`);
-const SC_COLOR: Record<string, string> = { conservative: "#5aa8ff", realistic: "#3ee08f", ambitious: "#f5b65b" };
+const SC_COLOR: Record<string, string> = { conservative: C.blue, realistic: C.green, ambitious: C.amber };
 const input = { color: C.text, backgroundColor: C.panel2, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: C.line, fontSize: 16, fontWeight: "800" } as const;
 
 function Million({ api, onError }: { api: Api; onError: (m: string) => void }) {
@@ -23,7 +23,7 @@ function Million({ api, onError }: { api: Api; onError: (m: string) => void }) {
   const sc: Row[] = m.scenarios;
   const years = (sc[0].path as Row[]).map(p => p.year);
   return <View style={{ gap: 14 }}>
-    <Hero kicker="$1M FINANCIAL FREEDOM JOURNEY" title={usd(m.current_usd)} accent="today" color="#3ee08f"
+    <Hero kicker="$1M FINANCIAL FREEDOM JOURNEY" title={usd(m.current_usd)} accent="today" color={C.green}
       sub={`≈ Rs ${Number(m.current_lkr).toLocaleString()} at ${m.usd_lkr} LKR/USD (${m.rate_source})${(m.not_counted as string[]).length ? ` · not counted: ${(m.not_counted as string[]).join(", ")}` : ""}`}
       right={<Ring value={Math.max(1, m.progress_pct)} size={92} label={`${m.progress_pct < 1 ? m.progress_pct.toFixed(2) : Math.round(m.progress_pct)}%`} sub="OF $1M"/>}>
       <Line><View style={{ flex: 1, gap: 4 }}><Muted small>Monthly saving (LKR)</Muted><TextInput style={input} value={saving} onChangeText={setSaving} keyboardType="number-pad"/></View>
@@ -55,7 +55,7 @@ function Million({ api, onError }: { api: Api; onError: (m: string) => void }) {
         {(st.focus as string[]).map(f => <Text key={f} style={{ color: C.text, fontSize: 13 }}>{`• ${f}`}</Text>)}</View>)}
       <Muted small>{m.roadmap.how}</Muted></Card>}
     <Card><Kicker>MILESTONES</Kicker><View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{(m.milestones as Row[]).map(x => <Text key={x.label}
-      style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 99, overflow: "hidden", color: x.reached ? "#04170d" : C.muted, backgroundColor: x.reached ? C.green : C.panel2, fontWeight: "800" }}>{`${x.reached ? "✓ " : ""}${x.label}`}</Text>)}</View></Card>
+      style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 99, overflow: "hidden", color: x.reached ? C.greenDark : C.muted, backgroundColor: x.reached ? C.green : C.panel2, fontWeight: "800" }}>{`${x.reached ? "✓ " : ""}${x.label}`}</Text>)}</View></Card>
     <Card><Kicker>YOUR MONEY ACTIONS</Kicker>{Object.entries(m.actions as Record<string, string[]>).map(([k, v]) =>
       <View key={k} style={{ gap: 2 }}><Text style={{ color: C.green, fontWeight: "800", textTransform: "capitalize" }}>{k}</Text>{v.map((a, i) => <Text key={i} style={{ color: C.text }}>{`• ${a}`}</Text>)}</View>)}</Card>
     <Muted small>{m.disclaimer}</Muted>

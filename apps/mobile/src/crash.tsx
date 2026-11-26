@@ -5,6 +5,7 @@
 import * as SecureStore from "expo-secure-store";
 import React from "react";
 import { ScrollView, Share, Text, TouchableOpacity, View } from "react-native";
+import { C } from "./ui";
 
 const KEY = "sakuna.lastCrash";
 type EU = { getGlobalHandler: () => (e: unknown, fatal?: boolean) => void; setGlobalHandler: (h: (e: unknown, fatal?: boolean) => void) => void };
@@ -23,14 +24,14 @@ export function installCrashRecorder() {
 }
 
 function ErrorView({ text, onRetry }: { text: string; onRetry: () => void }) {
-  return <View style={{ flex: 1, backgroundColor: "#070b09", padding: 22, paddingTop: 60, gap: 14 }}>
-    <Text style={{ color: "#f5b65b", fontSize: 12, fontWeight: "800", letterSpacing: 1.4 }}>SOMETHING BROKE</Text>
-    <Text style={{ color: "#eef6f1", fontSize: 22, fontWeight: "900" }}>Sakuna hit an error</Text>
-    <Text style={{ color: "#8a9b92" }}>Your data is safe. Tap Share and send this text to fix it, then Try again.</Text>
-    <ScrollView style={{ flex: 1, backgroundColor: "#0f1613", borderRadius: 14, padding: 12 }}><Text selectable style={{ color: "#ffb1a0", fontFamily: "monospace", fontSize: 12 }}>{text}</Text></ScrollView>
+  return <View style={{ flex: 1, backgroundColor: C.bg, padding: 22, paddingTop: 60, gap: 14 }}>
+    <Text style={{ color: C.amber, fontSize: 12, fontWeight: "800", letterSpacing: 1.4 }}>SOMETHING BROKE</Text>
+    <Text style={{ color: C.text, fontSize: 22, fontWeight: "900" }}>Sakuna hit an error</Text>
+    <Text style={{ color: C.muted }}>Your data is safe. Tap Share and send this text to fix it, then Try again.</Text>
+    <ScrollView style={{ flex: 1, backgroundColor: C.panel, borderRadius: 14, padding: 12 }}><Text selectable style={{ color: "#ffb1a0", fontFamily: "monospace", fontSize: 12 }}>{text}</Text></ScrollView>
     <View style={{ flexDirection: "row", gap: 10 }}>
-      <TouchableOpacity onPress={() => void Share.share({ message: text }).catch(() => undefined)} style={{ flex: 1, borderWidth: 1, borderColor: "#3ee08f", borderRadius: 12, padding: 14, alignItems: "center" }}><Text style={{ color: "#3ee08f", fontWeight: "800" }}>Share / copy</Text></TouchableOpacity>
-      <TouchableOpacity onPress={onRetry} style={{ flex: 1, backgroundColor: "#3ee08f", borderRadius: 12, padding: 14, alignItems: "center" }}><Text style={{ color: "#04170d", fontWeight: "900" }}>Try again</Text></TouchableOpacity>
+      <TouchableOpacity onPress={() => void Share.share({ message: text }).catch(() => undefined)} style={{ flex: 1, borderWidth: 1, borderColor: C.green, borderRadius: 12, padding: 14, alignItems: "center" }}><Text style={{ color: C.green, fontWeight: "800" }}>Share / copy</Text></TouchableOpacity>
+      <TouchableOpacity onPress={onRetry} style={{ flex: 1, backgroundColor: C.green, borderRadius: 12, padding: 14, alignItems: "center" }}><Text style={{ color: C.greenDark, fontWeight: "900" }}>Try again</Text></TouchableOpacity>
     </View>
   </View>;
 }

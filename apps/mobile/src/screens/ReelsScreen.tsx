@@ -13,7 +13,7 @@ const WebView = RNWebView as unknown as React.ComponentType<{ source: { uri: str
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 const msg = (r: unknown) => (r instanceof Error ? r.message : "Something went wrong");
 const CH_KEY = "sakuna.watchChannels";
-const TINT: Record<string, string> = { technology: "#4fd1c5", educational: "#5aa8ff", motivational: "#f5b65b", psychology: "#b48cff" };
+const TINT: Record<string, string> = { technology: "#4fd1c5", educational: C.blue, motivational: C.amber, psychology: "#b48cff" };
 const LABEL: Record<string, string> = { technology: "💻 Technology", educational: "📚 Educational", motivational: "🔥 Motivation", psychology: "🧠 Psychology" };
 // YouTube embeds can refuse to play (e.g. "Error 153") without a real web origin/Referer, so the player page uses the app's own API origin.
 const ORIGIN = (process.env.EXPO_PUBLIC_API_URL || "https://ai-agent-personal.onrender.com").replace(/\/+$/, "");
