@@ -24,6 +24,11 @@ export const ACCENTS: Record<Accent, { name: string; dark: string; light: string
   gold: { name: "Gold", dark: "#f5c542", light: "#b8860b" },
 };
 export const MODES: Record<Mode, string> = { system: "📱 System", dark: "🌙 Dark", light: "☀️ Light", amoled: "⚫ AMOLED black" };
+export type TextSize = "small" | "normal" | "large" | "xlarge";
+export type Lang = "en" | "si";
+export const TEXT_SIZES: Record<TextSize, { label: string; scale: number }> = { small: { label: "Small", scale: 0.9 }, normal: { label: "Normal", scale: 1 },
+  large: { label: "Large", scale: 1.15 }, xlarge: { label: "Extra large", scale: 1.3 } };
+export const LANGS: Record<Lang, string> = { en: "English", si: "සිංහල" };
 
 const BASE = {
   dark: { bg: "#070b09", panel: "#0f1613", panel2: "#141d19", line: "#1d2a24", text: "#eef6f1", text2: "#d1ddd4", muted: "#8a9b92", field: "#0b110e",
@@ -54,12 +59,13 @@ export function build(mode: Mode, accent: Accent): Palette {
 }
 
 const KEY = "sakuna.theme";
-export type Saved = { mode: Mode; accent: Accent };
+export type Saved = { mode: Mode; accent: Accent; text: TextSize; lang: Lang };
 export function loadSaved(): Saved {
   try {
     const v = JSON.parse(SecureStore.getItem(KEY) || "{}");
-    return { mode: (v.mode in MODES ? v.mode : "dark") as Mode, accent: (v.accent in ACCENTS ? v.accent : "green") as Accent };
-  } catch { return { mode: "dark", accent: "green" }; }
+    return { mode: (v.mode in MODES ? v.mode : "dark") as Mode, accent: (v.accent in ACCENTS ? v.accent : "green") as Accent,
+      text: (v.text in TEXT_SIZES ? v.text : "normal") as TextSize, lang: (v.lang in LANGS ? v.lang : "en") as Lang };
+  } catch { return { mode: "dark", accent: "green", text: "normal", lang: "en" }; }
 }
 
 // ---- StyleSheet registry: sheets created at module load are re-coloured in place when the theme changes.

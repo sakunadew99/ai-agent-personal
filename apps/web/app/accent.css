@@ -20,3 +20,7 @@
 :root[data-accent="gold"] { --c-39d98a: #f5c542; --d-green: #f5c542; --d-glow: rgba(245, 197, 66, .14); --c-39d98a16: #f5c54216; --c-39d98a18: #f5c54218; --c-39d98a1c: #f5c5421c; --c-39d98a28: #f5c54228; --c-39d98a2c: #f5c5422c; --c-39d98a52: #f5c54252; --c-39d98a55: #f5c54255; --c-168d59: #987a29; --c-1f9c62: #ac8a2e; --c-3c9b68: #ac8a2e; --c-65e8a6: #f8d471; --d-green-ink: #1d1808; }
 :root[data-theme="light"][data-accent="gold"] { --c-39d98a: #b8860b; --d-green: #b8860b; --d-glow: rgba(184, 134, 11, .12); --c-39d98a16: #b8860b16; --c-39d98a18: #b8860b18; --c-39d98a1c: #b8860b1c; --c-39d98a28: #b8860b28; --c-39d98a2c: #b8860b2c; --c-39d98a52: #b8860b52; --c-39d98a55: #b8860b55; --c-168d59: #ede1c2; --c-1f9c62: #dfc991; --c-3c9b68: #9c7209; --c-65e8a6: #a6790a; --d-green-ink: #ffffff; }
 @media (prefers-color-scheme: light) { :root:not([data-theme="dark"])[data-accent="gold"] { --c-39d98a: #b8860b; --d-green: #b8860b; --d-glow: rgba(184, 134, 11, .12); --c-39d98a16: #b8860b16; --c-39d98a18: #b8860b18; --c-39d98a1c: #b8860b1c; --c-39d98a28: #b8860b28; --c-39d98a2c: #b8860b2c; --c-39d98a52: #b8860b52; --c-39d98a55: #b8860b55; --c-168d59: #ede1c2; --c-1f9c62: #dfc991; --c-3c9b68: #9c7209; --c-65e8a6: #a6790a; --d-green-ink: #ffffff; } }
+/* Text size (html[data-text]): scales the whole page, on top of the browser's own zoom. */
+:root[data-text="small"] body { zoom: 0.92; }
+:root[data-text="large"] body { zoom: 1.12; }
+:root[data-text="xlarge"] body { zoom: 1.25; }

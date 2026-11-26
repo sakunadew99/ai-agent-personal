@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
-import { ACCENTS, MODES, build, setTheme, subscribe, theme, type Accent, type Mode } from "../theme";
+import { ACCENTS, LANGS, MODES, TEXT_SIZES, build, setTheme, subscribe, theme, type Accent, type Lang, type Mode, type TextSize } from "../theme";
 import { Btn, C, Card, Kicker, Muted, Screen } from "../ui";
 
 /** Appearance: light / dark / AMOLED / follow the phone, plus an accent colour. Applies instantly and is remembered. */
@@ -27,6 +27,18 @@ export function AppearanceScreen() {
           <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: col, borderWidth: on ? 4 : 0, borderColor: C.text, alignItems: "center", justifyContent: "center" }}>
             {on && <Text style={{ color: t.resolved === "light" ? "#fff" : "#000", fontWeight: "900" }}>✓</Text>}</View>
           <Text style={{ color: on ? C.text : C.muted, fontSize: 11, fontWeight: "700" }}>{ACCENTS[a].name}</Text></TouchableOpacity>; })}</View>
+    </Card>
+    <Card style={{ gap: 10 }}>
+      <Kicker>TEXT SIZE</Kicker>
+      <View style={{ flexDirection: "row", gap: 8 }}>{(Object.keys(TEXT_SIZES) as TextSize[]).map(k => <TouchableOpacity key={k} onPress={() => setTheme({ text: k })}
+        style={{ flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 14, backgroundColor: t.text === k ? C.green : C.panel2 }}>
+        <Text style={{ color: t.text === k ? C.greenDark : C.text, fontWeight: "800", fontSize: 12 * TEXT_SIZES[k].scale }}>Aa</Text>
+        <Text style={{ color: t.text === k ? C.greenDark : C.muted, fontSize: 10 }}>{TEXT_SIZES[k].label}</Text></TouchableOpacity>)}</View>
+      <Kicker>LANGUAGE</Kicker>
+      <View style={{ flexDirection: "row", gap: 8 }}>{(Object.keys(LANGS) as Lang[]).map(k => <TouchableOpacity key={k} onPress={() => setTheme({ lang: k })}
+        style={{ flex: 1, alignItems: "center", paddingVertical: 12, borderRadius: 14, backgroundColor: t.lang === k ? C.green : C.panel2 }}>
+        <Text style={{ color: t.lang === k ? C.greenDark : C.text, fontWeight: "900" }}>{LANGS[k]}</Text></TouchableOpacity>)}</View>
+      <Muted small>සිංහල: menus, screen titles, buttons and settings switch to Sinhala; detailed text inside some screens stays in English for now. Your own notes and tasks are never changed.</Muted>
     </Card>
     <Card style={{ gap: 10 }} accent>
       <Kicker>PREVIEW</Kicker>

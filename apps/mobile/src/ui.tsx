@@ -2,6 +2,7 @@ import React, { ReactNode } from "react";
 import { ActivityIndicator, ScrollView, StyleProp, StyleSheet, Text, TextInput, TextInputProps, TouchableOpacity, View, ViewStyle } from "react-native";
 
 import { bind, initial, type Palette } from "./theme";
+import "./i18n";
 import { appendSpeech, MicButton } from "./voice";
 import { KbScroll } from "./keyboard";
 

@@ -5,7 +5,7 @@ import { connectHealthConnect, getHealthConnectStatus } from "../health/health-c
 import { lockEnabled, setLockEnabled } from "../lock";
 import { applyNotificationPrefs, notificationsAllowed } from "../notify";
 import { Shield } from "../shield";
-import { ACCENTS, MODES, setTheme, theme, type Accent, type Mode } from "../theme";
+import { ACCENTS, LANGS, MODES, TEXT_SIZES, setTheme, theme, type Accent, type Lang, type Mode, type TextSize } from "../theme";
 import { Btn, C, Card, Empty, Field, Kicker, Muted, Row as Line, Screen } from "../ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
@@ -102,11 +102,17 @@ export function SettingsScreen({ api, onError, onNotice, onOpen, signOut }: { ap
       <Btn title="Save & apply on this phone" onPress={saveNotify}/>
       <Muted small>Buttons right in the notification: ✓ Done / ⏰ +1 hour on tasks, ✓ Done on habits, ✓ Approve / ✕ Reject on approvals, +250 ml on water. They work while Sakuna is open or in the background; if Android has fully closed the app, tap the notification instead.</Muted>
     </Section>
-    <Section icon="🎨" title="Appearance" sub={`${MODES[t.mode]} · ${ACCENTS[t.accent].name}`}>
+    <Section icon="🎨" title="Appearance" sub={`${MODES[t.mode]} · ${ACCENTS[t.accent].name} · ${TEXT_SIZES[t.text].label} · ${LANGS[t.lang]}`}>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>{(Object.keys(MODES) as Mode[]).map(m => <TouchableOpacity key={m} onPress={() => setTheme({ mode: m })}
         style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: t.mode === m ? C.green : C.panel2 }}><Text style={{ color: t.mode === m ? C.greenDark : C.text, fontWeight: "700" }}>{MODES[m]}</Text></TouchableOpacity>)}</View>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>{(Object.keys(ACCENTS) as Accent[]).map(a => <TouchableOpacity key={a} onPress={() => setTheme({ accent: a })}
         style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: t.resolved === "light" ? ACCENTS[a].light : ACCENTS[a].dark, borderWidth: t.accent === a ? 3 : 0, borderColor: C.text }}/>)}</View>
+      <View style={{ flexDirection: "row", gap: 6 }}>{(Object.keys(TEXT_SIZES) as TextSize[]).map(k => <TouchableOpacity key={k} onPress={() => setTheme({ text: k })}
+        style={{ flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 12, backgroundColor: t.text === k ? C.green : C.panel2 }}>
+        <Text style={{ color: t.text === k ? C.greenDark : C.text, fontWeight: "800", fontSize: 11 }}>{TEXT_SIZES[k].label}</Text></TouchableOpacity>)}</View>
+      <View style={{ flexDirection: "row", gap: 6 }}>{(Object.keys(LANGS) as Lang[]).map(k => <TouchableOpacity key={k} onPress={() => setTheme({ lang: k })}
+        style={{ flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 12, backgroundColor: t.lang === k ? C.green : C.panel2 }}>
+        <Text style={{ color: t.lang === k ? C.greenDark : C.text, fontWeight: "900" }}>{LANGS[k]}</Text></TouchableOpacity>)}</View>
       <Btn kind="link" title="Full appearance screen →" onPress={() => onOpen("Appearance")}/>
     </Section>
     <Section icon="📱" title="Phone access" sub="What Sakuna is allowed to use">

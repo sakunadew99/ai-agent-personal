@@ -265,7 +265,7 @@ function App() {
   return <LockGate>{onboard && <Onboarding api={api} onDone={() => { setOnboard(false); void api<Row>("/settings").then(r => setPrefs(r.prefs)).catch(() => undefined); }}/>}<SafeAreaView key={themeV} style={[styles.safe, { backgroundColor: C.bg }]}><StatusBar barStyle={C.dark ? "light-content" : "dark-content"}/><KeyboardAvoidingView behavior="padding" style={styles.app}>
     <View style={styles.topbar}>{tab === "More" && sub
       ? <TouchableOpacity onPress={() => setSub(null)}><Text style={styles.kicker}>‹ ALL APPS</Text><Text style={styles.topTitle}>{SUB_TITLES[sub]}</Text></TouchableOpacity>
-      : <View><Text style={styles.kicker}>SAKUNA AI</Text><Text style={styles.topTitle}>{tab === "Home" ? "Your day, in focus." : tab === "More" ? "All apps" : tab}</Text></View>}
+      : <View><Text style={styles.kicker}>SAKUNA AI</Text><Text style={styles.topTitle}>{tab === "Home" ? "Your day, in focus." : tab === "More" ? "Hubs" : tab}</Text></View>}
       {!token && <Text style={{ color: C.muted, fontSize: 11 }}>connecting…</Text>}{!(tab === "More" && sub) && <TouchableOpacity onPress={() => void (token ? loadTab(tab) : restore())}><View style={styles.refreshBtn}><Text style={styles.refresh}>↻</Text></View></TouchableOpacity>}</View>
     {!!error && <Text style={styles.errorBox}>{error}</Text>}{!!notice && <TouchableOpacity onPress={() => setNotice("")}><Text style={styles.notice}>{notice}  ×</Text></TouchableOpacity>}
     <View style={[styles.screen, tab === "More" && sub === "Assistant" && keyboard === 0 && { marginBottom: 84 }]}>
@@ -352,7 +352,7 @@ function App() {
     <BrowserHost api={api} onNotice={showNotice}/>
     {keyboard === 0 && <View style={styles.tabbarWrap}><View style={styles.tabbar}>{(["Home", "Plan", "Capture", "Focus", "More"] as Tab[]).map(item => item === "Capture"
       ? <TouchableOpacity key={item} style={styles.tab} onPress={() => { setTab(item); setSub(null); setNotice(""); setError(""); }} onLongPress={() => setQuick(true)} accessibilityLabel="Capture (hold for quick add)"><View style={[styles.fab, tab === item && styles.fabOn]}><Text style={styles.fabIcon}>＋</Text></View></TouchableOpacity>
-      : <TouchableOpacity key={item} style={styles.tab} onPress={() => { setTab(item); setSub(null); setNotice(""); setError(""); }}><View style={[styles.tabPill, tab === item && styles.tabPillOn]}><Text style={[styles.tabIcon, tab === item && styles.tabIconActive]}>{({ Home: "🏠", Plan: "🗓", Capture: "＋", Focus: "🎯", More: "🧭" } as Record<Tab, string>)[item]}</Text></View><Text style={[styles.tabText, tab === item && styles.tabTextActive]}>{item}</Text></TouchableOpacity>)}</View></View>}
+      : <TouchableOpacity key={item} style={styles.tab} onPress={() => { setTab(item); setSub(null); setNotice(""); setError(""); }}><View style={[styles.tabPill, tab === item && styles.tabPillOn]}><Text style={[styles.tabIcon, tab === item && styles.tabIconActive]}>{({ Home: "🏠", Plan: "🗓", Capture: "＋", Focus: "🎯", More: "🧭" } as Record<Tab, string>)[item]}</Text></View><Text style={[styles.tabText, tab === item && styles.tabTextActive]}>{({ Home: "Today", Plan: "Plan", Capture: "Add", Focus: "Focus", More: "Hubs" } as Record<Tab, string>)[item]}</Text></TouchableOpacity>)}</View></View>}
     {quick && <QuickAdd api={api} onClose={() => setQuick(false)} onOpen={openTarget} onNotice={showNotice} onError={showError}/>}
   </KeyboardAvoidingView></SafeAreaView></LockGate>;
 }
