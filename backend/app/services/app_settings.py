@@ -24,8 +24,10 @@ NOTIFY = {   # key: (label, default on, default time HH:MM or None)
     "morning": ("🌅 Morning brief", True, "07:00"),
     "night": ("🌙 Night review", True, "21:30"),
     "affirmation": ("✨ Affirmation of the day", False, "08:00"),
+    "weekly": ("🗓 Sunday weekly report", True, "19:00"),
+    "backup": ("💾 Sunday backup reminder", True, "20:00"),
 }
-CARDS = ["brief", "ring", "gaps", "sleep_water", "affirmation", "top_task", "habits", "stacking", "week", "more"]
+CARDS = ["brief", "goals", "tasks", "next_event", "ring", "gaps", "sleep_water", "affirmation", "inbox", "top_task", "habits", "stacking", "week", "more"]
 MAX_PINNED = 8
 
 
@@ -114,7 +116,16 @@ def brief(db: Session, user, kind: str, day: date) -> dict:
         must = [h["name"] for h in hv if h["status"] in ("must", "restart")]
         if must:
             steps.append(f"Never miss twice: {', '.join(must[:2])}")
-        return {"kind": "morning", "title": "🌅 Good morning", "sleep": sl, "affirmation": aff, "tasks": tasks["tasks"][:3], "water_target_ml": w["target_ml"],
+        from app.services import gcalendar, gmail
+        start = datetime.combine(day, time.min, tz)
+        evs, _st = gcalendar.list_events(db, user.id, start, start + timedelta(days=1))
+        timed = [e for e in evs if not e["all_day"]]
+        if timed:
+            steps.append(f"{len(timed)} event(s) today, first “{timed[0]['title']}” at {timed[0]['start'].astimezone(tz).strftime('%H:%M')}.")
+        mail = gmail.inbox(db, user.id, 3)
+        if mail["emails"]:
+            steps.append(f"{mail['unread']} unread email(s); top: “{mail['emails'][0]['subject'][:60]}”.")
+        return {"kind": "morning", "title": "🌅 Good morning", "sleep": sl, "emails": mail["emails"], "events": len(timed), "affirmation": aff, "tasks": tasks["tasks"][:3], "water_target_ml": w["target_ml"],
                 "habits_today": [h["name"] for h in hv if not h["done_today"]][:5], "steps": steps,
                 "line": (f"You slept {sl['hours']} h. " if sl else "") + tasks["answer"]}
     tomorrow = day + timedelta(days=1)

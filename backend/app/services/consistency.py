@@ -26,7 +26,7 @@ ANCHORS = ["After I brush my teeth in the morning", "After I make my morning tea
            "After dinner", "When I get into bed"]
 COLORS = {"sleep": "#7c4dff", "work": "#42a5f5", "deep_work": "#1e88e5", "meeting": "#64b5f6", "study": "#43a047", "exercise": "#ff9800",
           "commute": "#8d6e63", "chores": "#78909c", "family": "#ec407a", "social": "#f06292", "rest": "#26a69a", "entertainment": "#ffca28",
-          "wasted": "#ef5350", "other": "#9e9e9e", "unknown": "#37474f", "focus": "#00c853"}
+          "wasted": "#ef5350", "other": "#9e9e9e", "unknown": "#37474f", "focus": "#00c853", "calendar": "#29b6f6"}
 PRODUCTIVE = {"work", "deep_work", "meeting", "study", "exercise", "focus"}
 
 
@@ -136,6 +136,20 @@ def ring(db: Session, user_id, day: date, now_local: datetime | None = None) -> 
             b = 96
         for i in range(a, min(96, b)):
             slots[i] = e.category
+    try:
+        from app.services import gcalendar
+        evs, _st = gcalendar.list_events(db, user_id, start, start + timedelta(days=1))
+        for ev in evs:
+            if ev["all_day"] or not ev["busy"]:
+                continue
+            s2, e2 = as_utc(ev["start"]).astimezone(tz), as_utc(ev["end"]).astimezone(tz)
+            a = s2.hour * 4 + s2.minute // 15 if s2.date() == day else 0
+            b = (e2.hour * 4 + (e2.minute + 14) // 15) if e2.date() == day else 96
+            for i in range(a, min(96, b)):
+                if slots[i] == "unknown":
+                    slots[i] = "calendar"
+    except Exception:  # the calendar is optional; never break the ring
+        pass
     if day == now_local.date():
         cut = now_local.hour * 4 + now_local.minute // 15
         for i in range(cut + 1, 96):
@@ -169,7 +183,22 @@ def today(db: Session, user, day: date) -> dict:
     top = ask.answer(db, user, "important", day)
     hv = habits_view(db, user.id, day)
     last = next((n for n in sleep_day.nights(db, user.id, 2, day)["nights"] if n["night"] == day), None)
-    return {"day": day, "ring": segs, "totals": dict(totals),
+    from app.services import gcalendar, nudges
+    start = datetime.combine(day, time.min, tz)
+    evs, cal_state = gcalendar.list_events(db, user.id, start, start + timedelta(days=1))
+    events = []
+    for e in evs:
+        s, en = as_utc(e["start"]).astimezone(tz), as_utc(e["end"]).astimezone(tz)
+        events.append({"title": e["title"], "start": "all day" if e["all_day"] else s.strftime("%H:%M"), "end": "" if e["all_day"] else en.strftime("%H:%M"),
+                       "all_day": e["all_day"], "minutes": 0 if e["all_day"] else int((en - s).total_seconds() // 60), "from_sakuna": e["from_sakuna"],
+                       "upcoming": as_utc(e["start"]) > now_utc()})
+    now_l = now_utc().astimezone(tz)
+    nxt = next((x for x in events if x["upcoming"] and not x["all_day"]), None)
+    if nxt:
+        eh, em = int(nxt["start"][:2]), int(nxt["start"][3:])
+        nxt = {**nxt, "in_minutes": max(0, (eh * 60 + em) - (now_l.hour * 60 + now_l.minute))}
+    return {"day": day, "ring": segs, "totals": dict(totals), "events": events, "next_event": nxt, "calendar": cal_state,
+            "tasks_today": nudges.today_tasks(db, user.id, day, tz),
             "productive_minutes": sum(v for k, v in totals.items() if k in PRODUCTIVE), "wasted_minutes": totals.get("wasted", 0),
             "unknown_minutes": totals.get("unknown", 0), "gaps": len(gaps["gaps"]),
             "sleep": last, "water": {k: w[k] for k in ("today_ml", "target_ml", "percent", "left_ml")},

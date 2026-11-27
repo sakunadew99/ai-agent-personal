@@ -698,3 +698,32 @@ def brief(kind: str, db: Session = Depends(get_db), user: User = Depends(get_cur
     out = app_settings.brief(db, user, kind, _today(db, user))
     db.commit()
     return out
+
+
+# ---------------- in-app nudges, daily goals, Gmail inbox
+
+@router.get("/nudges")
+def nudges_view(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Friendly in-app prompts with one-tap actions, plus the 5 daily goals."""
+    from app.services import nudges
+    out = nudges.nudges(db, user, _today(db, user))
+    db.commit()
+    return out
+
+
+@router.post("/nudges/claim")
+def nudges_claim(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Daily-goals bonus: only when all 5 are really done today (checked here)."""
+    from app.services import nudges
+    out = nudges.claim(db, user, _today(db, user))
+    db.commit()
+    return out
+
+
+@router.get("/gmail/inbox")
+def gmail_inbox(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Latest unread primary emails (read-only: sender, subject, snippet)."""
+    from app.services import gmail
+    out = gmail.inbox(db, user.id, 5)
+    db.commit()
+    return out

@@ -62,7 +62,9 @@ import { MindsetScreen, WaterScreen } from "./src/screens/MindsetScreens";
 import { BoardScreen, BodyOverview, TodayScreen } from "./src/screens/TodayBoardScreens";
 import { AppearanceScreen } from "./src/screens/AppearanceScreen";
 import { Onboarding, SettingsScreen } from "./src/screens/SettingsScreen";
-import { applyNotificationPrefs, notifyApprovals, savedNotifyPrefs } from "./src/notify";
+import { applyNotificationPrefs, notifyApprovals, savedNotifyPrefs, scheduleWaterSmart } from "./src/notify";
+import { InAppNudges } from "./src/InAppNudges";
+import { logError } from "./src/errors";
 import { subscribe as onThemeChange } from "./src/theme";
 import { DayTrackerScreen, GymScreen, LanguageScreen, ProgressScreen, uploadUsage } from "./src/screens/LifeOs4Screens";
 import { BrowserHost } from "./src/browser";
@@ -116,7 +118,7 @@ function App() {
     ? request<T>(path, token, method, body)
     : new Promise<string>(resolve => { waiting.current.push(resolve); }).then(t => request<T>(path, t, method, body)), [token]);
   useEffect(() => { if (token) waiting.current.splice(0).forEach(resolve => resolve(token)); }, [token]);
-  const showError = useCallback((message: string) => { setNotice(""); setError(message); }, []);
+  const showError = useCallback((message: string) => { setNotice(""); setError(message); void logError(message, "app"); }, []);
   const showNotice = useCallback((message: string) => { setError(""); setNotice(message); }, []);
 
   const loadTab = useCallback(async (selected: Tab, currentToken = token) => {
@@ -144,7 +146,8 @@ function App() {
   useEffect(() => {
     if (!token) return;
     const sub = AppState.addEventListener("change", st => { if (st === "active") { void autoSyncHealth(api); void notifyStockAlerts(api); void uploadSleep(api);
-      if (prefsRef.current?.notifications?.approvals?.on !== false) void notifyApprovals(api); } });
+      if (prefsRef.current?.notifications?.approvals?.on !== false) void notifyApprovals(api);
+      if (prefsRef.current?.notifications?.water?.on) void scheduleWaterSmart(api); } });
     return () => sub.remove();
   }, [token, api]);
 
@@ -174,6 +177,8 @@ function App() {
         if (a === "approve" || a === "reject") void api(`/approvals/${String(data.approvalId)}/${a}`, "POST").then(() => showNotice(a === "approve" ? "✓ Approved and done" : "✕ Rejected")).catch(() => undefined);
         else { setTab("More"); setSub("Approvals"); }
       } else if (data.kind === "brief") { setTab("Home"); setSub(null); }
+      else if (data.kind === "report_week") { setTab("More"); setSub("Review"); }
+      else if (data.kind === "backup") { setTab("More"); setSub("Profile"); }
       else if (data.kind === "water") {
         const ml = resp.actionIdentifier === "water500" ? 500 : resp.actionIdentifier === "water250" ? 250 : 0;
         if (ml) void api("/water", "POST", { ml }).then(() => showNotice(`💧 +${ml} ml logged`)).catch(() => undefined); else { setTab("More"); setSub("Water"); }
@@ -262,7 +267,7 @@ function App() {
     onSignInAgain={() => { void clearSession(); setBootProblem(""); setBooting(false); }}/>;
   if (!token && !warm) return <LoginScreen onSignedIn={onSignedIn} initialError={authNote}/>;
 
-  return <LockGate>{onboard && <Onboarding api={api} onDone={() => { setOnboard(false); void api<Row>("/settings").then(r => setPrefs(r.prefs)).catch(() => undefined); }}/>}<SafeAreaView key={themeV} style={[styles.safe, { backgroundColor: C.bg }]}><StatusBar barStyle={C.dark ? "light-content" : "dark-content"}/><KeyboardAvoidingView behavior="padding" style={styles.app}>
+  return <LockGate>{onboard && <Onboarding api={api} onDone={() => { setOnboard(false); void api<Row>("/settings").then(r => setPrefs(r.prefs)).catch(() => undefined); }}/>}<SafeAreaView key={themeV} style={[styles.safe, { backgroundColor: C.bg }]}><StatusBar barStyle={C.dark ? "light-content" : "dark-content"}/>{!!token && <InAppNudges api={api} onNotice={showNotice} onOpen={t => { if (t === "Today") { setTab("Home"); setSub(null); } else if (t === "Plan") { setTab("Plan"); } else openTarget(t); }}/>}<KeyboardAvoidingView behavior="padding" style={styles.app}>
     <View style={styles.topbar}>{tab === "More" && sub
       ? <TouchableOpacity onPress={() => setSub(null)}><Text style={styles.kicker}>‹ ALL APPS</Text><Text style={styles.topTitle}>{SUB_TITLES[sub]}</Text></TouchableOpacity>
       : <View><Text style={styles.kicker}>SAKUNA AI</Text><Text style={styles.topTitle}>{tab === "Home" ? "Your day, in focus." : tab === "More" ? "Hubs" : tab}</Text></View>}

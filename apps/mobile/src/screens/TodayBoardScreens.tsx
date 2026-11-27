@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Switch, Text, TouchableOpacity, View } from "react-native";
+import { Animated, Linking, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import type { ApiRecord as Row } from "../api";
 import { Btn, C, Card, Empty, Kicker, Muted, Row as Line, Screen } from "../ui";
 import { GapCards } from "./SleepDayScreens";
@@ -37,7 +37,7 @@ function Pop({ show }: { show: number }) {
 export function TodayScreen({ api, onError, onNotice, onOpen, extra, pinnedBar }: { api: Api; onError: (m: string) => void; onNotice: (m: string) => void; onOpen: (t: string) => void;
   extra?: React.ReactNode; pinnedBar?: React.ReactNode }) {
   const [t, setT] = useState<Row | null>(null); const [rv, setRv] = useState<Row | null>(null); const [cons, setCons] = useState<Row | null>(null); const [pop, setPop] = useState(0);
-  const [prefs, setPrefs] = useState<Row | null>(null); const [brief, setBrief] = useState<Row | null>(null); const [edit, setEdit] = useState(false); const [more, setMore] = useState(false);
+  const [prefs, setPrefs] = useState<Row | null>(null); const [brief, setBrief] = useState<Row | null>(null); const [goals, setGoals] = useState<Row | null>(null); const [edit, setEdit] = useState(false); const [more, setMore] = useState(false);
   const hour = new Date().getHours();
   const briefKind = hour < 12 ? "morning" : hour >= 19 ? "night" : null;
   const load = useCallback(() => {
@@ -45,6 +45,7 @@ export function TodayScreen({ api, onError, onNotice, onOpen, extra, pinnedBar }
     api<Row>("/review/week").then(setRv).catch(() => undefined);
     api<Row>("/consistency").then(setCons).catch(() => undefined);
     api<Row>("/settings").then(r => setPrefs(r.prefs)).catch(() => undefined);
+    api<Row>("/nudges").then(r => setGoals(r.goals)).catch(() => undefined);
     if (briefKind) api<Row>(`/brief/${briefKind}`).then(setBrief).catch(() => undefined);
   }, [api, onError, briefKind]);
   useEffect(() => { load(); }, [load]);
@@ -54,13 +55,18 @@ export function TodayScreen({ api, onError, onNotice, onOpen, extra, pinnedBar }
   if (!t) return <Screen><Empty>Building your day…</Empty></Screen>;
   const totals = t.totals as Record<string, number>;
   const legend = Object.entries(totals).filter(([k, v]) => v > 0 && k !== "future").sort((a, b) => b[1] - a[1]);
-  const order: string[] = prefs?.cards || ["brief", "ring", "gaps", "sleep_water", "affirmation", "top_task", "habits", "stacking", "week", "more"];
+  const order: string[] = prefs?.cards || ["brief", "goals", "tasks", "next_event", "ring", "gaps", "sleep_water", "affirmation", "inbox", "top_task", "habits", "stacking", "week", "more"];
   const hidden: string[] = prefs?.hidden_cards || [];
-  const CARD_NAME: Record<string, string> = { brief: "Morning / night brief", ring: "24-hour ring", gaps: "Hours to fill in", sleep_water: "Sleep & water", affirmation: "Affirmation",
+  const CARD_NAME: Record<string, string> = { brief: "Morning / night brief", goals: "Daily goals", tasks: "Today's tasks", next_event: "Next event (Google Calendar)",
+    inbox: "Gmail inbox", ring: "24-hour ring", gaps: "Hours to fill in", sleep_water: "Sleep & water", affirmation: "Affirmation",
     top_task: "Most important task", habits: "Habits", stacking: "Habit stacking", week: "This week", more: "More for today" };
   const move = (k: string, d: number) => { const o = [...order]; const i = o.indexOf(k); const j = i + d; if (j < 0 || j >= o.length) return; [o[i], o[j]] = [o[j], o[i]]; savePrefs({ cards: o }); };
   const toggle = (k: string) => savePrefs({ hidden_cards: hidden.includes(k) ? hidden.filter(x => x !== k) : [...hidden, k] });
   const cards: Record<string, React.ReactNode> = {
+    goals: <DailyGoals api={api} goals={goals} onChange={load} onNotice={onNotice} onCelebrate={() => setPop(p => p + 1)}/>,
+    tasks: <TodayTasks api={api} data={t.tasks_today} calendar={String(t.calendar)} onChange={load} onError={onError} onNotice={onNotice} onCelebrate={() => setPop(p => p + 1)}/>,
+    next_event: <NextEvent today={t} onOpen={onOpen}/>,
+    inbox: <InboxCard api={api} onOpen={onOpen}/>,
     brief: brief && <Card style={{ gap: 6, borderColor: briefKind === "morning" ? "#ffb74d88" : "#7c4dff88" }}>
       <Text style={{ color: C.text, fontWeight: "900", fontSize: 17 }}>{brief.title}</Text>
       {!!brief.line && <Muted small>{brief.line}</Muted>}
@@ -199,4 +205,105 @@ export function BodyOverview({ api, onOpen }: { api: Api; onOpen: (t: string) =>
   return <View style={{ flexDirection: "row", gap: 8 }}>{tiles.map(([icon, val, label, target]) =>
     <TouchableOpacity key={label} onPress={() => onOpen(target)} style={{ flex: 1, backgroundColor: C.panel, borderRadius: 16, padding: 10, alignItems: "center", gap: 2 }}>
       <Text style={{ fontSize: 20 }}>{icon}</Text><Text style={{ color: C.text, fontWeight: "900" }}>{val}</Text><Text style={{ color: C.muted, fontSize: 10 }}>{label}</Text></TouchableOpacity>)}</View>;
+}
+
+
+const PRI: Record<string, string> = { high: "#ef5350", medium: "#ffb74d", low: "#78909c" };
+
+/** Today's tasks: big check circles, time / late chips, add to Google Calendar, move to tomorrow, quick add, done list. */
+export function TodayTasks({ api, data, calendar, onChange, onError, onNotice, onCelebrate }: { api: Api; data: Row; calendar: string; onChange: () => void;
+  onError: (m: string) => void; onNotice: (m: string) => void; onCelebrate: () => void }) {
+  const [text, setText] = useState(""); const [showDone, setShowDone] = useState(false); const [busy, setBusy] = useState<string>("");
+  const open = (data?.open || []) as Row[]; const done = (data?.done || []) as Row[];
+  const total = open.length + Number(data?.done_count || 0); const pct = total ? Math.round(Number(data?.done_count || 0) / total * 100) : 0;
+  const run = (id: string, p: Promise<unknown>, okMsg: string, celebrate = false) => { setBusy(id);
+    void p.then(() => { onNotice(okMsg); if (celebrate) onCelebrate(); onChange(); }).catch(e => onError(msg(e))).finally(() => setBusy("")); };
+  const complete = (t: Row) => run(t.id, api(`/tasks/${t.id}/complete`, "PATCH"), `✓ ${t.title}`, true);
+  const tomorrow = (t: Row) => { const d = new Date(); d.setDate(d.getDate() + 1); const [hh, mm] = String(t.due || "09:00").split(":").map(Number); d.setHours(hh, mm, 0, 0);
+    run(t.id, api(`/tasks/${t.id}`, "PATCH", { due_at: d.toISOString() }), "⏭ Moved to tomorrow"); };
+  const toCal = (t: Row) => run(t.id, api(`/tasks/${t.id}/calendar`, "POST", { popup_minutes: 10 }), "📅 Added to Google Calendar with a 10-min reminder");
+  const add = () => { const title = text.trim(); if (!title) return; const d = new Date(); d.setHours(Math.min(22, d.getHours() + 2), 0, 0, 0);
+    run("new", api("/tasks", "POST", { title: title.slice(0, 200), due_at: d.toISOString(), priority: "medium" }), "＋ Added for today"); setText(""); };
+  return <Card style={{ gap: 10, borderColor: C.green + "55" }}>
+    <Line><Text style={{ color: C.text, fontWeight: "900", fontSize: 17, flex: 1 }}>✅ Today's tasks</Text>
+      <Text style={{ color: C.green, fontWeight: "900" }}>{`${data?.done_count || 0}/${total}`}</Text></Line>
+    <View style={{ height: 8, borderRadius: 4, backgroundColor: C.line, overflow: "hidden" }}><View style={{ width: `${pct}%`, height: 8, backgroundColor: C.green }}/></View>
+    {open.length === 0 ? <Text style={{ color: C.muted }}>{total ? "🎉 Everything for today is done!" : "Nothing due today. Add one small thing that moves a goal."}</Text>
+      : open.map(t => <View key={t.id} style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 16, backgroundColor: C.panel2,
+        borderLeftWidth: 4, borderLeftColor: PRI[t.priority] || C.line, opacity: busy === t.id ? 0.5 : 1 }}>
+        <TouchableOpacity onPress={() => complete(t)} accessibilityLabel={`Complete ${t.title}`} style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 2.5, borderColor: C.green,
+          alignItems: "center", justifyContent: "center" }}><Text style={{ color: C.green, fontSize: 14 }}>{busy === t.id ? "…" : ""}</Text></TouchableOpacity>
+        <View style={{ flex: 1, gap: 3 }}>
+          <Text style={{ color: C.text, fontWeight: "800" }} numberOfLines={2}>{t.title}</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 5 }}>
+            {t.overdue_days > 0 ? <Text style={{ color: "#fff", backgroundColor: C.red, fontSize: 10, fontWeight: "800", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8 }}>{`${t.overdue_days}d late`}</Text>
+              : t.due ? <Text style={{ color: t.overdue ? "#fff" : C.text, backgroundColor: t.overdue ? C.red : C.line, fontSize: 10, fontWeight: "800", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8 }}>{`⏰ ${t.due}`}</Text> : null}
+            {!!t.minutes && <Text style={{ color: C.muted, fontSize: 10 }}>{`⏱ ${t.minutes}m`}</Text>}
+            {t.status === "in_progress" && <Text style={{ color: C.blue, fontSize: 10, fontWeight: "800" }}>in progress</Text>}
+            {t.on_calendar && <Text style={{ color: "#29b6f6", fontSize: 10 }}>📅 on calendar</Text>}
+          </View>
+        </View>
+        {calendar === "connected" && !t.on_calendar && <TouchableOpacity onPress={() => toCal(t)} accessibilityLabel="Add to Google Calendar"><Text style={{ fontSize: 18 }}>📅</Text></TouchableOpacity>}
+        <TouchableOpacity onPress={() => tomorrow(t)} accessibilityLabel="Move to tomorrow"><Text style={{ fontSize: 18 }}>⏭</Text></TouchableOpacity>
+      </View>)}
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 14, borderWidth: 1, borderColor: C.line, paddingHorizontal: 12 }}>
+      <Text style={{ color: C.green, fontSize: 18 }}>＋</Text>
+      <TextInput value={text} onChangeText={setText} onSubmitEditing={add} placeholder="Add a task for today…" placeholderTextColor={C.muted} returnKeyType="done"
+        style={{ flex: 1, color: C.text, paddingVertical: 10 }}/>
+      {!!text.trim() && <TouchableOpacity onPress={add}><Text style={{ color: C.green, fontWeight: "900" }}>Add</Text></TouchableOpacity>}
+    </View>
+    {done.length > 0 && <TouchableOpacity onPress={() => setShowDone(s => !s)}><Muted small>{`✓ ${data.done_count} done today ${showDone ? "▴" : "▾"}`}</Muted></TouchableOpacity>}
+    {showDone && done.map(d => <Text key={d.id} style={{ color: C.muted, textDecorationLine: "line-through" }}>{`✓ ${d.title}`}</Text>)}
+  </Card>;
+}
+
+/** The 5 daily goals as rings; finishing all of them unlocks a bonus. */
+export function DailyGoals({ api, goals, onChange, onNotice, onCelebrate }: { api: Api; goals: Row | null; onChange: () => void; onNotice: (m: string) => void; onCelebrate: () => void }) {
+  if (!goals) return null;
+  const items = goals.items as Row[];
+  const claim = () => void api<Row>("/nudges/claim", "POST").then(r => { onNotice(r.message); if (r.ok && r.points) onCelebrate(); onChange(); }).catch(() => undefined);
+  return <Card style={{ gap: 10, borderColor: "#b48cff66" }}>
+    <Line><Text style={{ color: C.text, fontWeight: "900", fontSize: 17, flex: 1 }}>🎁 Daily goals</Text>
+      <Text style={{ color: "#b48cff", fontWeight: "900" }}>{`${goals.done}/${goals.total} · +${goals.bonus}`}</Text></Line>
+    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>{items.map(i => <View key={i.key} style={{ alignItems: "center", gap: 4, width: "19%" }}>
+      <View style={{ width: 50, height: 50, borderRadius: 25, borderWidth: 3, borderColor: i.done ? C.green : C.line, backgroundColor: i.done ? C.greenSoft : "transparent",
+        alignItems: "center", justifyContent: "center" }}><Text style={{ fontSize: 22 }}>{i.done ? "✅" : i.icon}</Text></View>
+      <Text style={{ color: C.text, fontSize: 10, fontWeight: "700", textAlign: "center" }} numberOfLines={1}>{i.label}</Text>
+      <Text style={{ color: i.done ? C.green : C.muted, fontSize: 9 }}>{i.progress}</Text></View>)}</View>
+    {goals.complete && !goals.claimed ? <Btn title={`🏆 Claim +${goals.bonus} bonus`} onPress={claim}/>
+      : goals.claimed ? <Text style={{ color: C.green, fontWeight: "800", textAlign: "center" }}>🏆 Bonus claimed today. Amazing!</Text>
+      : <Muted small>{`${goals.total - goals.done} more to unlock +${goals.bonus} points. Small wins add up.`}</Muted>}
+  </Card>;
+}
+
+/** Next calendar event + today's list, or a prompt to connect Google Calendar. */
+export function NextEvent({ today, onOpen }: { today: Row; onOpen: (t: string) => void }) {
+  const evs = (today.events || []) as Row[];
+  if (today.calendar !== "connected") return <TouchableOpacity onPress={() => onOpen("Profile")}><Card style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+    <Text style={{ fontSize: 24 }}>📅</Text><View style={{ flex: 1 }}><Text style={{ color: C.text, fontWeight: "800" }}>Connect Google Calendar</Text>
+      <Muted small>{today.calendar === "expired" ? "Your connection expired. Tap to reconnect." : "See meetings on your ring and add tasks with reminders."}</Muted></View>
+    <Text style={{ color: C.green }}>›</Text></Card></TouchableOpacity>;
+  const n = today.next_event as Row | null;
+  return <Card style={{ gap: 6, borderColor: "#29b6f666" }}>
+    <Kicker>📅 NEXT UP</Kicker>
+    {n ? <><Text style={{ color: C.text, fontWeight: "900", fontSize: 17 }}>{n.title}</Text>
+      <Text style={{ color: "#29b6f6", fontWeight: "800" }}>{`${n.start}–${n.end} · ${n.in_minutes <= 0 ? "now" : n.in_minutes < 60 ? `in ${n.in_minutes} min` : `in ${Math.floor(n.in_minutes / 60)} h ${n.in_minutes % 60} min`}`}</Text></>
+      : <Muted small>No more events today.</Muted>}
+    {evs.filter(e => e !== n).slice(0, 4).map((e, i) => <Text key={i} style={{ color: e.upcoming ? C.text : C.muted, fontSize: 12 }}>{`${e.all_day ? "All day" : `${e.start}–${e.end}`} · ${e.title}`}</Text>)}
+  </Card>;
+}
+
+/** Unread primary emails (read-only). */
+export function InboxCard({ api, onOpen }: { api: Api; onOpen: (t: string) => void }) {
+  const [m, setM] = useState<Row | null>(null);
+  useEffect(() => { api<Row>("/gmail/inbox").then(setM).catch(() => undefined); }, [api]);
+  if (!m || m.status === "not_connected") return null;
+  if (m.status !== "connected") return <TouchableOpacity onPress={() => onOpen("Profile")}><Card><Text style={{ color: C.amber }}>📧 Gmail needs reconnecting. Tap to fix.</Text></Card></TouchableOpacity>;
+  return <Card style={{ gap: 6 }}>
+    <Line><Kicker>{`📧 INBOX · ${m.unread} UNREAD`}</Kicker></Line>
+    {(m.emails as Row[]).length ? (m.emails as Row[]).slice(0, 3).map(e => <TouchableOpacity key={e.id} onPress={() => void Linking.openURL(e.url)}>
+      <View style={{ paddingVertical: 4 }}><Text style={{ color: C.text, fontWeight: "800" }} numberOfLines={1}>{e.subject}</Text>
+        <Muted small>{`${e.from} · ${e.snippet}`.slice(0, 110)}</Muted></View></TouchableOpacity>) : <Muted small>Inbox zero. 🎉</Muted>}
+    <Muted small>Read-only: Sakuna never sends or deletes email.</Muted>
+  </Card>;
 }

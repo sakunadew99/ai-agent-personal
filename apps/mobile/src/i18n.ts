@@ -69,6 +69,28 @@ export const SI: Record<string, string> = {
   "📱 System": "📱 දුරකථනය අනුව", "🌙 Dark": "🌙 අඳුරු", "☀️ Light": "☀️ ආලෝක", "⚫ AMOLED black": "⚫ AMOLED කළු",
   "Small": "කුඩා", "Normal": "සාමාන්‍ය", "Large": "විශාල", "Extra large": "ඉතා විශාල",
   // water / sleep / mindset basics
+  // today task list, goals, events, inbox, pop-ups
+  "✅ Today's tasks": "✅ අද කාර්ය", "🎁 Daily goals": "🎁 දෛනික ඉලක්ක", "📅 NEXT UP": "📅 ඊළඟට", "Connect Google Calendar": "Google Calendar සම්බන්ධ කරන්න",
+  "Add a task for today…": "අදට කාර්යයක් එක් කරන්න…", "Later": "පසුව", "Water goal": "ජල ඉලක්කය", "3 tasks done": "කාර්ය 3ක් අවසන්", "Habits": "පුරුදු",
+  "Affirmations": "ධනාත්මක ප්‍රකාශ", "Hours logged": "පැය සටහන්", "No more events today.": "අද තවත් සිදුවීම් නැත.", "Inbox zero. 🎉": "එන ලිපි හිස්. 🎉",
+  "🎉 Everything for today is done!": "🎉 අද සියල්ල අවසන්!", "Read-only: Sakuna never sends or deletes email.": "කියවීමට පමණි: සකුණ කිසිවිට ඊමේල් යවන්නේ හෝ මකන්නේ නැත.",
+  "🏆 Bonus claimed today. Amazing!": "🏆 අද ත්‍යාගය ලබා ගත්තා. විශිෂ්ටයි!",
+  // connections, help
+  "Connections": "සම්බන්ධතා", "Google Calendar and Gmail": "Google Calendar සහ Gmail", "Connect": "සම්බන්ධ කරන්න", "Check": "පරීක්ෂා කරන්න",
+  "Disconnect": "විසන්ධි කරන්න", "Gmail (read-only)": "Gmail (කියවීමට පමණි)", "📋 Send a problem report": "📋 ගැටලු වාර්තාවක් යවන්න",
+  "Run the setup guide again": "සැකසුම් මඟපෙන්වීම නැවත ධාවනය කරන්න", "🗓 Sunday weekly report": "🗓 ඉරිදා සතිපතා වාර්තාව",
+  "💾 Sunday backup reminder": "💾 ඉරිදා උපස්ථ මතක් කිරීම",
+  // phone notifications
+  "💧 Water time": "💧 වතුර බොන වේලාව", "A glass now keeps energy and focus up.": "දැන් වතුර වීදුරුවක් ශක්තිය සහ අවධානය රැක දෙයි.",
+  "Your brief is ready: sleep, first task, water and today's affirmation.": "ඔබේ සාරාංශය සූදානම්: නින්ද, පළමු කාර්යය, ජලය සහ අද දවසේ ප්‍රකාශය.",
+  "Fill in today's hours, note 3 good things, and put the phone away.": "අද පැය සටහන් කරන්න, හොඳ දේවල් 3ක් ලියන්න, දුරකථනය පසෙකින් තබන්න.",
+  "✨ Your affirmation": "✨ ඔබේ ධනාත්මක ප්‍රකාශය", "Take 20 seconds to read today's affirmation and picture one action.": "තත්පර 20ක් ගෙන අද ප්‍රකාශය කියවා එක් ක්‍රියාවක් සිතන්න.",
+  "🗓 Your week in review": "🗓 ඔබේ සතියේ සමාලෝචනය", "Score, wins and one change for next week. Takes 1 minute.": "ලකුණු, ජයග්‍රහණ සහ ලබන සතියට එක් වෙනසක්. විනාඩියක් පමණි.",
+  "💾 Weekly backup": "💾 සතිපතා උපස්ථය", "Export your Sakuna data to keep a copy safe.": "ඔබේ සකුණ දත්ත අපනයනය කර පිටපතක් ආරක්ෂිතව තබා ගන්න.",
+  // water, mindset
+  "Other amount (ml)": "වෙනත් ප්‍රමාණයක් (ml)", "🔔 Remind me every 2 hours (10:00–20:00)": "🔔 පැය 2කට වරක් මතක් කරන්න (10:00–20:00)",
+  "✨ I read my affirmations": "✨ මම ප්‍රකාශ කියෙව්වා", "Save my plan": "මගේ සැලැස්ම සුරකින්න", "Write in the present tense: “I am…”, “I wake up…”": "වර්තමාන කාලයෙන් ලියන්න: “මම…”",
+  "Goal reached 💧": "ඉලක්කය සපුරා ගත්තා 💧", "Long-press to remove a mistake.": "වැරදීමක් ඉවත් කිරීමට දිගු වේලාවක් ඔබන්න.",
   "THIS WEEK": "මෙම සතිය", "TODAY": "අද", "✨ Affirm": "✨ ප්‍රකාශ", "✍️ Script": "✍️ ලියන්න", "🎯 WOOP": "🎯 WOOP", "🙏 Thanks": "🙏 ස්තූතිය",
 };
 

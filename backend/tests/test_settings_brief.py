@@ -25,7 +25,7 @@ def test_settings_hub_and_prefs():
         p = a("PATCH", "/settings/prefs", {"onboarding_done": True, "notifications": {"water": {"on": True}, "morning": {"time": "06:30"}},
                                            "cards": ["habits", "ring", "bogus"], "hidden_cards": ["week"], "pinned": ["Water", "Water", "Gym"]}).json()
         assert p["onboarding_done"] and p["notifications"]["water"]["on"] and p["notifications"]["morning"]["time"] == "06:30"
-        assert p["cards"][:2] == ["habits", "ring"] and "bogus" not in p["cards"] and len(p["cards"]) == 10
+        assert p["cards"][:2] == ["habits", "ring"] and "bogus" not in p["cards"] and len(p["cards"]) == len(set(p["cards"])) >= 10
         assert p["hidden_cards"] == ["week"] and p["pinned"] == ["Water", "Gym"]
         assert a("PATCH", "/settings/prefs", {"notifications": {"fireworks": {"on": True}}}).status_code == 422
         assert a("PATCH", "/settings/prefs", {"notifications": {"night": {"time": "25:99"}}}).status_code == 422

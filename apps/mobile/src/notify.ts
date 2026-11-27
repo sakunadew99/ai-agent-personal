@@ -6,6 +6,7 @@ import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import type { ApiRecord as Row } from "./api";
+import { tr } from "./i18n";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 
@@ -294,6 +295,10 @@ export async function notifyApprovals(api: Api): Promise<number> {
 }
 
 const DAILY_PREFIX = "daily-";
+const WEEKLY: Record<string, [string, string, string]> = {   // key: title, body, kind
+  weekly: ["🗓 Your week in review", "Score, wins and one change for next week. Takes 1 minute.", "report_week"],
+  backup: ["💾 Weekly backup", "Export your Sakuna data to keep a copy safe.", "backup"],
+};
 const DAILY_TEXT: Record<string, [string, string]> = {
   morning: ["🌅 Good morning", "Your brief is ready: sleep, first task, water and today's affirmation."],
   night: ["🌙 Night review", "Fill in today's hours, note 3 good things, and put the phone away."],
@@ -312,8 +317,19 @@ export async function scheduleDailyPrompts(notify: Row): Promise<number> {
       const [hh, mm] = String(cfg.time).split(":").map(Number);
       await Notifications.scheduleNotificationAsync({
         identifier: `${DAILY_PREFIX}${key}`,
-        content: { title: DAILY_TEXT[key][0], body: DAILY_TEXT[key][1], data: { kind: "brief", brief: key } },
+        content: { title: tr(DAILY_TEXT[key][0]), body: tr(DAILY_TEXT[key][1]), data: { kind: "brief", brief: key } },
         trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: hh, minute: mm, channelId: CHANNEL },
+      });
+      n++;
+    }
+    for (const key of Object.keys(WEEKLY)) {                        // Sunday (weekday 1 in Expo's calendar)
+      const cfg = notify?.[key];
+      if (!cfg?.on || !cfg.time) continue;
+      const [hh, mm] = String(cfg.time).split(":").map(Number);
+      await Notifications.scheduleNotificationAsync({
+        identifier: `${DAILY_PREFIX}${key}`,
+        content: { title: tr(WEEKLY[key][0]), body: tr(WEEKLY[key][1]), data: { kind: WEEKLY[key][2] } },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.WEEKLY, weekday: 1, hour: hh, minute: mm, channelId: CHANNEL },
       });
       n++;
     }
@@ -325,7 +341,7 @@ export async function scheduleDailyPrompts(notify: Row): Promise<number> {
 export async function applyNotificationPrefs(api: Api, notify: Row): Promise<void> {
   const on = (k: string) => !!notify?.[k]?.on;
   await scheduleHourlyCheckins(on("checkins"));
-  await scheduleWaterReminders(on("water"));
+  if (on("water")) await scheduleWaterSmart(api); else await scheduleWaterReminders(false);
   if (on("tasks")) await syncReminders(api); else await cancelWhere(id => id.startsWith(TASK_PREFIX)).catch(() => undefined);
   if (on("habits")) await syncHabitReminders(api); else await cancelWhere(id => id.startsWith(HABIT_PREFIX)).catch(() => undefined);
   if (on("medicines")) await syncMedicineReminders(api); else await cancelWhere(id => id.startsWith(MED_PREFIX)).catch(() => undefined);
@@ -341,4 +357,42 @@ export async function savedNotifyPrefs(): Promise<Row | null> {
 /** Is the phone allowing notifications? */
 export async function notificationsAllowed(): Promise<boolean> {
   try { return (await Notifications.getPermissionsAsync()).granted; } catch { return false; }
+}
+
+
+/**
+ * Smart water reminders for the next 24 hours (re-planned every time Sakuna opens): a reminder only for the 2-hourly
+ * slots where you'd be behind your own pace (your target spread over the waking day). Already on track = no ping.
+ */
+export async function scheduleWaterSmart(api: Api): Promise<number> {
+  try {
+    if (!(await ready())) return -1;
+    const w = await api<Row>("/water");
+    await cancelWhere(id => id.startsWith(WATER_PREFIX));
+    await Notifications.setNotificationCategoryAsync(WATER_CATEGORY, [
+      { identifier: "water250", buttonTitle: "💧 +250 ml", options: { opensAppToForeground: false } },
+      { identifier: "water500", buttonTitle: "+500 ml", options: { opensAppToForeground: false } },
+    ]);
+    const target = Number(w.target_ml) || 2500; const had = Number(w.today_ml) || 0;
+    const now = new Date(); let n = 0;
+    for (let dayOff = 0; dayOff < 2; dayOff++) {
+      for (const h of [10, 12, 14, 16, 18, 20]) {
+        const at = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOff, h, 5);
+        if (at.getTime() <= Date.now() + 60_000) continue;
+        if (dayOff === 0) {
+          const expected = target * Math.min(1, (h - 7) / 15);               // 07:00-22:00 waking day
+          if (had >= expected) continue;                                     // on pace by then already: skip this one
+        }
+        const left = Math.max(0, target - (dayOff === 0 ? had : 0));
+        await Notifications.scheduleNotificationAsync({
+          identifier: `${WATER_PREFIX}${dayOff}-${h}`,
+          content: { title: tr("💧 Water time"), body: dayOff === 0 ? `${left} ml to go today. Tap +250 ml when you've had a glass.` : tr("A glass now keeps energy and focus up."),
+            categoryIdentifier: WATER_CATEGORY, data: { kind: "water" } },
+          trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at, channelId: CHANNEL },
+        });
+        n++;
+      }
+    }
+    return n;
+  } catch { return 0; }
 }

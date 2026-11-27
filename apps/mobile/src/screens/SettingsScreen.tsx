@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Alert, Linking, Modal, ScrollView, Share, Switch, Text, TouchableOpacity, View } from "react-native";
+import { Alert, AppState, Linking, Modal, ScrollView, Share, Switch, Text, TouchableOpacity, View } from "react-native";
 import type { ApiRecord as Row } from "../api";
 import { connectHealthConnect, getHealthConnectStatus } from "../health/health-connect";
+import { errorReport } from "../errors";
 import { lockEnabled, setLockEnabled } from "../lock";
 import { applyNotificationPrefs, notificationsAllowed } from "../notify";
 import { Shield } from "../shield";
@@ -102,6 +103,7 @@ export function SettingsScreen({ api, onError, onNotice, onOpen, signOut }: { ap
       <Btn title="Save & apply on this phone" onPress={saveNotify}/>
       <Muted small>Buttons right in the notification: ✓ Done / ⏰ +1 hour on tasks, ✓ Done on habits, ✓ Approve / ✕ Reject on approvals, +250 ml on water. They work while Sakuna is open or in the background; if Android has fully closed the app, tap the notification instead.</Muted>
     </Section>
+    <Connections api={api} onError={onError} onNotice={onNotice}/>
     <Section icon="🎨" title="Appearance" sub={`${MODES[t.mode]} · ${ACCENTS[t.accent].name} · ${TEXT_SIZES[t.text].label} · ${LANGS[t.lang]}`}>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>{(Object.keys(MODES) as Mode[]).map(m => <TouchableOpacity key={m} onPress={() => setTheme({ mode: m })}
         style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, backgroundColor: t.mode === m ? C.green : C.panel2 }}><Text style={{ color: t.mode === m ? C.greenDark : C.text, fontWeight: "700" }}>{MODES[m]}</Text></TouchableOpacity>)}</View>
@@ -135,6 +137,7 @@ export function SettingsScreen({ api, onError, onNotice, onOpen, signOut }: { ap
       {["Today: your 24-hour ring fills as you log hours; grey means not logged yet.", "Approvals: Sakuna and outside AI tools only propose changes; nothing happens until you approve.",
         "Sleep comes from your phone's screen-off time or your Mi Band.", "Learning feed and reels show only educational, motivational, technology and psychology content.",
         "Without an AI key everything still works with plain rules."].map(x => <Muted key={x} small>{`• ${x}`}</Muted>)}
+      <Btn kind="outline" title="📋 Send a problem report" onPress={() => void errorReport().then(t => Share.share({ message: t, title: "Sakuna problem report" }))}/>
       <Btn kind="outline" title="Run the setup guide again" onPress={() => void api("/settings/prefs", "PATCH", { onboarding_done: false }).then(() => onNotice("Reopen the app to see the setup guide")).catch(e => onError(msg(e)))}/>
     </Section>
     <Btn kind="danger" title="Sign out" onPress={() => Alert.alert("Sign out?", "", [{ text: "Cancel", style: "cancel" }, { text: "Sign out", style: "destructive", onPress: signOut }])}/>
@@ -197,4 +200,40 @@ export function Onboarding({ api, onDone }: { api: Api; onDone: () => void }) {
       </View>
     </View>
   </Modal>;
+}
+
+
+/** Google Calendar and Gmail: connect (opens Google in your browser), check, disconnect. */
+function Connections({ api, onError, onNotice }: { api: Api; onError: (m: string) => void; onNotice: (m: string) => void }) {
+  const [v, setV] = useState<Row | null>(null);
+  const load = useCallback(() => { api<Row>("/integrations").then(setV).catch(() => setV(null)); }, [api]);
+  useEffect(() => {
+    load();
+    const sub = AppState.addEventListener("change", st => { if (st === "active") load(); });   // back from the browser
+    return () => sub.remove();
+  }, [load]);
+  const connect = (p: string, write = false) => void api<Row>(`/integrations/${p}/connect`, "POST", { write }).then(r => {
+    onNotice("Sign in with Google in your browser, allow access, then come back to Sakuna."); void Linking.openURL(String(r.auth_url)); }).catch(e => onError(msg(e)));
+  const check = (p: string) => void api<Row>(`/integrations/${p}/check`, "POST").then(r => { onNotice(r.ok === false ? "Connection needs fixing" : "Connection works ✓"); load(); }).catch(e => onError(msg(e)));
+  const off = (p: string) => Alert.alert("Disconnect?", "Sakuna stops reading it; you can reconnect any time.", [{ text: "Cancel", style: "cancel" },
+    { text: "Disconnect", style: "destructive", onPress: () => void api(`/integrations/${p}`, "DELETE").then(() => { onNotice("Disconnected"); load(); }).catch(e => onError(msg(e))) }]);
+  const row = (p: string, icon: string, name: string, what: string) => {
+    const c = v?.[p]?.connection as Row | null; const status = c?.status || "not connected";
+    return <View key={p} style={{ gap: 6, padding: 12, borderRadius: 14, backgroundColor: C.panel2 }}>
+      <Line><Text style={{ fontSize: 22 }}>{icon}</Text><View style={{ flex: 1 }}><Text style={{ color: C.text, fontWeight: "800" }}>{name}</Text>
+        <Muted small>{status === "connected" ? `✅ Connected${c?.email ? ` · ${c.email}` : ""}` : status === "expired" ? "⚠️ Expired: reconnect" : what}</Muted></View></Line>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        {status !== "connected" ? <Btn title="Connect" onPress={() => connect(p, p === "calendar")} style={{ flex: 1 }}/>
+          : <><Btn kind="outline" title="Check" onPress={() => check(p)} style={{ flex: 1 }}/><Btn kind="link" title="Disconnect" onPress={() => off(p)}/></>}
+      </View>
+    </View>;
+  };
+  const configured = v?.calendar?.configured !== false;
+  return <Section icon="🔗" title="Connections" sub="Google Calendar and Gmail">
+    {!v ? <Muted small>Loading…</Muted> : !configured ? <Text style={{ color: C.amber }}>Google sign-in isn't set up on the server yet (GOOGLE_CLIENT_ID / SECRET on Render).</Text> : <>
+      {row("calendar", "📅", "Google Calendar", "See events on Today and add tasks with Google reminders")}
+      {row("gmail", "📧", "Gmail (read-only)", "Unread emails in your morning brief; never sends or deletes")}
+    </>}
+    <Muted small>Sign-in opens in your phone's browser (Google doesn't allow sign-in inside apps). After allowing, come back here; it refreshes by itself.</Muted>
+  </Section>;
 }
