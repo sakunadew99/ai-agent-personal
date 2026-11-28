@@ -108,7 +108,11 @@ def find_task(db: Session, user_id, text: str) -> Task | None:
 
 
 def detect(db: Session, user_id, text: str) -> tuple[str, dict, str] | None:
-    """(tool, body, summary) for water / habit done / task done, else None."""
+    """(tool, body, summary) for water / habit done / task done / edits by name / repeating tasks, else None."""
+    if not re.search(r"(?i)\b(list|wishlist)\b", text):
+        edit_ = detect_edit(db, user_id, text)
+        if edit_:
+            return edit_
     ml = parse_water(text)
     if ml:
         return "log_water", {"ml": ml}, f"Log {ml} ml water"
@@ -264,3 +268,213 @@ def ai_actions(db: Session, user: User, text: str) -> list[tuple[str, dict, str]
         elif tool == "create_note" and (s("title") or s("body", 5000)):
             out.append(("create_note", {"title": s("title") or s("body", 60), "body": s("body", 5000)}, f"Save note '{s('title') or s('body', 40)}'"))
     return out
+
+
+# ------------------------------------------------------------------ follow-ups ("move it to tomorrow"), edits by name, repeats
+
+_IT = r"(?:it|that|this)(?:\s+(?:task|one))?"
+_PRIO = {"high": "high", "urgent": "high", "important": "high", "medium": "medium", "normal": "medium", "low": "low"}
+
+
+def _when(db: Session, user_id, text: str) -> datetime | None:
+    """'tomorrow 5pm', 'friday', 'next week at 9' -> an aware datetime (your timezone), or None."""
+    from app.services.actions import combine_local
+    from app.services.commands import parse
+    p = parse(text, _today(db, user_id))
+    if not p["date"] and not p["time"]:
+        return None
+    day = date.fromisoformat(p["date"]) if p["date"] else _today(db, user_id)
+    return combine_local(db, user_id, day, p["time"] or "09:00")
+
+
+def _last_actions(db: Session, conversation_id) -> list[dict]:
+    from app.models.entities import Message
+    if conversation_id is None:
+        return []
+    m = db.scalar(select(Message).where(Message.conversation_id == conversation_id, Message.role == "assistant").order_by(Message.created_at.desc()).limit(1))
+    acts = (m.actions or {}) if m is not None else {}
+    return [dict(a, st="completed") for a in acts.get("completed") or []] + [dict(a, st="proposed") for a in acts.get("proposed") or []]
+
+
+def follow_up(db: Session, user: User, conversation_id, text: str) -> list[dict] | None:
+    """Short replies about what the assistant just did. Returns outcomes (already run), or None if this isn't a follow-up."""
+    from app.models.entities import Approval
+    from app.services.actions import queue_or_run, resolve_approval
+    t = text.strip().lower().rstrip(".! ")
+    last = _last_actions(db, conversation_id)
+    if not last:
+        return None
+    if re.fullmatch(r"(?:please\s+)?undo(?:\s+(?:that|it|this|all))?", t):
+        out = []
+        for a in last:
+            if a["st"] == "completed" and a.get("undoable") and a.get("resource_ids"):
+                undo(db, user, a["tool"], [uuid.UUID(str(i)) for i in a["resource_ids"]])
+                out.append({"status": "completed", "tool": "undo", "summary": f"Undone: {a['summary']}"})
+        return out or None
+    yes = re.fullmatch(r"(?:yes|yep|yeah|ok|okay|sure|approve(?:\s+(?:it|that|all))?|do it|go ahead)(?:\s+please)?", t)
+    no = re.fullmatch(r"(?:no|nope|reject(?:\s+(?:it|that|all))?|don'?t|do not)", t)
+    if yes or no:
+        out = []
+        for a in last:
+            if a["st"] != "proposed" or not a.get("approval_id"):
+                continue
+            row = db.get(Approval, uuid.UUID(str(a["approval_id"])))
+            if row is None or row.user_id != user.id or row.status != "pending":
+                continue
+            resolve_approval(db, user, row, accept=bool(yes))       # your explicit "yes"/"no" in the chat is the decision
+            out.append({"status": "completed", "tool": "approval", "summary": f"{'Approved and done' if yes else 'Rejected'}: {a['summary']}"})
+        return out or None
+    task_id = next((a.get("resource_id") for a in last if a["st"] == "completed" and a["tool"] in ("create_task", "edit_task") and a.get("resource_id")), None)
+    if task_id is None:
+        return None
+    m = re.fullmatch(rf"(?:move|push|reschedule|shift|change)\s+{_IT}\s+(?:to\s+)?(.+)", t)
+    if m:
+        when = _when(db, user.id, m.group(1))
+        if when is None:
+            return None
+        return [queue_or_run(db, user, "edit_task", {"id": str(task_id), "due_at": when.isoformat()}, f"Moved to {when.astimezone(_tz(db, user.id)).strftime('%a %d %b %H:%M')}")]
+    m = re.fullmatch(rf"make\s+{_IT}\s+(high|urgent|important|medium|normal|low)(?:\s+priority)?", t)
+    if m:
+        return [queue_or_run(db, user, "edit_task", {"id": str(task_id), "priority": _PRIO[m.group(1)]}, f"Priority set to {_PRIO[m.group(1)]}")]
+    m = re.fullmatch(rf"rename\s+{_IT}\s+(?:to\s+)?(.+)", text.strip().rstrip(".! "), re.I)
+    if m:
+        return [queue_or_run(db, user, "edit_task", {"id": str(task_id), "title": m.group(1).strip()[:200]}, f"Renamed to '{m.group(1).strip()[:80]}'")]
+    if re.fullmatch(rf"(?:delete|remove|cancel)\s+{_IT}", t):
+        undo(db, user, "create_task", [uuid.UUID(str(task_id))])
+        return [{"status": "completed", "tool": "undo", "summary": "Deleted the task I just added"}]
+    return None
+
+
+def detect_edit(db: Session, user_id, text: str) -> tuple[str, dict, str] | None:
+    """Edits by name: delete / move / re-prioritise / rename a task, rename a habit, and repeating tasks."""
+    t = text.strip().rstrip(".! ")
+
+    def tasks():
+        return db.scalars(select(Task).where(Task.user_id == user_id, Task.status.in_(OPEN)).limit(200)).all()
+
+    m = re.fullmatch(r"(?i)(?:delete|remove)\s+(?:the\s+|my\s+)?(?:task\s+)?(.+?)(?:\s+task)?", t)
+    if m and not re.search(r"(?i)\b(from|list|habit|note|memory)\b", t) and not re.fullmatch(r"(?i)(?:it|that|this)", m.group(1)):
+        task = _best(m.group(1), [(x.title, x) for x in tasks()], 0.7)
+        if task is not None:
+            return "delete_task", {"id": str(task.id)}, f"Delete task '{task.title}'"
+    m = re.fullmatch(r"(?i)(?:move|reschedule|push|shift)\s+(?:the\s+|my\s+)?(?:task\s+)?(.+?)(?:\s+task)?\s+to\s+(.+)", t)
+    if m and not re.fullmatch(r"(?i)(?:it|that|this)", m.group(1)):
+        task = _best(m.group(1), [(x.title, x) for x in tasks()], 0.7)
+        when = _when(db, user_id, m.group(2))
+        if task is not None and when is not None:
+            return "edit_task", {"id": str(task.id), "due_at": when.isoformat()}, f"Move '{task.title}' to {when.astimezone(_tz(db, user_id)).strftime('%a %d %b %H:%M')}"
+    m = re.fullmatch(r"(?i)make\s+(?:the\s+|my\s+)?(?:task\s+)?(.+?)(?:\s+task)?\s+(high|urgent|important|medium|normal|low)(?:\s+priority)?", t)
+    if m and not re.fullmatch(r"(?i)(?:it|that|this)", m.group(1)):
+        task = _best(m.group(1), [(x.title, x) for x in tasks()], 0.7)
+        if task is not None:
+            p = _PRIO[m.group(2).lower()]
+            return "edit_task", {"id": str(task.id), "priority": p}, f"'{task.title}' priority → {p}"
+    m = re.fullmatch(r"(?i)rename\s+(?:the\s+|my\s+)?(.+?)\s+(task|habit)\s+to\s+(.+)", t)
+    if m:
+        new = m.group(3).strip()[:200]
+        if m.group(2).lower() == "habit":
+            habits = db.scalars(select(Habit).where(Habit.user_id == user_id, Habit.active.is_(True))).all()
+            h = _best(m.group(1), [(x.name, x) for x in habits], 0.7)
+            if h is not None:
+                return "rename_habit", {"habit_id": str(h.id), "name": new}, f"Rename habit '{h.name}' to '{new}'"
+        else:
+            task = _best(m.group(1), [(x.title, x) for x in tasks()], 0.7)
+            if task is not None:
+                return "edit_task", {"id": str(task.id), "title": new}, f"Rename task '{task.title}' to '{new}'"
+    if re.search(r"(?i)\bevery\s+(?:day|weekday|week|month|morning|evening|night|mon|tue|wed|thu|fri|sat|sun)", t) and not re.search(r"(?i)\b(habit|did|done)\b", t):
+        from app.services.actions import combine_local
+        from app.services.commands import parse
+        p = parse(t, _today(db, user_id))
+        title = re.sub(r"^[\s:,-]+|[\s:,-]+$", "", p["title"] or "")
+        title = re.sub(r"(?i)^(?:remind me to|i need to|add a task to|add)\s+", "", title)
+        if p["recurrence"] and title:
+            due = combine_local(db, user_id, date.fromisoformat(p["date"]), p["time"] or "09:00") if p["date"] else None
+            body = {"title": title[:1].upper() + title[1:200], "recurrence": p["recurrence"], "duration_minutes": p["duration_minutes"] or 30,
+                    "due_at": due.isoformat() if due else None, "notes": text[:1000]}
+            rule = p["recurrence"].replace("FREQ=", "").replace(";BYDAY=", " ").lower()
+            return "create_task", body, f"Repeating task '{body['title']}' ({rule})"
+    return None
+
+
+def execute_edit(db: Session, user: User, action: str, body: dict) -> dict:
+    from app.schemas.dto import TaskUpdate
+    from app.services.actions import update_task
+    if action in ("edit_task", "delete_task"):
+        task = db.get(Task, uuid.UUID(str(body.get("id"))))
+        if task is None or task.user_id != user.id:
+            raise HTTPException(404, "Task not found")
+        if action == "delete_task":
+            from app.services.audit import audit
+            audit(db, user.id, "task.delete", "task", task.id, {"title": task.title, "by": "assistant"})
+            db.delete(task)
+            return {"id": None}
+        changes = {k: body[k] for k in ("due_at", "priority", "title") if body.get(k)}
+        update_task(db, task, TaskUpdate.model_validate(changes))
+        return {"id": str(task.id)}
+    if action == "rename_habit":
+        h = db.get(Habit, uuid.UUID(str(body.get("habit_id"))))
+        if h is None or h.user_id != user.id:
+            raise HTTPException(404, "Habit not found")
+        h.name = str(body.get("name") or h.name).strip()[:200] or h.name
+        return {"id": None}
+    raise HTTPException(400, "Unknown action")
+
+
+# ------------------------------------------------------------------ quick answers from your own records (read-only, plain code)
+
+def quick_answer(db: Session, user: User, text: str) -> str | None:
+    from datetime import timedelta
+
+    from sqlalchemy import func
+
+    from app.models.entities import Expense, Workout
+    t = text.strip().lower()
+    tz = _tz(db, user.id)
+    today = _today(db, user.id)
+
+    def nice(d: date) -> str:
+        return "today" if d == today else "yesterday" if d == today - timedelta(days=1) else d.strftime("%a %d %b")
+
+    if re.search(r"\bwhen did i (?:last )?(?:go to the gym|work ?out|exercise|train)|\blast (?:gym|workout)\b", t):
+        w = db.scalar(select(Workout).where(Workout.user_id == user.id).order_by(Workout.started_at.desc()).limit(1))
+        h = next((x for x in db.scalars(select(Habit).where(Habit.user_id == user.id)).all() if re.search(r"gym|workout|exercise", x.name, re.I)), None)
+        log = db.scalar(select(HabitLog).where(HabitLog.habit_id == h.id, HabitLog.completed.is_(True)).order_by(HabitLog.logged_on.desc()).limit(1)) if h else None
+        from app.core.clock import as_utc
+        days = [d for d in ((as_utc(w.started_at).astimezone(tz).date() if w else None), (log.logged_on if log else None)) if d]
+        return f"Your last workout was {nice(max(days))}." if days else "I don't see a workout logged yet."
+    m = re.search(r"\bwhen did i (?:last )?(.+?)\??$", t)
+    if m:
+        habits = db.scalars(select(Habit).where(Habit.user_id == user.id)).all()
+        h = _best(m.group(1), [(x.name, x) for x in habits], 0.6)
+        if h is not None:
+            log = db.scalar(select(HabitLog).where(HabitLog.habit_id == h.id, HabitLog.completed.is_(True)).order_by(HabitLog.logged_on.desc()).limit(1))
+            return f"Last '{h.name}': {nice(log.logged_on)}." if log else f"'{h.name}' isn't ticked yet."
+    if re.search(r"\bhow much water\b", t) and not re.search(r"\bshould\b", t):
+        from app.services import mindset
+        w = mindset.water(db, user.id, today, datetime.combine(today, time.min, tz))
+        return f"Water today: {w['today_ml']} ml of {w['target_ml']} ml ({w['percent']}%)."
+    m = re.search(r"\bhow much (?:did i |have i )?(?:spen[dt]|paid)(?: on)?(?: (\w+))?", t)
+    if m:
+        first = today.replace(day=1)
+        if "last month" in t:
+            start, end = datetime.combine((first - timedelta(days=1)).replace(day=1), time.min, tz), datetime.combine(first, time.min, tz)
+            when = "last month"
+        elif "today" in t:
+            start, end, when = datetime.combine(today, time.min, tz), datetime.combine(today, time.max, tz), "today"
+        else:
+            start, end, when = datetime.combine(first, time.min, tz), datetime.combine(today, time.max, tz), "this month"
+        cat = m.group(1) if m.group(1) and m.group(1) not in ("this", "last", "in", "money", "so", "today", "on") else None
+        q = select(Expense.currency, func.sum(Expense.amount)).where(Expense.user_id == user.id, Expense.spent_at >= start, Expense.spent_at <= end)
+        if cat:
+            q = q.where(Expense.category == cat)
+        rows = db.execute(q.group_by(Expense.currency)).all()
+        if not rows:
+            return f"No {cat + ' ' if cat else ''}spending recorded {when}."
+        return f"{(cat or 'Total').capitalize()} spending {when}: " + ", ".join(f"{cur} {amt:,.2f}" for cur, amt in rows) + "."
+    if re.search(r"\b(what(?:'s| is)? (?:due|on)(?: for)? today|my tasks today|tasks for today)\b", t):
+        from app.services import nudges
+        tt = nudges.today_tasks(db, user.id, today, tz)
+        if not tt["open"]:
+            return f"Nothing open for today. {tt['done_count']} done so far. 🎉"
+        return "Today: " + "; ".join(f"{x['title']}{' at ' + x['due'] if x.get('due') else ''}{' (late)' if x.get('overdue') else ''}" for x in tt["open"][:6]) + "."
+    return None

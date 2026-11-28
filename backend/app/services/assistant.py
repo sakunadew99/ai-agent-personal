@@ -66,9 +66,14 @@ def classify_intent(text: str) -> str:
 
 def converse(db: Session, user: User, message: str, conversation_id):
     conversation = _conversation(db, user, conversation_id, message)
-    intent, (proposed, completed, refused) = _act_all(db, user, message)
+    intent, (proposed, completed, refused) = _act_all(db, user, message, conversation_id)
     memories = _relevant_memories(db, user, message)
     facts = _facts(db, user, intent, memories)
+    if not (proposed or completed or refused):
+        from app.services import agent
+        quick = agent.quick_answer(db, user, message)       # "when did I last go to the gym?", "how much did I spend on food?"
+        if quick:
+            intent, facts = "quick", f"Answer from the user's own records (exact, calculated by Sakuna): {quick}\n{facts}"
     draft = _draft(facts, proposed, completed, refused)
     reply = _phrase(db, user, conversation, message, draft, intent)
     db.add(Message(conversation_id=conversation.id, user_id=user.id, role="user", content=message, actions={}))
@@ -115,9 +120,15 @@ def _act_one(db: Session, user: User, text: str):
     return intent, _act(db, user, intent, text)
 
 
-def _act_all(db: Session, user: User, message: str):
+def _act_all(db: Session, user: User, message: str, conversation_id=None):
     """Several commands in one message run one by one; a model (with a key) handles command-like text no rule matched."""
     from app.services import agent
+    follow = agent.follow_up(db, user, conversation_id, message)     # "move it to tomorrow", "yes", "undo that"
+    if follow:
+        p, c, r = [], [], []
+        for outcome in follow:
+            _collect(outcome, p, c, r)
+        return "capture", (p, c, r)
     clauses = agent.split_commands(message)
     # Several parts, and every part is a command (checked before anything runs): do them one by one.
     if len(clauses) > 1 and all(agent.detect(db, user.id, c) or classify_intent(c) in ACTION_INTENTS for c in clauses):
@@ -166,6 +177,10 @@ def _act(db: Session, user: User, intent: str, message: str):
         from app.services.actions import _today
 
         parsed = parse_capture(message, _today(db, user.id))
+        from app.services.commands import parse as _parse_cmd
+        clean = (_parse_cmd(message, _today(db, user.id))["title"] or "").strip(" :,-")
+        if clean and len(clean) >= 3:
+            parsed["title"] = clean[:200]          # "remind me to call the bank tomorrow at 10am" -> "Call the bank"
         if parsed["classified_type"] == "note":
             outcome = queue_or_run(db, user, "save_memory", {"content": message, "category": "note"}, "Save note")
         elif parsed["ambiguous"]:
@@ -481,11 +496,15 @@ def _local_reply(message: str, draft: str, intent: str) -> str:
         status = draft.split("Exam coach (calculated by Sakuna, current):", 1)[-1].split("Coaching style for exams:", 1)[0].strip()
         return (f"Here's where your exam prep stands:\n{status}\n\n"
                 "Tip: tell me “log 30 minutes IELTS listening” or “IELTS reading mock 6.5” and I'll track it.")
+    if intent == "quick":
+        return next((line.split(": ", 1)[1] for line in draft.splitlines() if line.startswith("Answer from the user's own records")), "I couldn't find that.")
     if intent in {"capture", "remember", "expense", "list_add", "exam_update", "life_log"}:
-        if "Proposed only." in draft:
-            return "I’ve prepared that request, but it’s waiting for your approval. Open Approvals to review it."
-        if "Completed now:" in draft:
-            return "Done. " + next((line.removeprefix("- ") for line in draft.splitlines() if line.startswith("- ")), "I saved the requested item.")
+        done = [line.removeprefix("- ") for line in draft.split("Completed now:", 1)[-1].split("\n\n", 1)[0].splitlines() if line.startswith("- ")] if "Completed now:" in draft else []
+        waiting = "Proposed only." in draft
+        if done or waiting:
+            head = ("Done ✓ " + done[0]) if len(done) == 1 else ("Done ✓\n" + "\n".join(f"• {d}" for d in done)) if done else ""
+            tail = "Some of it needs your OK: tap Approve below (or say “yes”)." if waiting else "Tap Undo below if that's not right."
+            return f"{head}\n{tail}".strip()
         if "Not done:" in draft:
             return "I couldn’t complete that request. Please add the missing details and try again."
         return "Tell me what you’d like me to save or add, and I’ll help with it."

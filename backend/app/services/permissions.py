@@ -14,6 +14,7 @@ WRITE_TOOLS = [
     "save_memory",
     "create_daily_plan",
     "create_expense",
+    "delete_task",      # deleting asks first (assistant: "delete the dentist task")
 ]
 # Adding to your OWN buy list / wish list buys nothing and is easy to undo, so it runs when you ask (level A).
 # Change a tool to "approval" in your permissions to be asked first.
@@ -25,6 +26,8 @@ LIST_TOOLS = [
     "log_water",        # "drank 500 ml water"
     "log_habit",        # "did my workout" -> today's tick for that habit
     "complete_task",    # "finished the report" -> done (Undo in the chat reopens it)
+    "edit_task",        # "move the report to Friday 5pm", "make it high priority", "rename it to ..."
+    "rename_habit",     # "rename my gym habit to Morning gym"
 ]
 
 

@@ -102,7 +102,7 @@ export function SettingsScreen({ api, onError, onNotice, onOpen, signOut }: { ap
         <Switch value={!!notify[k]?.on} onValueChange={v => setNotify(n => ({ ...n, [k]: { ...n[k], on: v } }))}/></Line>
         {notify[k]?.time != null && notify[k]?.on && <View style={{ width: 150 }}><TimeField value={notify[k].time} onChange={v => v && setNotify(n => ({ ...n, [k]: { ...n[k], time: v } }))}/></View>}</View>)}
       <Btn title="Save & apply on this phone" onPress={saveNotify}/>
-      <Muted small>Buttons right in the notification: ✓ Done / ⏰ +1 hour on tasks, ✓ Done on habits, ✓ Approve / ✕ Reject on approvals, +250 ml on water. They work while Sakuna is open or in the background; if Android has fully closed the app, tap the notification instead.</Muted>
+      <Muted small>Buttons right in the notification: ✓ Done / ⏰ +1 hour on tasks, ✓ Done on habits, ✓ Approve / ✕ Reject on approvals, +250 ml on water. ✓ Done and Approve open Sakuna for a moment so they always count; water and hourly buttons run quietly, and if Android had closed Sakuna the press is applied when it next opens.</Muted>
     </Section>
     <Connections api={api} onError={onError} onNotice={onNotice}/>
     <Section icon="🎨" title="Appearance" sub={`${MODES[t.mode]} · ${ACCENTS[t.accent].name} · ${TEXT_SIZES[t.text].label} · ${LANGS[t.lang]}`}>

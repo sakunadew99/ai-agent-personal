@@ -19,18 +19,19 @@ export const TASK_CATEGORY = "task-reminder";
 export const HABIT_CATEGORY = "habit-reminder";
 export const APPROVAL_CATEGORY = "approval";
 
-/** Buttons shown on notifications. opensAppToForeground: false = the action runs without opening Sakuna. */
+/** Buttons shown on notifications. Done / Approve / Reject open Sakuna briefly so they always count, even if Android closed the app;
+ * water and hourly check-in buttons run quietly (if Android had closed Sakuna, the press is applied when it next starts). */
 async function setupCategories() {
   await Notifications.setNotificationCategoryAsync(TASK_CATEGORY, [
-    { identifier: "task_done", buttonTitle: "✓ Done", options: { opensAppToForeground: false } },
+    { identifier: "task_done", buttonTitle: "✓ Done", options: { opensAppToForeground: true } },
     { identifier: "task_snooze", buttonTitle: "⏰ +1 hour", options: { opensAppToForeground: false } },
   ]);
   await Notifications.setNotificationCategoryAsync(HABIT_CATEGORY, [
-    { identifier: "habit_done", buttonTitle: "✓ Done", options: { opensAppToForeground: false } },
+    { identifier: "habit_done", buttonTitle: "✓ Done", options: { opensAppToForeground: true } },
   ]);
   await Notifications.setNotificationCategoryAsync(APPROVAL_CATEGORY, [
-    { identifier: "approve", buttonTitle: "✓ Approve", options: { opensAppToForeground: false } },
-    { identifier: "reject", buttonTitle: "✕ Reject", options: { opensAppToForeground: false, isDestructive: true } },
+    { identifier: "approve", buttonTitle: "✓ Approve", options: { opensAppToForeground: true } },
+    { identifier: "reject", buttonTitle: "✕ Reject", options: { opensAppToForeground: true, isDestructive: true } },
   ]);
 }
 

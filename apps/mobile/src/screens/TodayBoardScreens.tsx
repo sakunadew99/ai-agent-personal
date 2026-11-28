@@ -3,6 +3,8 @@ import { Animated, Linking, Switch, Text, TextInput, TouchableOpacity, View } fr
 import { peekToday, todayPath, type ApiRecord as Row } from "../api";
 import { Btn, C, Card, Empty, Kicker, Muted, Row as Line, Screen } from "../ui";
 import { GapCards } from "./SleepDayScreens";
+import { MicButton } from "../voice";
+import { askAssistant } from "./ChatScreen";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 const msg = (r: unknown) => (r instanceof Error ? r.message : "Something went wrong");
@@ -79,6 +81,7 @@ export function TodayScreen({ api, onError, onNotice, onOpen, extra, pinnedBar, 
       {!!brief.line && <Muted small>{brief.line}</Muted>}
       {(brief.steps as string[]).map((x, i) => <Text key={i} style={{ color: C.text, lineHeight: 21 }}>{`${i + 1}. ${x}`}</Text>)}
       {briefKind === "night" && <Btn kind="outline" title="🙏 Write gratitude" onPress={() => onOpen("Mindset")}/>}
+      {briefKind === "morning" && <Btn title="🗓 Build today's plan" onPress={() => void api("/planner/generate", "POST", { scope: "day" }).then(() => { onNotice("🗓 Today's plan is ready"); onOpen("Plan"); }).catch(e => onError(msg(e)))}/>}
     </Card>,
     ring: <Card style={{ paddingVertical: 16 }}>
       <DayRing ring={t.ring as Row[]} center={<View style={{ alignItems: "center" }}>
@@ -128,9 +131,12 @@ export function TodayScreen({ api, onError, onNotice, onOpen, extra, pinnedBar, 
     <Line><Text style={{ color: C.text, fontSize: 24, fontWeight: "900", flex: 1 }}>{`${hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"} 👋`}</Text>
       <TouchableOpacity onPress={() => setEdit(e => !e)}><Text style={{ color: C.green, fontWeight: "800" }}>{edit ? "Done" : "✏️ Customize"}</Text></TouchableOpacity></Line>
     {!!sync && <Muted small>{sync === "updating" ? "↻ Updating…" : "📴 Offline: showing what was saved on this phone"}</Muted>}
-    <TouchableOpacity onPress={() => onOpen("Assistant")} activeOpacity={0.85} style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 18, backgroundColor: `${C.green}1f`, borderWidth: 1, borderColor: `${C.green}55` }}>
-      <Text style={{ fontSize: 22 }}>✨</Text><View style={{ flex: 1 }}><Text style={{ color: C.text, fontWeight: "900" }}>Tell Sakuna what to do</Text>
-        <Muted small>“Drank 500 ml water; add milk to my buy list and remind me to call Amma at 6pm”</Muted></View><Text style={{ color: C.green, fontWeight: "900" }}>›</Text></TouchableOpacity>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+      <TouchableOpacity onPress={() => onOpen("Assistant")} activeOpacity={0.85} style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 18, backgroundColor: `${C.green}1f`, borderWidth: 1, borderColor: `${C.green}55` }}>
+        <Text style={{ fontSize: 22 }}>✨</Text><View style={{ flex: 1 }}><Text style={{ color: C.text, fontWeight: "900" }}>Tell Sakuna what to do</Text>
+          <Muted small>“Drank 500 ml water; add milk to my buy list and remind me to call Amma at 6pm”</Muted></View></TouchableOpacity>
+      <MicButton size={52} onError={onError} onText={spoken => { if (spoken.trim()) { askAssistant(spoken); onOpen("Assistant"); } }}/>
+    </View>
     {pinnedBar}
     {edit ? <Card style={{ gap: 8 }}><Kicker>ARRANGE YOUR TODAY</Kicker>{order.map((k, i) => <Line key={k}>
       <Switch value={!hidden.includes(k)} onValueChange={() => toggle(k)}/><Text style={{ color: hidden.includes(k) ? C.muted : C.text, flex: 1 }}>{CARD_NAME[k] || k}</Text>

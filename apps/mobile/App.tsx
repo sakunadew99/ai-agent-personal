@@ -73,6 +73,7 @@ import { NudgeBanner, TodayPlanCard } from "./src/screens/SmartCards";
 import { autoSyncHealth } from "./src/health/autosync";
 import { AppState } from "react-native";
 import * as Notifications from "expo-notifications";
+import * as SecureStore from "expo-secure-store";
 import { CHECKIN_ACTIONS } from "./src/notify";
 import { appendSpeech, MicButton } from "./src/voice";
 import { Hero, Ring, StatTile, TileRow, WeekDots } from "./src/charts";
@@ -157,7 +158,13 @@ function App() {
   useEffect(() => {
     if (!token) return;
     const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
-    const sub = Notifications.addNotificationResponseReceivedListener(resp => {
+    // One handler for button presses: live ones, and the last one from when Android had closed Sakuna (checked at start).
+    const seen = new Set<string>();
+    const handle = async (resp: Notifications.NotificationResponse) => {
+      const key = `${resp.notification.request.identifier}|${resp.actionIdentifier}|${resp.notification.date}`;
+      if (seen.has(key)) return; seen.add(key);
+      if ((await SecureStore.getItemAsync("sakuna.lastNotifAction").catch(() => null)) === key) return;   // already done before a restart
+      await SecureStore.setItemAsync("sakuna.lastNotifAction", key).catch(() => undefined);
       const data = (resp.notification.request.content.data || {}) as Row;
       if (data.kind === "checkin") {
         const h = Number(data.hour), action = resp.actionIdentifier;
@@ -185,7 +192,9 @@ function App() {
         const ml = resp.actionIdentifier === "water500" ? 500 : resp.actionIdentifier === "water250" ? 250 : 0;
         if (ml) void api("/water", "POST", { ml }).then(() => showNotice(`💧 +${ml} ml logged`)).catch(() => undefined); else { setTab("More"); setSub("Water"); }
       }
-    });
+    };
+    void Notifications.getLastNotificationResponseAsync().then(r => { if (r) void handle(r); }).catch(() => undefined);
+    const sub = Notifications.addNotificationResponseReceivedListener(r => { void handle(r); });
     return () => sub.remove();
   }, [token, api, showNotice]);
 

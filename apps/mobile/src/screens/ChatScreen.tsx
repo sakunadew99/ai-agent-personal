@@ -20,6 +20,11 @@ const POWERS: [string, string, string][] = [
   ["🧠", "Remember", "Remember that my passport expires in March 2027"],
   ["🗓", "Plan my day", "Plan my day"],
   ["⚡", "Many at once", "Drank 2 glasses of water; add bananas to my buy list and remind me to call Amma at 6pm"],
+  ["🔂", "Repeating", "Every Monday at 7 pm: team call"],
+  ["📆", "Move a task", "Move the monthly report to Friday 5pm"],
+  ["✏️", "Rename", "Rename my gym habit to Morning gym"],
+  ["❓", "Ask my data", "When did I last go to the gym?"],
+  ["💰", "My spending", "How much did I spend on food this month?"],
 ];
 const ICON: Record<string, string> = { create_task: "✅", add_to_buy_list: "🛒", add_to_wishlist: "✨", log_water: "💧", log_habit: "🔁", complete_task: "☑️",
   create_expense: "💸", save_memory: "🧠", create_note: "📝", create_daily_plan: "🗓", log_life_area: "🧭", exam_update: "📝" };
@@ -48,6 +53,10 @@ function inline(text: string) {
   });
 }
 
+let pendingAsk: string | null = null;
+/** Open the assistant with this message already sent (used by the 🎙 on Today). */
+export function askAssistant(text: string) { pendingAsk = text.trim() || null; }
+
 export function ChatScreen({ api }: { api: Api }) {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -70,6 +79,7 @@ export function ChatScreen({ api }: { api: Api }) {
 
   const loadStatus = useCallback(() => { api<Row>("/assistant/status").then(setStatus).catch(() => setStatus(null)); }, [api]);
   useEffect(() => { loadStatus(); }, [loadStatus]);
+  useEffect(() => { const t = pendingAsk; pendingAsk = null; if (t) void send(t); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function openList() {
     setShowList(true);
@@ -113,7 +123,7 @@ export function ChatScreen({ api }: { api: Api }) {
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>{POWERS.map(([icon, label, example]) =>
           <TouchableOpacity key={label} onPress={() => setText(example)} style={m.power}>
             <Text style={{ fontSize: 20 }}>{icon}</Text><Text style={[m.p, { fontWeight: "800", fontSize: 12, textAlign: "center" }]} numberOfLines={1}>{label}</Text></TouchableOpacity>)}</View>
-        <Muted small>Things that change records you care about (new tasks, expenses) may wait for your OK in Approvals; I show the buttons right here.</Muted>
+        <Muted small>New tasks, deletes and expenses wait for your OK: tap Approve, or just reply “yes”. Reply “undo that”, “move it to tomorrow 5pm” or “make it high priority” to change what I just did.</Muted>
         <Text style={[m.p, { fontWeight: "800", marginTop: 6 }]}>Or ask me something</Text>
         {STARTERS.map(s => <TouchableOpacity key={s} style={m.starter} onPress={() => void send(s)}><Text style={m.p}>{s}</Text></TouchableOpacity>)}
       </View>}
