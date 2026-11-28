@@ -121,3 +121,14 @@
   .wellness-row { grid-template-columns: 34px minmax(70px, 1fr) auto; }
   .habit-days, .habit-week-row { grid-template-columns: minmax(75px, 1.4fr) repeat(7, minmax(12px, .3fr)); gap: 4px; }
 }
+
+/* assistant: what it can do + action cards (Undo / Approve right in the chat) */
+.power-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; margin-top: 12px; }
+.power { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 6px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); }
+.power span { font-size: 20px; } .power b { font-size: 11px; }
+.power:hover { border-color: var(--green); }
+.action-card { display: flex; align-items: center; gap: 10px; margin-top: 8px; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); }
+.action-card.proposed { border-color: var(--c-e8bd85-fg, #e8bd85); }
+.action-card.faded { opacity: .55; }
+.action-card > div { flex: 1; min-width: 0; } .action-card b { font-size: 12px; display: block; } .action-card small { color: var(--muted); font-size: 10px; }
+.action-icon { font-size: 17px; } .action-buttons { display: flex; gap: 6px; } .action-buttons button { padding: 6px 10px; }

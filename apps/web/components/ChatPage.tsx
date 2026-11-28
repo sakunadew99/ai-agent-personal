@@ -8,6 +8,17 @@ import { appendSpeech, VoiceButton } from "./VoiceButton";
 
 type Msg = { id: string; role: "user" | "assistant"; content: string; created_at?: string; pending?: boolean; error?: boolean; meta?: Row };
 
+// Things the assistant DOES (click to put the example in the box, edit it, send). Several at once: separate with ";" or "and".
+const POWERS: [string, string, string][] = [
+  ["✅", "Add a task", "Remind me to pay the electricity bill tomorrow at 9am"], ["🛒", "Buy list", "Add milk, eggs and bread to my buy list"],
+  ["✨", "Wish list", "Add noise-cancelling headphones to my wish list"], ["💧", "Log water", "Drank 500 ml water"], ["🔁", "Habit done", "Did my workout"],
+  ["☑️", "Finish a task", "Finished the monthly report"], ["🔂", "Repeating", "Every Monday at 7 pm: team call"], ["📆", "Move a task", "Move the monthly report to Friday 5pm"],
+  ["💸", "Expense", "Spent 1500 LKR on lunch"], ["❓", "Ask my data", "When did I last go to the gym?"],
+  ["⚡", "Many at once", "Drank 2 glasses of water; add bananas to my buy list and remind me to call Amma at 6pm"],
+];
+const ICON: Record<string, string> = { create_task: "✅", add_to_buy_list: "🛒", add_to_wishlist: "✨", log_water: "💧", log_habit: "🔁", complete_task: "☑️", edit_task: "📆",
+  delete_task: "🗑", rename_habit: "✏️", create_expense: "💸", save_memory: "🧠", create_note: "📝", create_daily_plan: "🗓", undo: "↩️", approval: "🛡" };
+
 const STARTERS = [
   { title: "Plan my day", prompt: "Help me plan today around my open tasks and energy." },
   { title: "Goal check-in", prompt: "How am I doing on my goals? What should I adjust?" },
@@ -34,6 +45,11 @@ export function ChatPage({ token, conversations, onChanged }: { token: string; c
   const [loadingThread, setLoadingThread] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
+  const [done, setDone] = useState<Record<string, string>>({});
+  const mark = (k: string, v: string) => setDone(d => ({ ...d, [k]: v }));
+  const undo = (k: string, a: Row) => { mark(k, "…"); apiRequest("/chat/undo", token, postJson({ tool: a.tool, ids: a.resource_ids })).then(() => mark(k, "undone")).catch(() => mark(k, "failed")); };
+  const decide = (k: string, a: Row, ok: boolean) => { mark(k, "…");
+    apiRequest(`/approvals/${a.approval_id}/${ok ? "approve" : "reject"}`, token, { method: "POST" }).then(() => mark(k, ok ? "approved" : "rejected")).catch(() => mark(k, "failed")); };
   const input = useRef<HTMLTextAreaElement>(null);
 
   const loadStatus = useCallback(() => { apiRequest<Row>("/assistant/status", token).then(setStatus).catch(() => setStatus(null)); }, [token]);
@@ -117,7 +133,10 @@ export function ChatPage({ token, conversations, onChanged }: { token: string; c
         {loadingThread && <div className="loading"><span className="spinner"/>Loading conversation…</div>}
         {empty && <div className="chat-empty">
           <div className="chat-empty-mark"><Icon name="sparkle" size={26}/></div>
-          <h2>How can I help today?</h2>
+          <h2>Tell me what to do ✨</h2>
+          <p className="muted">I add tasks, fill your buy and wish lists, log water and habits, finish, move and rename tasks, record expenses and answer questions about your records. Reply “yes” to approve, “undo that” or “move it to tomorrow 5pm”.</p>
+          <div className="power-grid">{POWERS.map(([icon, label, example]) => <button key={label} className="power" onClick={() => { setText(example); input.current?.focus(); }}><span>{icon}</span><b>{label}</b></button>)}</div>
+          <h3 style={{ marginTop: 18 }}>Or ask me something</h3>
           <p className="muted">Ask anything: plan your day, review goals, learn something new, or think a problem through. I use your saved records and memories for anything about you.</p>
           <div className="starter-grid">{STARTERS.map(s => <button key={s.title} className="starter" onClick={() => void send(s.prompt)}><b>{s.title}</b><small>{s.prompt}</small></button>)}</div>
         </div>}
@@ -125,8 +144,14 @@ export function ChatPage({ token, conversations, onChanged }: { token: string; c
           {m.role === "assistant" && <div className="msg-avatar"><Icon name="sparkle" size={15}/></div>}
           <div className="msg-body">
             {m.role === "assistant" ? <Markdown text={m.content}/> : <p className="msg-user-text">{m.content}</p>}
-            {meta.actions_proposed?.length > 0 && <div className="proposal-note">Suggested actions are waiting for your approval in <b>Approvals</b>. Nothing has been changed yet.</div>}
-            {meta.actions_completed?.length > 0 && <div className="success-note">Done: {(meta.actions_completed as Row[]).map(a => a.summary).join(" · ")}</div>}
+            {[...((meta.actions_completed as Row[]) || []).map((a): Row => ({ ...a, st: "completed" })), ...((meta.actions_proposed as Row[]) || []).map((a): Row => ({ ...a, st: "proposed" }))].map((a, i) => {
+              const k = `${m.id}-${i}`; const d = done[k];
+              return <div key={k} className={`action-card ${a.st} ${d === "undone" || d === "rejected" ? "faded" : ""}`}>
+                <span className="action-icon">{d === "undone" ? "↩️" : d === "rejected" ? "✖️" : a.st === "proposed" && d !== "approved" ? "⏳" : ICON[a.tool] || "✓"}</span>
+                <div><b>{a.summary}</b><small>{d === "undone" ? "Undone" : d === "approved" ? "Approved and done ✓" : d === "rejected" ? "Rejected: nothing changed" : d === "failed" ? "Didn't work; try in Approvals" : a.st === "proposed" ? "Waiting for your OK" : "Done ✓"}</small></div>
+                {a.st === "completed" && a.undoable && !d && <button className="text-button" onClick={() => undo(k, a)}>Undo</button>}
+                {a.st === "proposed" && !d && a.approval_id && <span className="action-buttons"><button className="primary" onClick={() => decide(k, a, true)}>Approve</button><button className="outline" onClick={() => decide(k, a, false)}>Reject</button></span>}
+              </div>; })}
             {meta.relevant_memories?.length > 0 && <details className="msg-context"><summary>Used {meta.relevant_memories.length} saved memor{meta.relevant_memories.length === 1 ? "y" : "ies"}</summary>
               {(meta.relevant_memories as string[]).map((mem, i) => <small key={i}>{mem}</small>)}</details>}
             {m.role === "assistant" && !m.error && <button className="msg-copy" title="Copy" aria-label="Copy reply" onClick={() => void navigator.clipboard?.writeText(m.content)}><Icon name="copy" size={13}/></button>}
@@ -140,7 +165,7 @@ export function ChatPage({ token, conversations, onChanged }: { token: string; c
 
       <form className="composer" onSubmit={onSubmit}>
         <textarea ref={input} rows={1} value={text} onChange={e => setText(e.target.value)} onKeyDown={onKey}
-          placeholder="Message Sakuna…" aria-label="Message Sakuna" maxLength={8000}/>
+          placeholder="Tell Sakuna what to do, or ask…" aria-label="Message Sakuna" maxLength={8000}/>
         <VoiceButton className="composer-mic" onText={spoken => { setText(v => appendSpeech(v, spoken)); input.current?.focus(); }}/>
         <button className="primary composer-send" disabled={sending || !text.trim()} aria-label="Send"><Icon name="send" size={17}/></button>
       </form>
