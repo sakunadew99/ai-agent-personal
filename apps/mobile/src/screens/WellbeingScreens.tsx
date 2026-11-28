@@ -5,6 +5,7 @@ import type { ApiRecord as Row } from "../api";
 import { Bars, Hero, Ring } from "../charts";
 import { syncMedicineReminders } from "../notify";
 import { Badge, Btn, C, Card, Empty, Kicker, Muted, Row as Line, Screen, soft } from "../ui";
+import { TimeField } from "../pickers";
 import { Trainer, type TrainerResult } from "./Trainer";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
@@ -43,8 +44,7 @@ function MedicineForm({ api, m, onClose, onSaved, onError }: { api: Api; m: Row 
     <Kicker>TIMES</Kicker>
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{times.map(t => <TouchableOpacity key={t} onPress={() => times.length > 1 && setTimes(times.filter(x => x !== t))} style={chip(true)}>
       <Text style={{ color: C.green, fontWeight: "800" }}>{`${t}  ✕`}</Text></TouchableOpacity>)}</View>
-    <Line><TextInput style={[input, { flex: 1 }]} value={newTime} onChangeText={setNewTime} placeholder="HH:MM" placeholderTextColor={C.muted}/>
-      <Btn kind="outline" title="＋ Time" disabled={!valid.test(newTime) || times.includes(newTime)} onPress={() => setTimes([...times, newTime].sort())}/></Line>
+    <TimeField value={null} placeholder="＋ Add a time" onChange={v => { if (v && valid.test(v) && !times.includes(v)) setTimes([...times, v].sort()); }}/>
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{["07:00", "08:00", "13:00", "20:00", "22:00"].map(t => <TouchableOpacity key={t} onPress={() => !times.includes(t) && setTimes([...times, t].sort())} style={chip(times.includes(t))}>
       <Text style={{ color: times.includes(t) ? C.green : C.muted, fontWeight: "700" }}>{t}</Text></TouchableOpacity>)}</View>
     <Kicker>DAYS</Kicker>

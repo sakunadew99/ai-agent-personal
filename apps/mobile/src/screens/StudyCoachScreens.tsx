@@ -3,6 +3,7 @@ import { Alert, Linking, Text, TouchableOpacity, View } from "react-native";
 import type { ApiRecord as Row } from "../api";
 import { GermanyFinder } from "./GermanyFinder";
 import { Badge, Btn, C, Card, Chips, Empty, Field, H2, Kicker, Muted, Row as Line, Screen } from "../ui";
+import { DateField } from "../pickers";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 const msg = (r: unknown) => r instanceof Error ? r.message : "Something went wrong";
@@ -83,7 +84,7 @@ export function StudyScreen({ api, onError, onNotice }: { api: Api; onError: (m:
       <Field voice value={uni} onChangeText={setUni} placeholder="University" maxLength={200}/>
       <Field voice value={course} onChangeText={setCourse} placeholder="Course" maxLength={200}/>
       <Line><View style={{ flex: 1 }}><Field value={country} onChangeText={setCountry} placeholder="Country" maxLength={80}/></View>
-        <View style={{ flex: 1 }}><Field value={deadline} onChangeText={setDeadline} placeholder="Deadline YYYY-MM-DD" maxLength={10}/></View></Line>
+        <View style={{ flex: 1 }}><DateField value={deadline || null} onChange={v => setDeadline(v || "")} placeholder="Deadline" allowClear/></View></Line>
       <Btn title="Add" disabled={!uni.trim() || !course.trim() || !country.trim()} onPress={() => {
         if (deadline && !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) { onError("Deadline must look like 2027-01-15"); return; }
         run(api("/study/programs", "POST", { university: uni, course, country, ...(deadline ? { deadline } : {}) }), "Program added.");

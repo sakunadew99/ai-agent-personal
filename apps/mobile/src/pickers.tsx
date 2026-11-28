@@ -35,9 +35,11 @@ function CalendarModal({ value, min, onClose, onPick }: { value: string | null; 
   const cells = [...Array(first).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)];
   const move = (months: number) => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + months, 1));
   const quick = (days: number, months = 0) => { const d = new Date(); d.setMonth(d.getMonth() + months); d.setDate(d.getDate() + days); onPick(isoDate(d)); };
-  return <Modal visible transparent animationType="fade" onRequestClose={onClose}><KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+  return <Modal visible transparent animationType="slide" onRequestClose={onClose}><KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
     <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={onClose}>
       <TouchableOpacity style={s.sheet} activeOpacity={1}>
+        <View style={s.grab}/>
+        <Text style={s.bigDate}>{value ? prettyDate(value) : "Pick a date"}</Text>
         <View style={s.headRow}>
           <TouchableOpacity style={s.nav} onPress={() => move(-12)}><Text style={s.navText}>«</Text></TouchableOpacity>
           <TouchableOpacity style={s.nav} onPress={() => move(-1)}><Text style={s.navText}>‹</Text></TouchableOpacity>
@@ -90,9 +92,10 @@ function ClockModal({ value, step, onClose, onPick }: { value: string | null; st
     return () => clearTimeout(t);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const ampm = (x: number) => (x === 0 ? "12 am" : x < 12 ? `${x} am` : x === 12 ? "12 pm" : `${x - 12} pm`);
-  return <Modal visible transparent animationType="fade" onRequestClose={onClose}><KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+  return <Modal visible transparent animationType="slide" onRequestClose={onClose}><KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
     <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={onClose}>
       <TouchableOpacity style={s.sheet} activeOpacity={1}>
+        <View style={s.grab}/>
         <Text style={s.bigTime}>{pad(h)}:{pad(m)}</Text>
         <View style={s.columns}>
           <ScrollView ref={hRef} style={s.column} showsVerticalScrollIndicator={false}>{Array.from({ length: 24 }, (_, x) => x).map(x =>
@@ -118,8 +121,9 @@ const s = StyleSheet.create({
   value: { color: C.text, fontSize: 14, fontWeight: "600", flex: 1 },
   placeholder: { color: C.muted, fontWeight: "400" },
   clear: { color: C.muted, fontSize: 15, paddingHorizontal: 4 },
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", padding: 18 },
-  sheet: { backgroundColor: C.panel, borderColor: C.line, borderWidth: 1, borderRadius: 22, padding: 16, gap: 12 },
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" },
+  grab: { alignSelf: "center", width: 44, height: 5, borderRadius: 3, backgroundColor: C.line, marginTop: -4 },
+  sheet: { backgroundColor: C.panel, borderColor: C.line, borderWidth: 1, borderBottomWidth: 0, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 18, paddingBottom: 30, gap: 12 },
   headRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   nav: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.panel2, alignItems: "center", justifyContent: "center" },
   navText: { color: C.text, fontSize: 18, fontWeight: "700" },
@@ -138,6 +142,7 @@ const s = StyleSheet.create({
   chipText: { color: C.text, fontSize: 12, fontWeight: "700" },
   done: { backgroundColor: C.green, borderRadius: 14, paddingVertical: 13, alignItems: "center" },
   doneText: { color: C.greenDark, fontWeight: "900", fontSize: 15 },
+  bigDate: { color: C.text, fontSize: 22, fontWeight: "900", textAlign: "center" },
   bigTime: { color: C.text, fontSize: 40, fontWeight: "900", textAlign: "center", fontVariant: ["tabular-nums"] },
   columns: { flexDirection: "row", gap: 10, height: ROW * 5 },
   column: { flex: 1, backgroundColor: C.field, borderRadius: 14 },

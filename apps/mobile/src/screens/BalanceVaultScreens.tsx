@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Alert, Text, View } from "react-native";
 import type { ApiRecord as Row } from "../api";
 import { Badge, Btn, C, Card, Chips, Empty, Field, H2, Kicker, Muted, Progress, Row as Line, Screen } from "../ui";
+import { DateField } from "../pickers";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 const msg = (r: unknown) => r instanceof Error ? r.message : "Something went wrong";
@@ -64,7 +65,7 @@ export function VaultScreen({ api, onError, onNotice }: { api: Api; onError: (m:
     <Card><Kicker>ADD A DOCUMENT</Kicker>
       <Chips options={KINDS} value={kind} onChange={setKind} labels={LABEL}/>
       <Field value={name} onChangeText={setName} placeholder={`Name (default: ${LABEL[kind]})`} maxLength={120}/>
-      <Field value={expires} onChangeText={setExpires} placeholder="Expires YYYY-MM-DD (optional)" maxLength={10}/>
+      <DateField value={expires || null} onChange={v => setExpires(v || "")} placeholder="Expiry date (optional)" allowClear/>
       <Field value={number} onChangeText={setNumber} placeholder="Number (optional, encrypted)" maxLength={60} secureTextEntry/>
       <Field voice value={where} onChangeText={setWhere} placeholder="Where the copy is (e.g. home safe)" maxLength={300}/>
       <Btn title="Save" onPress={() => {

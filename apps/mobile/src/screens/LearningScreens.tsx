@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Alert, Text, TouchableOpacity, View } from "react-native";
 import type { ApiRecord as Row } from "../api";
 import { Badge, Btn, C, Card, Chips, Empty, Field, H2, Kicker, Muted, Row as Line, Screen } from "../ui";
+import { DateField } from "../pickers";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 type Props = { api: Api; onError: (m: string) => void; onNotice: (m: string) => void };
@@ -177,7 +178,7 @@ export function JobsScreen({ api, onError, onNotice }: Props) {
         {open === job.id && <View style={{ gap: 6 }}>
           <Chips options={STAGES} value={job.status} onChange={status => run(api(`/career/jobs/${job.id}`, "PATCH", { status }))} labels={STAGE_LABEL}/>
           <Field voice value={step} onChangeText={setStep} placeholder="Next step, e.g. Email recruiter" maxLength={200}/>
-          <Field value={follow} onChangeText={setFollow} placeholder="Follow up on YYYY-MM-DD" maxLength={10}/>
+          <DateField value={follow || null} onChange={v => setFollow(v || "")} placeholder="Follow-up date (optional)" allowClear/>
           <Line><Btn title="Save next step" style={{ flex: 1 }} onPress={() => {
             if (follow && !/^\d{4}-\d{2}-\d{2}$/.test(follow)) { onError("Date must look like 2026-12-01"); return; }
             run(api(`/career/jobs/${job.id}`, "PATCH", { next_step: step.trim() || null, follow_up_on: follow || null }), "Updated.");

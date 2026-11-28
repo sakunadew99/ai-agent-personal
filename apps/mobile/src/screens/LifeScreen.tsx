@@ -3,6 +3,7 @@ import { Alert, Text, TouchableOpacity, View } from "react-native";
 import { peek, type ApiRecord as Row } from "../api";
 import { Bars, Hero, Meter, PALETTE, Ring, Section, Segments, StatTile, TileRow, WeekDots } from "../charts";
 import { Badge, Btn, C, Card, Chips, Empty, Field, H2, Kicker, Muted, niceDate, Progress, Row as Line, Screen } from "../ui";
+import { DateField, isoDate, TimeField } from "../pickers";
 import { syncReminders } from "../notify";
 import { GoalMilestones } from "./PlanExtras";
 import { HabitsPanel } from "./LifeOs2Screens";
@@ -12,19 +13,19 @@ type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T
 const TABS = ["tasks", "goals", "habits"] as const;
 const PRIORITIES = ["low", "medium", "high"] as const;
 const CATEGORIES = ["personal", "work", "learning", "health", "business"] as const;
-const WHEN = ["no date", "today", "tomorrow", "in a week"] as const;
+const WHEN = ["no date", "today", "tomorrow", "in a week", "pick a date"] as const;
 const REPEATS = ["once", "daily", "weekdays", "weekly", "monthly"] as const;
 const RULES: Record<(typeof REPEATS)[number], string | undefined> = {
   once: undefined, daily: "FREQ=DAILY", weekdays: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", weekly: "FREQ=WEEKLY", monthly: "FREQ=MONTHLY",
 };
 
 /** Local date + "HH:MM" -> ISO time (the phone's timezone). Returns undefined for "no date" or a bad time. */
-function dueIso(when: (typeof WHEN)[number], hhmm: string): string | undefined {
+function dueIso(when: (typeof WHEN)[number], hhmm: string, picked?: string): string | undefined {
   if (when === "no date") return undefined;
   const match = /^(\d{1,2})[:.](\d{2})$/.exec(hhmm.trim());
   if (!match || Number(match[1]) > 23 || Number(match[2]) > 59) return undefined;
-  const d = new Date();
-  d.setDate(d.getDate() + (when === "tomorrow" ? 1 : when === "in a week" ? 7 : 0));
+  const d = when === "pick a date" && picked ? new Date(`${picked}T12:00:00`) : new Date();
+  if (when !== "pick a date") d.setDate(d.getDate() + (when === "tomorrow" ? 1 : when === "in a week" ? 7 : 0));
   d.setHours(Number(match[1]), Number(match[2]), 0, 0);
   return d.toISOString();
 }
@@ -42,6 +43,8 @@ export function LifeScreen({ api, onError, onNotice = () => undefined }: { api: 
   const [unit, setUnit] = useState("");
   const [when, setWhen] = useState<(typeof WHEN)[number]>("no date");
   const [at, setAt] = useState("18:00");
+  const [pickedDay, setPickedDay] = useState<string>(isoDate(new Date()));
+  const [goalDue, setGoalDue] = useState<string | null>(null);
   const [repeat, setRepeat] = useState<(typeof REPEATS)[number]>("once");
   const [reminders, setReminders] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -65,12 +68,12 @@ export function LifeScreen({ api, onError, onNotice = () => undefined }: { api: 
     const name = title.trim(); if (!name) return;
     void run(async () => {
       if (tab === "tasks") {
-        const due = dueIso(when, at);
-        if (when !== "no date" && !due) throw new Error("Time must look like 18:00");
+        const due = dueIso(when, at, pickedDay);
+        if (when !== "no date" && !due) throw new Error("Pick a time");
         await api("/tasks", "POST", { title: name, priority, category, duration_minutes: 30, ...(due ? { due_at: due } : {}), ...(RULES[repeat] ? { recurrence: RULES[repeat] } : {}) });
         setRepeat("once");
       }
-      if (tab === "goals") await api("/goals", "POST", { title: name, category, ...(target ? { target_value: Number(target), current_value: 0 } : {}), ...(unit ? { unit } : {}) });
+      if (tab === "goals") { await api("/goals", "POST", { title: name, category, ...(target ? { target_value: Number(target), current_value: 0 } : {}), ...(unit ? { unit } : {}), ...(goalDue ? { due_date: goalDue } : {}) }); setGoalDue(null); }
       if (tab === "habits") await api("/habits", "POST", { name, schedule: "daily" });
       setTitle(""); setTarget(""); setUnit("");
     });
@@ -112,12 +115,14 @@ export function LifeScreen({ api, onError, onNotice = () => undefined }: { api: 
       {tab !== "habits" && <Chips options={CATEGORIES} value={category} onChange={setCategory}/>}
       {tab === "tasks" && <>
         <Chips options={WHEN} value={when} onChange={setWhen}/>
-        {when !== "no date" && <Field value={at} onChangeText={setAt} placeholder="Time, e.g. 18:00" keyboardType="numbers-and-punctuation" maxLength={5}/>}
+        {when !== "no date" && <Line>{when === "pick a date" && <DateField value={pickedDay} min={isoDate(new Date())} onChange={v => v && setPickedDay(v)}/>}
+          <TimeField value={at} onChange={v => v && setAt(v)}/></Line>}
         <Chips options={REPEATS} value={repeat} onChange={setRepeat} labels={{ once: "doesn't repeat" }}/>
         {repeat !== "once" && <Muted small>When you finish it, the next one is created automatically at the same time.</Muted>}
       </>}
       {tab === "goals" && <Line><View style={{ flex: 1 }}><Field value={target} onChangeText={setTarget} placeholder="Target (e.g. 100)" keyboardType="numeric"/></View>
         <View style={{ flex: 1 }}><Field value={unit} onChangeText={setUnit} placeholder="Unit (lessons, USD…)"/></View></Line>}
+      {tab === "goals" && <DateField value={goalDue} onChange={setGoalDue} placeholder="Target date (optional)" allowClear min={isoDate(new Date())}/>}
       <Btn title="Add" onPress={add} busy={busy} disabled={!title.trim()}/>
     </Card>}
 

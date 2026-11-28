@@ -8,6 +8,7 @@ import { applyNotificationPrefs, notificationsAllowed } from "../notify";
 import { Shield } from "../shield";
 import { ACCENTS, LANGS, MODES, TEXT_SIZES, setTheme, theme, type Accent, type Lang, type Mode, type TextSize } from "../theme";
 import { Btn, C, Card, Empty, Field, Kicker, Muted, Row as Line, Screen } from "../ui";
+import { TimeField } from "../pickers";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 const msg = (r: unknown) => (r instanceof Error ? r.message : "Something went wrong");
@@ -89,9 +90,9 @@ export function SettingsScreen({ api, onError, onNotice, onOpen, signOut }: { ap
       <Btn title="Save profile" onPress={() => saveProfile(["full_name", "location", "timezone", "currency", "height_cm", "sex", "bio"])}/>
     </Section>
     <Section icon="⏰" title="My day" sub="Wake, sleep, office and gym times">
-      <Line><Field label="Wake up" value={prof.wake_time} onChangeText={set("wake_time")} placeholder="06:30" style={{ flex: 1 }}/><Field label="Sleep" value={prof.sleep_time} onChangeText={set("sleep_time")} placeholder="22:30" style={{ flex: 1 }}/></Line>
-      <Line><Field label="Work starts" value={prof.work_start} onChangeText={set("work_start")} placeholder="08:30" style={{ flex: 1 }}/><Field label="Work ends" value={prof.work_end} onChangeText={set("work_end")} placeholder="17:30" style={{ flex: 1 }}/></Line>
-      <Field label="Gym time" value={prof.gym_time} onChangeText={set("gym_time")} placeholder="18:00"/>
+      <Line><TimeField label="⏰ Wake up" value={prof.wake_time} onChange={v => set("wake_time")(v || "")} placeholder="06:30" allowClear/><TimeField label="🌙 Sleep" value={prof.sleep_time} onChange={v => set("sleep_time")(v || "")} placeholder="22:30" allowClear/></Line>
+      <Line><TimeField label="💼 Work starts" value={prof.work_start} onChange={v => set("work_start")(v || "")} placeholder="08:30" allowClear/><TimeField label="🏁 Work ends" value={prof.work_end} onChange={v => set("work_end")(v || "")} placeholder="17:30" allowClear/></Line>
+      <TimeField label="🏋️ Gym time" value={prof.gym_time} onChange={v => set("gym_time")(v || "")} placeholder="18:00" allowClear/>
       <Btn title="Save times" onPress={() => saveProfile(["wake_time", "sleep_time", "work_start", "work_end", "gym_time"])}/>
       <Btn kind="link" title="Work and gym days →" onPress={() => onOpen("Schedule")}/>
     </Section>
@@ -99,7 +100,7 @@ export function SettingsScreen({ api, onError, onNotice, onOpen, signOut }: { ap
       {!checks.notifications && <Text style={{ color: C.amber }}>⚠️ Notifications are off for Sakuna on this phone. Tap "Fix" under Phone access.</Text>}
       {Object.keys(labels).map(k => <View key={k} style={{ gap: 4 }}><Line><Text style={{ color: C.text, flex: 1 }}>{labels[k]}</Text>
         <Switch value={!!notify[k]?.on} onValueChange={v => setNotify(n => ({ ...n, [k]: { ...n[k], on: v } }))}/></Line>
-        {notify[k]?.time != null && notify[k]?.on && <Field value={notify[k].time} onChangeText={v => setNotify(n => ({ ...n, [k]: { ...n[k], time: v } }))} placeholder="07:00" style={{ width: 100 }}/>}</View>)}
+        {notify[k]?.time != null && notify[k]?.on && <View style={{ width: 150 }}><TimeField value={notify[k].time} onChange={v => v && setNotify(n => ({ ...n, [k]: { ...n[k], time: v } }))}/></View>}</View>)}
       <Btn title="Save & apply on this phone" onPress={saveNotify}/>
       <Muted small>Buttons right in the notification: ✓ Done / ⏰ +1 hour on tasks, ✓ Done on habits, ✓ Approve / ✕ Reject on approvals, +250 ml on water. They work while Sakuna is open or in the background; if Android has fully closed the app, tap the notification instead.</Muted>
     </Section>
