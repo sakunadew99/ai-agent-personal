@@ -258,3 +258,49 @@ def weekly_review(db: Session, user_id, day: date) -> dict:
             "mindset": {"affirm_days": mind.count("affirm_read"), "scripting": mind.count("scripting"), "gratitude": mind.count("gratitude")},
             "wins": wins, "fixes": fixes, "one_change": fixes[0] if fixes else "Keep the same plan; it's working.",
             "score": max(0, min(100, round(prod / 60 * 1.5 + (sl["avg_minutes_week"] or 0) / 60 * 4 - mins["wasted"] / 60 * 2 + len(strong) * 5)))}
+
+
+def checkin_plan(db: Session, user_id, today: date) -> dict:
+    """Which hours (8:00-21:00) still need a 'what did you do?' check-in, today and tomorrow.
+
+    Skipped: hours already logged or filled (sleep, focus, entries, gym/routines), Google Calendar meetings, your gym hour,
+    and your sleep window. Hour h = the hour from h:00 to h+1:00 (the check-in is sent at h+1:00). Plain code.
+    """
+    from app.services import gcalendar, smart
+    from app.services.routines import gym_days
+    p = db.scalar(select(UserProfile).where(UserProfile.user_id == user_id))
+    tz = _tz(db, user_id)
+    out = {}
+    for d in (today, today + timedelta(days=1)):
+        known: dict[int, str] = {}
+        slots: list[str] = []
+        for s in ring(db, user_id, d):
+            slots += [s["category"]] * int(s["slots"])
+        for h in range(24):
+            q = slots[h * 4:h * 4 + 4]
+            if q and all(c not in ("unknown", "future") for c in q):
+                known[h] = q[0]
+        for a in smart.auto_entries(db, user_id, d) if d == today else []:
+            h = int(a["start"][:2])
+            for k in range(h, min(24, h + max(1, round(a["minutes"] / 60)))):
+                known.setdefault(k, a["category"])
+        start = datetime.combine(d, time.min, tz)
+        evs, _st = gcalendar.list_events(db, user_id, start, start + timedelta(days=1))
+        for e in evs:
+            if e["all_day"] or not e["busy"]:
+                continue
+            s2, e2 = as_utc(e["start"]).astimezone(tz), as_utc(e["end"]).astimezone(tz)
+            for h in range(24):
+                lo, hi = datetime.combine(d, time(h), tz), datetime.combine(d, time(h), tz) + timedelta(hours=1)
+                if (min(hi, e2) - max(lo, s2)).total_seconds() >= 1800:
+                    known.setdefault(h, "calendar")
+        if p and p.gym_time and (p.gym_days is None or d.weekday() in gym_days(p)):
+            known.setdefault(p.gym_time.hour, "exercise")
+        wake = p.wake_time if p and p.wake_time else time(6, 30)
+        bed = p.sleep_time if p and p.sleep_time else time(22, 30)
+        for h in range(24):
+            if h < wake.hour or (bed.hour >= 12 and h > bed.hour):
+                known.setdefault(h, "sleep")
+        hours = range(8, 21)
+        out[d.isoformat()] = {"ask": [h for h in hours if h not in known], "skip": {str(h): known[h] for h in hours if h in known}}
+    return out

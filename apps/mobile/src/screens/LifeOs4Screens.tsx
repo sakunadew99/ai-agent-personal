@@ -4,7 +4,7 @@ import * as SecureStore from "expo-secure-store";
 import type { ApiRecord as Row } from "../api";
 import { openInApp } from "../browser";
 import { Bars, Hero, LineChart, Meter, PALETTE, Ring, Segments, SplitBar } from "../charts";
-import { scheduleHourlyCheckins } from "../notify";
+import { scheduleHourlyCheckins, scheduleSmartCheckins } from "../notify";
 import { Shield, defaultMark, type BlockList, type Mark } from "../shield";
 import { Badge, Btn, C, Card, Empty, Field, H2, Kicker, Muted, Row as Line, Screen } from "../ui";
 import { WeekInsightsCard } from "./SmartCards";
@@ -246,7 +246,8 @@ export function DayTrackerScreen({ api, onError, onNotice, initialHour }: Props 
   }
   async function toggleHourly(on: boolean) {
     setHourly(on); await SecureStore.setItemAsync("sakuna.hourlyCheckins", on ? "on" : "off").catch(() => undefined);
-    const n = await scheduleHourlyCheckins(on); onNotice(on ? `Hourly check-ins on (${n} reminders, 8:00–21:00, plus the 21:30 report)` : "Hourly check-ins off");
+    const n = on ? await scheduleSmartCheckins(api) : await scheduleHourlyCheckins(false);
+    onNotice(on ? `Smart check-ins on: ${Math.max(0, n - 1)} hours to ask (hours Sakuna already knows are skipped), plus the 21:30 report` : "Hourly check-ins off");
   }
   async function applyBlock() {
     const b = r?.block_suggestion; if (!b || !Shield) { onError("The app blocker needs the Sakuna APK on Android."); return; }
@@ -269,7 +270,7 @@ export function DayTrackerScreen({ api, onError, onNotice, initialHour }: Props 
       right={<Ring value={Number(r?.score ?? 0)} size={96} label={`${r?.score ?? "—"}`} sub="DAY SCORE"/>}>
       <Line><Btn kind="outline" title="‹" onPress={() => shift(-1)}/><Btn kind="outline" title="Today" onPress={() => { const k = iso(new Date()); setDay(k); void load(k); }}/><Btn kind="outline" title="›" onPress={() => shift(1)}/></Line>
     </Hero>
-    <Card><Line><View style={{ flex: 1 }}><Text style={{ color: C.text, fontWeight: "800" }}>Ask me every hour</Text><Muted small>“What did you do this hour?” 8:00–21:00, answer from the notification. Report at 21:30.</Muted></View>
+    <Card><Line><View style={{ flex: 1 }}><Text style={{ color: C.text, fontWeight: "800" }}>Ask me each hour (smart)</Text><Muted small>“What did you do this hour?” 8:00–21:00, only for hours Sakuna doesn't know yet (logged, focus, gym, meetings and sleep are skipped). Report at 21:30.</Muted></View>
       <Switch value={hourly} onValueChange={v => void toggleHourly(v)} trackColor={{ true: C.green, false: C.line }} thumbColor={C.text}/></Line></Card>
     <Card><Kicker>HOUR BY HOUR · TAP AN HOUR TO LOG IT</Kicker>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4 }}>{hours.filter(h => h.hour >= 5).map(h => { const sel = h.hour === hour;

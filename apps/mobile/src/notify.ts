@@ -396,3 +396,42 @@ export async function scheduleWaterSmart(api: Api): Promise<number> {
     return n;
   } catch { return 0; }
 }
+
+/**
+ * Smart hourly check-ins (re-planned each time Sakuna opens): only for hours Sakuna doesn't already know, today and
+ * tomorrow. Logged hours, focus, gym, Google Calendar meetings and sleep are skipped. Falls back to every hour offline.
+ */
+export async function scheduleSmartCheckins(api: Api): Promise<number> {
+  try {
+    if (!(await ready())) return -1;
+    if ((await SecureStore.getItemAsync("sakuna.hourlyCheckins")) !== "on") return 0;
+    let plan: Row;
+    try { plan = await api<Row>("/day/checkin-plan"); } catch { return scheduleHourlyCheckins(true); }
+    await cancelWhere(id => id.startsWith(CHECKIN_PREFIX));
+    await Notifications.setNotificationCategoryAsync(CHECKIN_CATEGORY, [
+      ...CHECKIN_ACTIONS.map(([id, title]) => ({ identifier: id, buttonTitle: title, options: { opensAppToForeground: false } })),
+      { identifier: "open", buttonTitle: "Other…", options: { opensAppToForeground: true } },
+    ]);
+    let n = 0;
+    for (const [day, v] of Object.entries(plan)) {
+      const [y, mo, d] = day.split("-").map(Number);
+      for (const h of ((v as Row).ask as number[]) || []) {
+        const at = new Date(y, mo - 1, d, h + 1, 0);
+        if (at.getTime() <= Date.now() + 60_000) continue;
+        await Notifications.scheduleNotificationAsync({
+          identifier: `${CHECKIN_PREFIX}${day}-${h}`,
+          content: { title: `⏱ ${String(h).padStart(2, "0")}:00–${String(h + 1).padStart(2, "0")}:00`, body: tr("What did you do this hour? Tap a button, or open Sakuna for more."),
+            categoryIdentifier: CHECKIN_CATEGORY, data: { kind: "checkin", hour: h } },
+          trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at, channelId: CHANNEL },
+        });
+        n++;
+      }
+    }
+    await Notifications.scheduleNotificationAsync({
+      identifier: `${CHECKIN_PREFIX}report`,
+      content: { title: "📋 Your day report is ready", body: "See where the time went, and what to change tomorrow.", data: { kind: "report" } },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 21, minute: 30, channelId: CHANNEL },
+    });
+    return n + 1;
+  } catch { return 0; }
+}

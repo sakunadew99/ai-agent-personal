@@ -143,6 +143,13 @@ def language_today(db: Session = Depends(get_db), user: User = Depends(get_curre
 
 # ---------- Day tracker: hour by hour, phone usage, end-of-day report ----------
 
+@router.get("/day/checkin-plan")
+def day_checkin_plan(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Hours that still need an hourly check-in today and tomorrow (known hours are skipped), for the phone to schedule."""
+    from app.services import consistency
+    out = consistency.checkin_plan(db, user.id, datetime.now(zone(profile_for(db, user).timezone)).date()); db.commit(); return out
+
+
 @router.get("/day/report")
 def day_report(day: date | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Hour-by-hour view of a day: what you logged, focus, phone usage, tasks/habits/gym, time wasted, and tomorrow's tips."""

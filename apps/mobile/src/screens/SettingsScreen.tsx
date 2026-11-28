@@ -130,9 +130,10 @@ export function SettingsScreen({ api, onError, onNotice, onOpen, signOut }: { ap
       {[["AI", "🔐 AI usage & what's shared"], ["Approvals", "✅ Approvals waiting"], ["Memory", "🧩 What Sakuna remembers"]].map(([k, l]) =>
         <TouchableOpacity key={k} onPress={() => onOpen(k)}><Text style={{ color: C.green, paddingVertical: 4 }}>{`${l} →`}</Text></TouchableOpacity>)}
     </Section>
-    <Section icon="💾" title="Your data" sub="Export everything">
+    <Section icon="💾" title="Your data" sub="Export and Google Drive backup">
       <Muted small>One JSON file with everything you've stored (passwords, tokens and encrypted fields are left out).</Muted>
       <Btn kind="outline" title="⬇ Export my data" onPress={exportData}/>
+      <DriveBackup api={api} onError={onError} onNotice={onNotice}/>
     </Section>
     <Section icon="❓" title="Help & about" sub="How things work">
       {["Today: your 24-hour ring fills as you log hours; grey means not logged yet.", "Approvals: Sakuna and outside AI tools only propose changes; nothing happens until you approve.",
@@ -234,7 +235,25 @@ function Connections({ api, onError, onNotice }: { api: Api; onError: (m: string
     {!v ? <Muted small>Loading…</Muted> : !configured ? <Text style={{ color: C.amber }}>Google sign-in isn't set up on the server yet (GOOGLE_CLIENT_ID / SECRET on Render).</Text> : <>
       {row("calendar", "📅", "Google Calendar", "See events on Today and add tasks with Google reminders")}
       {row("gmail", "📧", "Gmail (read-only)", "Unread emails in your morning brief; never sends or deletes")}
+      {row("drive", "💾", "Google Drive (backups)", "Weekly backup to a “Sakuna backups” folder; sees only files Sakuna makes")}
     </>}
     <Muted small>Sign-in opens in your phone's browser (Google doesn't allow sign-in inside apps). After allowing, come back here; it refreshes by itself.</Muted>
   </Section>;
+}
+
+
+/** Google Drive backup: back up now, and every Sunday evening if switched on. */
+function DriveBackup({ api, onError, onNotice }: { api: Api; onError: (m: string) => void; onNotice: (m: string) => void }) {
+  const [v, setV] = useState<Row | null>(null); const [busy, setBusy] = useState(false);
+  const load = useCallback(() => { api<Row>("/backup/drive").then(setV).catch(() => setV(null)); }, [api]);
+  useEffect(() => { load(); }, [load]);
+  if (!v) return null;
+  if (!v.connected) return <Muted small>💾 Connect Google Drive in Connections above to back up automatically every week.</Muted>;
+  const now = () => { setBusy(true); void api<Row>("/backup/drive", "POST").then(r => r.ok ? onNotice(`💾 Saved to Google Drive: ${r.name}`) : onError(String(r.message))).catch(e => onError(msg(e))).finally(() => setBusy(false)); };
+  return <View style={{ gap: 8, padding: 12, borderRadius: 14, backgroundColor: C.panel2 }}>
+    <Line><Text style={{ color: C.text, fontWeight: "800", flex: 1 }}>💾 Every Sunday at 20:00, to Google Drive</Text>
+      <Switch value={!!v.auto} onValueChange={on => void api<Row>("/backup/drive/auto", "PUT", { on }).then(setV).catch(e => onError(msg(e)))}/></Line>
+    <Btn kind="outline" title={busy ? "Backing up…" : "Back up to Google Drive now"} disabled={busy} onPress={now}/>
+    <Muted small>Saved in a “Sakuna backups” folder; the newest 8 are kept. Sakuna can only see files it created there.</Muted>
+  </View>;
 }

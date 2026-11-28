@@ -59,10 +59,10 @@ import { ReelsScreen } from "./src/screens/ReelsScreen";
 import { HubScreen } from "./src/screens/HubScreen";
 import { SleepScreen, uploadSleep } from "./src/screens/SleepDayScreens";
 import { MindsetScreen, WaterScreen } from "./src/screens/MindsetScreens";
-import { BoardScreen, BodyOverview, CalendarDay, TodayScreen } from "./src/screens/TodayBoardScreens";
+import { BoardScreen, BodyOverview, CalendarDay, CalendarRange, TodayScreen } from "./src/screens/TodayBoardScreens";
 import { AppearanceScreen } from "./src/screens/AppearanceScreen";
 import { Onboarding, SettingsScreen } from "./src/screens/SettingsScreen";
-import { applyNotificationPrefs, notifyApprovals, savedNotifyPrefs, scheduleWaterSmart } from "./src/notify";
+import { applyNotificationPrefs, notifyApprovals, savedNotifyPrefs, scheduleSmartCheckins, scheduleWaterSmart } from "./src/notify";
 import { InAppNudges } from "./src/InAppNudges";
 import { logError } from "./src/errors";
 import { subscribe as onThemeChange } from "./src/theme";
@@ -148,7 +148,8 @@ function App() {
     if (!token) return;
     const sub = AppState.addEventListener("change", st => { if (st === "active") { void autoSyncHealth(api); void notifyStockAlerts(api); void uploadSleep(api);
       if (prefsRef.current?.notifications?.approvals?.on !== false) void notifyApprovals(api);
-      if (prefsRef.current?.notifications?.water?.on) void scheduleWaterSmart(api); } });
+      if (prefsRef.current?.notifications?.water?.on) void scheduleWaterSmart(api);
+      void scheduleSmartCheckins(api); } });
     return () => sub.remove();
   }, [token, api]);
 
@@ -289,7 +290,7 @@ function App() {
       {tab === "Plan" && planView === "day" && <PlanScreen plan={plan} busy={busy} generate={generatePlan}
         top={<><PlanSwitch value={planView} onChange={setPlanView}/><CalendarDay api={api} onOpen={openTarget}/><TodayRoutines api={api} onError={showError} onNotice={showNotice}/><Text style={styles.sectionTitle}>Time plan</Text></>}
         extra={<TimeCard api={api}/>}/>}
-      {tab === "Plan" && planView === "week" && <KbScroll contentContainerStyle={styles.scroll}><PlanSwitch value={planView} onChange={setPlanView}/><WeekPlan api={api} onError={showError} onNotice={showNotice}/></KbScroll>}
+      {tab === "Plan" && planView === "week" && <KbScroll contentContainerStyle={styles.scroll}><PlanSwitch value={planView} onChange={setPlanView}/><CalendarRange api={api} mode="week" onOpen={openTarget}/><WeekPlan api={api} onError={showError} onNotice={showNotice}/></KbScroll>}
       {tab === "Plan" && planView === "board" && <KbScroll contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled"><PlanSwitch value={planView} onChange={setPlanView}/><PlanBoard api={api} onError={showError} onNotice={showNotice}/></KbScroll>}
       {tab === "Plan" && planView === "life" && <BoardScreen top={<PlanSwitch value={planView} onChange={setPlanView}/>} api={api} onError={showError} onNotice={showNotice} onOpen={t => openTarget(t)}/>}
       {tab === "Plan" && planView === "month" && <KbScroll contentContainerStyle={styles.scroll}><PlanSwitch value={planView} onChange={setPlanView}/><MonthRoutines api={api} onError={showError}/><Text style={styles.sectionTitle}>Tasks and deadlines</Text><MonthAgenda api={api}/></KbScroll>}

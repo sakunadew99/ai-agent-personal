@@ -35,6 +35,7 @@ from app.services.audit import audit
 GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
 CAL_READ = "https://www.googleapis.com/auth/calendar.readonly"
 CAL_EVENTS = "https://www.googleapis.com/auth/calendar.events"
+DRIVE_FILE = "https://www.googleapis.com/auth/drive.file"   # only files Sakuna creates (backups)
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 REVOKE_URL = "https://oauth2.googleapis.com/revoke"
@@ -56,6 +57,7 @@ class Provider:
 PROVIDERS = {
     "gmail": Provider("gmail", "Gmail", frozenset({GMAIL_SCOPE})),
     "calendar": Provider("calendar", "Google Calendar", frozenset({CAL_READ, CAL_EVENTS})),
+    "drive": Provider("drive", "Google Drive (backups)", frozenset({DRIVE_FILE})),
 }
 PROVIDER = "gmail"  # kept for older imports
 
@@ -63,6 +65,8 @@ PROVIDER = "gmail"  # kept for older imports
 def requested_scopes(provider: str, write: bool = False) -> tuple[str, ...]:
     if provider == "gmail":
         return ("openid", "email", GMAIL_SCOPE)
+    if provider == "drive":
+        return ("openid", "email", DRIVE_FILE)
     return ("openid", "email", CAL_EVENTS if write else CAL_READ)
 
 
@@ -274,6 +278,8 @@ def check(db: Session, conn: IntegrationConnection) -> dict:
     try:
         if conn.provider == "gmail":
             code, profile = call(db, conn, "GET", f"{GMAIL_API}/profile")
+        elif conn.provider == "drive":
+            code, profile = call(db, conn, "GET", "https://www.googleapis.com/drive/v3/files", {"pageSize": 1, "fields": "files(id)"})
         else:
             code, profile = call(db, conn, "GET", f"{CALENDAR_API}/calendars/primary")
     except Expired:
@@ -289,6 +295,8 @@ def check(db: Session, conn: IntegrationConnection) -> dict:
             conn.account_email = profile["emailAddress"]
         return {"ok": True, "status": "connected", "email": conn.account_email, "messages_total": profile.get("messagesTotal"),
                 "fiverr_emails_90_days": listing.get("resultSizeEstimate", 0) if fiverr_code == 200 else None}
+    if conn.provider == "drive":
+        return {"ok": True, "status": "connected", "email": conn.account_email}
     now = now_utc()
     ev_code, events = call(db, conn, "GET", f"{CALENDAR_API}/calendars/primary/events",
                            {"timeMin": now.isoformat(), "timeMax": (now + timedelta(days=7)).isoformat(), "singleEvents": "true", "maxResults": 250})

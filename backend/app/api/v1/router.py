@@ -1082,7 +1082,7 @@ def game_treat_redeem(treat_id: uuid.UUID, data: dto.RedeemIn, db: Session = Dep
 
 # ---------- Google connections: Gmail read-only (Fiverr F1) and Google Calendar. One OAuth client serves both. ----------
 
-ProviderKey = Literal["gmail", "calendar"]
+ProviderKey = Literal["gmail", "calendar", "drive"]
 
 
 @router.get("/integrations")
@@ -1093,7 +1093,29 @@ def integrations_list(db: Session = Depends(get_db), user: User = Depends(get_cu
                   "scope": google_oauth.GMAIL_SCOPE},
         "calendar": {"configured": configured, "connection": google_oauth.describe(google_oauth.get_connection(db, user.id, "calendar")),
                      "scope": google_oauth.CAL_READ},
+        "drive": {"configured": configured, "connection": google_oauth.describe(google_oauth.get_connection(db, user.id, "drive")),
+                  "scope": google_oauth.DRIVE_FILE},
     }
+
+
+@router.get("/backup/drive")
+def backup_drive_status(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services import gdrive
+    return gdrive.status(db, user.id)
+
+
+@router.post("/backup/drive")
+def backup_drive_now(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Save your Sakuna export to the "Sakuna backups" folder in your Google Drive now (keeps the newest 8)."""
+    from app.services import gdrive
+    out = gdrive.backup_now(db, user.id, "manual"); db.commit(); return out
+
+
+@router.put("/backup/drive/auto")
+def backup_drive_auto(data: dto.DriveAutoIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Weekly backup every Sunday evening (your standing OK; switch off any time)."""
+    from app.services import gdrive
+    out = gdrive.set_auto(db, user.id, data.on); db.commit(); return out
 
 
 @router.post("/integrations/{provider}/connect")
@@ -1518,6 +1540,12 @@ def internal_tick(x_service_token: str = Header(default="")):
         smart.purge_old(_db); _db.commit()
         from app.services import portfolio_ai
         portfolio_ai.daily_fetch(_db)       # CSE prices once a day after the close, so gains/losses stay current
+        try:
+            from app.services import gdrive
+            gdrive.weekly_due(_db); _db.commit()   # Sunday-evening Google Drive backups for those who switched them on
+        except Exception:  # noqa: BLE001 - one failed backup must not stop the tick
+            import logging
+            logging.exception("weekly drive backups failed"); _db.rollback()
     from app.core.database import SessionLocal
     from app.services.goal_engine import snapshot_all
     with SessionLocal() as db:

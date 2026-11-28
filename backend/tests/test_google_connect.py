@@ -287,3 +287,28 @@ def test_calendar_too_broad_scope_is_refused(client, google):
     state = parse_qs(urlparse(url).query)["state"][0]
     assert "reason=calendar_permission_not_granted" in _callback(client, code="4/x", state=state).headers["location"]
     assert google.posts[-1] == (gmail_oauth.REVOKE_URL, {"token": "r-broad"})
+
+
+def test_drive_backup_only_own_files_weekly_and_ownership(client, google, monkeypatch):
+    from datetime import datetime, timezone
+    from app.services import gdrive
+    h, other = _user(client, "drive"), _user(client, "nodrive")
+    google.token_response = (200, {"access_token": "ya29.drv", "refresh_token": f"1//drv-{uuid.uuid4().hex[:6]}", "expires_in": 3599,
+                                   "scope": f"openid https://www.googleapis.com/auth/userinfo.email {gmail_oauth.DRIVE_FILE}", "id_token": _id_token("me@gmail.com")})
+    url = client.post("/api/v1/integrations/drive/connect", headers=h).json()["auth_url"]
+    scope = parse_qs(urlparse(url).query)["scope"][0]
+    assert gmail_oauth.DRIVE_FILE in scope and "auth/drive " not in scope + " " and GMAIL not in scope   # drive.file only
+    assert _callback(client, code="4/drv", state=parse_qs(urlparse(url).query)["state"][0]).status_code == 303
+    uploads = []
+    monkeypatch.setattr(gdrive, "_upload", lambda token, name, folder, data: (uploads.append((name, folder, json.loads(data))), (200, {"id": "f1", "webViewLink": "https://drive.google.com/x"}))[1])
+    r = client.post("/api/v1/backup/drive", headers=h).json()
+    assert r["ok"] is True and uploads and uploads[0][0].startswith("sakuna-backup-") and isinstance(uploads[0][2], dict)
+    assert any(m == "POST" and b and b.get("name") == "Sakuna backups" for m, _u, b in google.sent)          # its own folder
+    assert client.post("/api/v1/backup/drive", headers=other).json()["status"] == "not_connected"              # not someone else's Drive
+    assert client.put("/api/v1/backup/drive/auto", json={"on": True}, headers=h).json()["auto"] is True
+    assert client.get("/api/v1/backup/drive", headers=other).json()["auto"] is False
+    sunday = datetime(2027, 3, 7, 15, 0, tzinfo=timezone.utc)          # 20:30 in Colombo, a Sunday
+    with SessionLocal() as db:
+        n1 = gdrive.weekly_due(db, sunday); db.commit()
+        n2 = gdrive.weekly_due(db, sunday); db.commit()                  # once per week
+    assert n1 >= 1 and n2 == 0 and len(uploads) >= 2

@@ -361,6 +361,10 @@ class ActionRef(BaseModel):
     undoable: bool = False
 
 
+class DriveAutoIn(BaseModel):
+    on: bool
+
+
 class ChatUndoIn(BaseModel):
     tool: str = Field(min_length=1, max_length=64)
     ids: list[uuid.UUID] = Field(min_length=1, max_length=20)

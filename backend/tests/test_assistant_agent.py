@@ -113,3 +113,20 @@ def test_calendar_asked_once_for_today_ring_and_nudges(monkeypatch):
         a("POST", "/water", {"ml": 250})                         # any change you make refreshes it
         a("GET", "/today")
         assert len(calls) == 2
+
+
+def test_checkin_plan_skips_known_hours(monkeypatch):
+    from app.services import gcalendar
+    today = datetime.now(TZ).date()
+    start = datetime.combine(today, datetime.min.time(), TZ).replace(hour=15)
+    ev = [{"id": "e", "title": "Meeting", "start": start, "end": start.replace(hour=16), "all_day": False, "busy": True, "from_sakuna": False, "start_date": None}]
+    monkeypatch.setattr(gcalendar, "list_events", lambda db, uid, s, e: (ev, "connected"))
+    with TestClient(app) as client:
+        a, b = _user(client), _user(client)
+        a("PATCH", "/profile", {"gym_time": "18:00", "wake_time": "06:00", "sleep_time": "22:30"})
+        a("POST", "/day/entries", {"local_date": today.isoformat(), "start_time": "10:00", "end_time": "11:00", "category": "study", "source": "manual"})
+        plan = a("GET", "/day/checkin-plan").json()[today.isoformat()]
+        assert 10 not in plan["ask"] and plan["skip"]["10"] == "study"
+        assert 15 not in plan["ask"] and plan["skip"]["15"] == "calendar"
+        assert 18 not in plan["ask"] and 9 in plan["ask"]
+        assert 10 in b("GET", "/day/checkin-plan").json()[today.isoformat()]["ask"]       # someone else's log doesn't count

@@ -338,3 +338,40 @@ export function CalendarDay({ api, onOpen }: { api: Api; onOpen: (t: string) => 
         {!e.all_day && <Muted small>{`until ${e.end} · ${e.minutes} min`}</Muted>}</View></View>) : <Muted small>No events today. Your time plan below has the whole day.</Muted>}
   </Card>;
 }
+
+/** Plan → Week / Month: your Google Calendar events grouped by day, with ‹ › to move through weeks or months. */
+export function CalendarRange({ api, mode, onOpen }: { api: Api; mode: "week" | "month"; onOpen: (t: string) => void }) {
+  const [off, setOff] = useState(0);
+  const [v, setV] = useState<Row | null>(null);
+  const now = new Date();
+  const start = mode === "week"
+    ? new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7) + off * 7)
+    : new Date(now.getFullYear(), now.getMonth() + off, 1);
+  const end = mode === "week" ? new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7) : new Date(start.getFullYear(), start.getMonth() + 1, 1);
+  const key = `${start.toISOString()}|${end.toISOString()}`;
+  useEffect(() => { setV(null); api<Row>(`/calendar/events?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`).then(setV).catch(() => setV({ status: "error", events: [] })); }, [api, key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const title = mode === "week" ? `${start.toLocaleDateString([], { day: "numeric", month: "short" })} – ${new Date(end.getTime() - 86400000).toLocaleDateString([], { day: "numeric", month: "short" })}`
+    : start.toLocaleDateString([], { month: "long", year: "numeric" });
+  const groups = new Map<string, Row[]>();
+  for (const e of ((v?.events as Row[]) || [])) {
+    const d = e.all_day && e.start_date ? new Date(`${e.start_date}T12:00:00`) : new Date(e.start);
+    const k = iso(d); groups.set(k, [...(groups.get(k) || []), e]);
+  }
+  const today = iso(new Date());
+  return <Card style={{ gap: 8 }}>
+    <Line><Kicker>{`📅 GOOGLE CALENDAR · ${title.toUpperCase()}`}</Kicker><View style={{ flex: 1 }}/>
+      <TouchableOpacity onPress={() => setOff(o => o - 1)} style={{ paddingHorizontal: 10 }}><Text style={{ color: C.text, fontSize: 18, fontWeight: "900" }}>‹</Text></TouchableOpacity>
+      {off !== 0 && <TouchableOpacity onPress={() => setOff(0)}><Text style={{ color: C.green, fontSize: 12, fontWeight: "800" }}>Now</Text></TouchableOpacity>}
+      <TouchableOpacity onPress={() => setOff(o => o + 1)} style={{ paddingHorizontal: 10 }}><Text style={{ color: C.text, fontSize: 18, fontWeight: "900" }}>›</Text></TouchableOpacity></Line>
+    {!v ? <Muted small>Loading…</Muted> : v.status !== "connected"
+      ? <TouchableOpacity onPress={() => onOpen("Profile")}><Muted small>{v.status === "expired" ? "⚠️ Google Calendar needs reconnecting: Settings → Connections ›" : "Connect Google Calendar to see meetings here: Settings → Connections ›"}</Muted></TouchableOpacity>
+      : groups.size === 0 ? <Muted small>No events in this {mode}.</Muted>
+      : [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([d, list]) => <View key={d} style={{ gap: 4 }}>
+        <Text style={{ color: d === today ? C.green : C.muted, fontWeight: "900", fontSize: 12 }}>{`${new Date(`${d}T12:00:00`).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}${d === today ? " · today" : ""}`}</Text>
+        {list.map((e, i) => <View key={i} style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+          <View style={{ width: 56, paddingVertical: 3, borderRadius: 8, alignItems: "center", backgroundColor: "#29b6f633" }}>
+            <Text style={{ color: "#29b6f6", fontWeight: "900", fontSize: 11 }}>{e.all_day ? "All day" : new Date(e.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}</Text></View>
+          <Text style={{ color: C.text, flex: 1 }} numberOfLines={1}>{`${e.from_sakuna ? "✅ " : ""}${e.title}`}</Text></View>)}
+      </View>)}
+  </Card>;
+}
