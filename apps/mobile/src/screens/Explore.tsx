@@ -20,6 +20,7 @@ export const GROUPS: Group[] = [
     { key: "Review", icon: "🗓", title: "Review", hint: "Weekly review & about you", words: "week insights patterns about you reflect" },
     { key: "Life", icon: "🎯", title: "My life", hint: "Tasks, goals, habits", words: "todo goals habits" },
     { key: "Balance", icon: "☀️", title: "Life balance", hint: "Target vs actual", words: "areas wheel" },
+    { key: "Roadmap", icon: "🧭", title: "Life roadmap", hint: "Your plan, checked daily; weekly, monthly, yearly reports", words: "roadmap plan life goals future progress report review monitor month year upgrade" },
     { key: "Ask", icon: "💬", title: "Ask Sakuna", hint: "Today, top task, week, neglected, next", words: "ask question today important priority focus next week progress neglect plan check overdue what should i do" },
   ] },
   { name: "Body", emoji: "💪", color: C.green, hint: "Health, gym, food, sleep, water and care", items: [

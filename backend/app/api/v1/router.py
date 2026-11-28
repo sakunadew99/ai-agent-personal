@@ -1543,6 +1543,8 @@ def internal_tick(x_service_token: str = Header(default="")):
         try:
             from app.services import gdrive
             gdrive.weekly_due(_db); _db.commit()   # Sunday-evening Google Drive backups for those who switched them on
+            from app.services import roadmap
+            roadmap.weekly_due(_db); _db.commit()  # Sunday roadmap report + monitor check (proposals wait for your OK)
         except Exception:  # noqa: BLE001 - one failed backup must not stop the tick
             import logging
             logging.exception("weekly drive backups failed"); _db.rollback()

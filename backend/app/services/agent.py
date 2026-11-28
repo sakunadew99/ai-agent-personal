@@ -437,6 +437,15 @@ def quick_answer(db: Session, user: User, text: str) -> str | None:
         return "today" if d == today else "yesterday" if d == today - timedelta(days=1) else d.strftime("%a %d %b")
 
     from app.services import money_plan
+    if re.search(r"\b(my )?(life )?road ?map\b", t) and not re.search(r"\b(add|create|delete|rename)\b", t):
+        from app.services import roadmap
+        v = roadmap.refresh(db, user)
+        if not v["has_roadmap"]:
+            return "You don't have a life roadmap yet: open Hubs → Today & plan → 🧭 Life roadmap and tap Create."
+        cur = next((ph for ph in v["phases"] if ph["current"]), None)
+        head = f"Now: {v['current_name']}" + (f", {cur['done']}/{cur['total']} steps done." if cur else ".")
+        behind = f" Behind: {', '.join(r['title'] for r in v['behind'][:2])}." if v["behind"] else " Nothing is behind."
+        return head + behind + (f" Today: {'; '.join(v['focus'][:2])}." if v["focus"] else "")
     m = re.search(r"\bcan i afford\b.*?(?:rs\.?|lkr|රු\.?)?\s*([\d][\d,]*(?:\.\d+)?)\s*(k|lakhs?|m)?\b", t)
     if m:
         amount = Decimal(m.group(1).replace(",", "")) * {"k": 1000, "lakh": 100000, "lakhs": 100000, "m": 1000000}.get(m.group(2) or "", 1)

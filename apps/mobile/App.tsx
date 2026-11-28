@@ -45,6 +45,7 @@ import { DrillScreen } from "./src/screens/DrillScreen";
 import { CompanionCard, DreamsScreen } from "./src/screens/DreamsScreen";
 import { RolePlayScreen } from "./src/screens/RolePlayScreen";
 import { WealthScreen } from "./src/screens/WealthScreen";
+import { RoadmapScreen } from "./src/screens/RoadmapScreen";
 import { FitnessGuideScreen } from "./src/screens/FitnessGuide";
 import { ContentScreen, TravelScreen } from "./src/screens/CreateScreens";
 import { ResourceScreen } from "./src/screens/ResourceScreen";
@@ -80,7 +81,7 @@ import { Hero, Ring, StatTile, TileRow, WeekDots } from "./src/charts";
 import { C } from "./src/ui";
 
 type Tab = "Home" | "Plan" | "Capture" | "Focus" | "More";
-const SUB_TITLES: Record<MoreTarget, string> = { Appearance: "Appearance", Today: "Today", Board: "Life board", Water: "Water", Mindset: "Mindset studio", Sleep: "Sleep", Hub: "Learning hub", Reels: "Learning reels", LearnFeed: "Learning feed", Body: "Body measurements", Sports: "Martial arts & swimming", English: "English check", Freelance: "Freelancing kit", Ask: "Ask Sakuna", Discipline: "Self-control", Notes: "Notes", Kegel: "Pelvic floor", Reading: "Reading", Resources: "Learn anything", Content: "Content studio", Travel: "Travel guide", Fitness: "Fitness guide", Wealth: "$1M journey & ideas", Roleplay: "Role-play coach", Dreams: "Dreams & goals", Skin: "Skin & glow", Meds: "Medicines", Skills: "Skills & trainers", Speak: "Speaking coach", Schedule: "My schedule", Videos: "My videos", Day: "Day tracker", Gym: "Gym", Brain: "Brain gym", Assistant: "Assistant", Journal: "Journal", Invest: "Invest (CSE)", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Settings & profile" };
+const SUB_TITLES: Record<MoreTarget, string> = { Appearance: "Appearance", Today: "Today", Board: "Life board", Water: "Water", Mindset: "Mindset studio", Sleep: "Sleep", Hub: "Learning hub", Reels: "Learning reels", LearnFeed: "Learning feed", Body: "Body measurements", Sports: "Martial arts & swimming", English: "English check", Freelance: "Freelancing kit", Ask: "Ask Sakuna", Discipline: "Self-control", Notes: "Notes", Kegel: "Pelvic floor", Reading: "Reading", Resources: "Learn anything", Content: "Content studio", Travel: "Travel guide", Fitness: "Fitness guide", Wealth: "$1M journey & ideas", Roleplay: "Role-play coach", Dreams: "Dreams & goals", Skin: "Skin & glow", Meds: "Medicines", Skills: "Skills & trainers", Speak: "Speaking coach", Schedule: "My schedule", Videos: "My videos", Day: "Day tracker", Gym: "Gym", Brain: "Brain gym", Assistant: "Assistant", Journal: "Journal", Invest: "Invest (CSE)", News: "News digest", You: "About you", Team: "AI team", Exams: "Exam coach", Life: "My life", Learning: "Learning", Jobs: "Job tracker", Money: "Money hub", Rewards: "Rewards", AI: "AI usage & privacy", Study: "Study abroad", Balance: "Life balance", Vault: "Documents", Finance: "Finance", Health: "Health & Mi Band", Memory: "Memory", Review: "Weekly review", Approvals: "Approvals", Profile: "Settings & profile", Roadmap: "Life roadmap" };
 
 export default function Root() {
   return <CrashGuard><App/></CrashGuard>;
@@ -189,6 +190,7 @@ function App() {
       else if (data.kind === "report_week") { setTab("More"); setSub("Review"); }
       else if (data.kind === "backup") { setTab("More"); setSub("Profile"); }
       else if (data.kind === "payday") { setTab("More"); setSub("Wealth"); }
+      else if (data.kind === "roadmap") { setTab("More"); setSub("Roadmap"); }
       else if (data.kind === "water") {
         const ml = resp.actionIdentifier === "water500" ? 500 : resp.actionIdentifier === "water250" ? 250 : 0;
         if (ml) void api("/water", "POST", { ml }).then(() => showNotice(`💧 +${ml} ml logged`)).catch(() => undefined); else { setTab("More"); setSub("Water"); }
@@ -330,6 +332,7 @@ function App() {
       {tab === "More" && sub === "Meds" && <MedicinesScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Dreams" && <DreamsScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Roleplay" && <RolePlayScreen api={api} onError={showError}/>}
+      {tab === "More" && sub === "Roadmap" && <RoadmapScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Wealth" && <WealthScreen api={api} onError={showError} onNotice={showNotice}/>}
       {tab === "More" && sub === "Fitness" && <FitnessGuideScreen api={api} onError={showError} onOpen={openTarget}/>}
       {tab === "More" && sub === "Content" && <ContentScreen api={api} onError={showError} onNotice={showNotice}/>}

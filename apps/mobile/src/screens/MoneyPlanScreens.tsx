@@ -143,6 +143,7 @@ export function MoneyPlan({ api, onError, onNotice }: Props) {
           <TouchableOpacity onPress={() => addTask(String(it.text))}><Text style={{ color: C.green, fontWeight: "900" }}>＋ Task</Text></TouchableOpacity></View>)}
       </View>)}
     </Card>
+    <Muted small>Want this roadmap checked every day, with weekly, monthly and yearly reports? Open Hubs → Today & plan → 🧭 Life roadmap.</Muted>
     <Card style={{ gap: 4 }}><Kicker>📚 MONEY MINDSET READING</Kicker>{(v.books as string[]).map(b => <Text key={b} style={{ color: C.text }}>{`• ${b}`}</Text>)}
       <Muted small>Money affirmations: Mindset studio → 💰 Money mindset.</Muted></Card>
     <Btn kind="outline" title="✏️ Change salary, costs or debts" onPress={() => setEdit(true)}/>

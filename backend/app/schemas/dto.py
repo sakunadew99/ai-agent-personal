@@ -439,6 +439,39 @@ class StreamLogIn(BaseModel):
     local_date: date | None = None
 
 
+RoadmapPhase = Literal["now", "m1_3", "m3_6", "m6_12", "y1_3"]
+RoadmapArea = Literal["money", "learn", "earn", "career", "health", "mind"]
+RoadmapMetric = Literal["manual", "debt_total", "emergency_amount", "savings_rate", "side_income_month", "income_month", "net_worth",
+                        "learning_hours_week", "workouts_week", "sleep_avg", "checkin_streak", "sprint_weeks", "applications_week"]
+
+
+class RoadmapGenerateIn(BaseModel):
+    replace: bool = False
+
+
+class RoadmapItemIn(BaseModel):
+    phase: RoadmapPhase = "now"
+    area: RoadmapArea = "mind"
+    title: str = Field(min_length=2, max_length=200)
+    metric: RoadmapMetric = "manual"
+    target_value: Decimal | None = Field(default=None, ge=0, lt=Decimal("10000000000"))
+    target_date: date | None = None
+
+
+class RoadmapItemUpdate(BaseModel):
+    phase: RoadmapPhase | None = None
+    area: RoadmapArea | None = None
+    title: str | None = Field(default=None, min_length=2, max_length=200)
+    metric: RoadmapMetric | None = None
+    target_value: Decimal | None = Field(default=None, ge=0, lt=Decimal("10000000000"))
+    target_date: date | None = None
+    status: Literal["todo", "doing", "done", "dropped"] | None = None
+
+
+class RoadmapCheckIn(BaseModel):
+    ai: bool = True
+
+
 class DriveAutoIn(BaseModel):
     on: bool
 

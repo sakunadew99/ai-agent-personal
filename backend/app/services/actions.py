@@ -296,6 +296,9 @@ def execute_action(db: Session, user: User, action: str, body: dict) -> dict:
         db.add(row); db.flush()
         audit(db, user.id, "note.create", "note", row.id)
         return {"id": str(row.id), "title": row.title}
+    if action == "roadmap_update":
+        from app.services import roadmap
+        return roadmap.apply_changes(db, user, body)
     if action in ("edit_task", "delete_task", "rename_habit"):
         from app.services import agent
         return agent.execute_edit(db, user, action, body)

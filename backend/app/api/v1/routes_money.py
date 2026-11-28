@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.clock import now_utc, zone
 from app.core.database import get_db
 from app.core.deps import get_current_user, owned
-from app.models.entities import IncomeStream, Liability, StreamLog, User, UserProfile
+from app.models.entities import IncomeStream, Liability, RoadmapItem, StreamLog, User, UserProfile
 from app.schemas import dto
 
 router = APIRouter()
@@ -128,3 +128,58 @@ def streams_log(stream_id: uuid.UUID, data: dto.StreamLogIn, db: Session = Depen
     row = StreamLog(user_id=user.id, stream_id=s.id, local_date=data.local_date or _today(db, user), minutes=data.minutes, earned=data.earned, note=data.note)
     db.add(row); db.commit()
     return {"id": row.id, "stream_id": s.id, "minutes": row.minutes, "earned": row.earned, "local_date": row.local_date}
+
+
+
+# ---------------- life roadmap: saved steps, daily/weekly/monthly/yearly reports, monitor (proposals need your OK)
+
+@router.get("/roadmap")
+def roadmap_view(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Your roadmap with live progress from your records, today's focus and today's report (saved)."""
+    from app.services import roadmap
+    out = roadmap.refresh(db, user)
+    out["today"] = roadmap.review(db, user, "daily") if out["has_roadmap"] else None
+    db.commit(); return out
+
+
+@router.post("/roadmap/generate")
+def roadmap_generate(data: dto.RoadmapGenerateIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Create your roadmap from your money plan (rebuild keeps finished steps)."""
+    from app.services import roadmap
+    out = roadmap.generate(db, user, data.replace); db.commit(); return out
+
+
+@router.post("/roadmap/items", status_code=201)
+def roadmap_add(data: dto.RoadmapItemIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services import roadmap
+    row = RoadmapItem(user_id=user.id, source="user", position=500, **data.model_dump())
+    db.add(row); db.flush()
+    out = roadmap.refresh(db, user); db.commit(); return out
+
+
+@router.patch("/roadmap/items/{item_id}")
+def roadmap_edit(item_id: uuid.UUID, data: dto.RoadmapItemUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.services import roadmap
+    roadmap.update_item(db, user.id, item_id, data.model_dump(exclude_unset=True))
+    out = roadmap.refresh(db, user); db.commit(); return out
+
+
+@router.delete("/roadmap/items/{item_id}", status_code=204)
+def roadmap_delete(item_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    db.delete(owned(db, RoadmapItem, user.id, item_id)); db.commit()
+
+
+@router.get("/roadmap/review/{kind}")
+def roadmap_review(kind: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """daily | weekly | monthly | yearly: numbers vs the last report of that kind, steps done, behind, focus. Saved."""
+    from app.services import roadmap
+    out = roadmap.review(db, user, kind)
+    out["history"] = roadmap.history(db, user.id, kind)
+    db.commit(); return out
+
+
+@router.post("/roadmap/check")
+def roadmap_check(data: dto.RoadmapCheckIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """The monitor: checks progress and proposes changes. Proposals wait in Approvals until you approve."""
+    from app.services import roadmap
+    out = roadmap.check(db, user, data.ai); db.commit(); return out

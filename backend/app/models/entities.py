@@ -2111,3 +2111,46 @@ class MindsetEntry(Base):
     body: Mapped[str | None] = mapped_column(Text, nullable=True)
     data: Mapped[dict | None] = mapped_column(JsonDict, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class RoadmapItem(Base):
+    """One step of your life roadmap, ideally measurable (metric + target), so progress is checked from your own records."""
+    __tablename__ = "roadmap_items"
+    __table_args__ = (
+        CheckConstraint("phase IN ('now','m1_3','m3_6','m6_12','y1_3')", name="ck_roadmap_items_phase"),
+        CheckConstraint("area IN ('money','learn','earn','career','health','mind')", name="ck_roadmap_items_area"),
+        CheckConstraint("status IN ('todo','doing','done','dropped')", name="ck_roadmap_items_status"),
+        CheckConstraint("source IN ('auto','user','ai')", name="ck_roadmap_items_source"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    phase: Mapped[str] = mapped_column(String(12), default="now")
+    area: Mapped[str] = mapped_column(String(12), default="money")
+    title: Mapped[str] = mapped_column(String(200))
+    metric: Mapped[str] = mapped_column(String(32), default="manual")
+    target_value: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    target_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    status: Mapped[str] = mapped_column(String(12), default="todo")
+    source: Mapped[str] = mapped_column(String(8), default="auto")
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class RoadmapReview(Base):
+    """A saved daily / weekly / monthly / yearly roadmap report (numbers at that time), so you can compare periods."""
+    __tablename__ = "roadmap_reviews"
+    __table_args__ = (
+        CheckConstraint("kind IN ('daily','weekly','monthly','yearly')", name="ck_roadmap_reviews_kind"),
+        UniqueConstraint("user_id", "kind", "period_start", name="uq_roadmap_reviews_user_kind_period"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    kind: Mapped[str] = mapped_column(String(8))
+    period_start: Mapped[date] = mapped_column(Date)
+    data: Mapped[dict] = mapped_column(JsonDict, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

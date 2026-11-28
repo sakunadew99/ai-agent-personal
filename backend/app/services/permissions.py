@@ -15,6 +15,7 @@ WRITE_TOOLS = [
     "create_daily_plan",
     "create_expense",
     "delete_task",      # deleting asks first (assistant: "delete the dentist task")
+    "roadmap_update",   # the roadmap monitor's suggested changes wait for your OK
 ]
 # Adding to your OWN buy list / wish list buys nothing and is easy to undo, so it runs when you ask (level A).
 # Change a tool to "approval" in your permissions to be asked first.
