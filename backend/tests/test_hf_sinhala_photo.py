@@ -1,3 +1,4 @@
+"""Hugging Face Sinhala search and translation, Sinhala chat, and food photos. Every model call is faked."""
 import base64
 import json
 import uuid

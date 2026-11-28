@@ -1,6 +1,6 @@
 /**
  * Section switcher without sideways scrolling: the current section as one big pill with ‹ › to step through, and a tap
- * on the pill opens every section as a grid (4 per row), so all of them are visible at once.
+ * on the pill opens every section as a grid (4 per row), so all of them are visible at once. Used by hub screens and Switcher.
  */
 import React, { useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
