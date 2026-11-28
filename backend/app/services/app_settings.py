@@ -27,7 +27,7 @@ NOTIFY = {   # key: (label, default on, default time HH:MM or None)
     "weekly": ("🗓 Sunday weekly report", True, "19:00"),
     "backup": ("💾 Sunday backup reminder", True, "20:00"),
 }
-CARDS = ["brief", "goals", "tasks", "next_event", "ring", "gaps", "sleep_water", "affirmation", "inbox", "top_task", "habits", "stacking", "week", "more"]
+CARDS = ["brief", "goals", "money", "tasks", "next_event", "ring", "gaps", "sleep_water", "affirmation", "inbox", "top_task", "habits", "stacking", "week", "more"]
 MAX_PINNED = 8
 
 

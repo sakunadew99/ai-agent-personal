@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Alert, Text, TextInput, TouchableOpacity, View } from "react-native";
 import type { ApiRecord as Row } from "../api";
 import { Hero, LineChart, Ring, Segments } from "../charts";
+import { SectionNav } from "../SectionNav";
+import { DebtTab, IncomeTab, MoneyPlan } from "./MoneyPlanScreens";
 import { Btn, C, Card, Empty, Kicker, Muted, Row as Line, Screen } from "../ui";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
@@ -105,9 +107,13 @@ function Ideas({ api, onError, onNotice }: { api: Api; onError: (m: string) => v
 
 /** $1M journey (projections) and the income-opportunity finder. */
 export function WealthScreen({ api, onError, onNotice }: { api: Api; onError: (m: string) => void; onNotice: (m: string) => void }) {
-  const [tab, setTab] = useState<"million" | "ideas">("million");
+  const [tab, setTab] = useState<string>("plan");
+  const TABS = [{ key: "plan", icon: "🧭", label: "My money plan" }, { key: "debt", icon: "💳", label: "Debt" }, { key: "income", icon: "💼", label: "Income & skills" },
+    { key: "million", icon: "🚀", label: "$1M journey" }, { key: "ideas", icon: "💡", label: "Income ideas" }];
   return <Screen>
-    <Segments options={["million", "ideas"] as const} value={tab} onChange={setTab} labels={{ million: "🚀 $1M journey", ideas: "💡 Income ideas" }}/>
-    {tab === "million" ? <Million api={api} onError={onError}/> : <Ideas api={api} onError={onError} onNotice={onNotice}/>}
+    <SectionNav items={TABS} value={tab} onChange={setTab} pad={0}/>
+    {tab === "plan" ? <MoneyPlan api={api} onError={onError} onNotice={onNotice}/> : tab === "debt" ? <DebtTab api={api} onError={onError} onNotice={onNotice}/>
+      : tab === "income" ? <IncomeTab api={api} onError={onError} onNotice={onNotice}/>
+      : tab === "million" ? <Million api={api} onError={onError}/> : <Ideas api={api} onError={onError} onNotice={onNotice}/>}
   </Screen>;
 }

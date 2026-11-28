@@ -15,6 +15,7 @@ import json
 import re
 import uuid
 from datetime import date, datetime, time
+from decimal import Decimal
 
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -434,6 +435,20 @@ def quick_answer(db: Session, user: User, text: str) -> str | None:
 
     def nice(d: date) -> str:
         return "today" if d == today else "yesterday" if d == today - timedelta(days=1) else d.strftime("%a %d %b")
+
+    from app.services import money_plan
+    m = re.search(r"\bcan i afford\b.*?(?:rs\.?|lkr|රු\.?)?\s*([\d][\d,]*(?:\.\d+)?)\s*(k|lakhs?|m)?\b", t)
+    if m:
+        amount = Decimal(m.group(1).replace(",", "")) * {"k": 1000, "lakh": 100000, "lakhs": 100000, "m": 1000000}.get(m.group(2) or "", 1)
+        return money_plan.afford(db, user, amount)
+    m = re.search(r"\b(?:reach|get to|make|hit|earn)\s+(?:\$|usd\s?)?(?:1\s?m|1\s?million|one million|a million)\b.*?\b(?:in\s+(\d{1,2})\s+years?|by\s+(20\d\d))", t)
+    if m:
+        years = int(m.group(1)) if m.group(1) else max(1, int(m.group(2)) - today.year)
+        return money_plan.reach_million(db, user, min(40, years))
+    flags = money_plan.scam_flags(t)
+    if flags and re.search(r"\b(invest|join|scheme|opportunity|offer|plan)\b", t):
+        return (f"⚠️ Careful: {', '.join(flags)} are classic scam signs. Real investments never guarantee returns, and you never pay to join "
+                "or earn by recruiting people. Check with the Central Bank's list of authorised companies before sending any money.")
 
     if re.search(r"\bwhen did i (?:last )?(?:go to the gym|work ?out|exercise|train)|\blast (?:gym|workout)\b", t):
         w = db.scalar(select(Workout).where(Workout.user_id == user.id).order_by(Workout.started_at.desc()).limit(1))

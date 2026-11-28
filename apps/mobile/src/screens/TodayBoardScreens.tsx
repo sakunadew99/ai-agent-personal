@@ -44,14 +44,14 @@ export function TodayScreen({ api, onError, onNotice, onOpen, extra, pinnedBar, 
   const saved = useRef(peekToday()).current;
   const [t, setT] = useState<Row | null>(saved?.today ?? null); const [rv, setRv] = useState<Row | null>(saved?.week ?? null); const [cons, setCons] = useState<Row | null>(saved?.consistency ?? null); const [pop, setPop] = useState(0);
   const [prefs, setPrefs] = useState<Row | null>(saved?.prefs ?? null); const [brief, setBrief] = useState<Row | null>(saved?.brief?.kind === briefKind ? saved?.brief : null);
-  const [goals, setGoals] = useState<Row | null>(saved?.goals ?? null); const [edit, setEdit] = useState(false); const [more, setMore] = useState(false);
+  const [goals, setGoals] = useState<Row | null>(saved?.goals ?? null); const [money, setMoney] = useState<Row | null>(saved?.money ?? null); const [edit, setEdit] = useState(false); const [more, setMore] = useState(false);
   const [sync, setSync] = useState<"" | "updating" | "offline">(saved ? "updating" : "");
   const hasData = useRef(!!saved); hasData.current = hasData.current || !!t;
   const load = useCallback(() => {
     setSync(s => (hasData.current ? "updating" : s));
     api<Row>(todayPath()).then(b => {
       if (b.today) setT(b.today);
-      if (b.week) setRv(b.week); if (b.consistency) setCons(b.consistency); if (b.prefs) setPrefs(b.prefs); if (b.goals) setGoals(b.goals);
+      if (b.week) setRv(b.week); if (b.consistency) setCons(b.consistency); if (b.prefs) setPrefs(b.prefs); if (b.goals) setGoals(b.goals); if (b.money) setMoney(b.money);
       setBrief(b.brief && b.brief.kind === briefKind ? b.brief : null); setSync("");
     }).catch(e => { if (hasData.current) setSync("offline"); else onError(msg(e)); });
   }, [api, onError, briefKind]);
@@ -72,15 +72,20 @@ export function TodayScreen({ api, onError, onNotice, onOpen, extra, pinnedBar, 
     <Muted small>Building your day… (the first time can take a few seconds; after that Today opens instantly)</Muted></Screen>;
   const totals = t.totals as Record<string, number>;
   const legend = Object.entries(totals).filter(([k, v]) => v > 0 && k !== "future").sort((a, b) => b[1] - a[1]);
-  const order: string[] = prefs?.cards || ["brief", "goals", "tasks", "next_event", "ring", "gaps", "sleep_water", "affirmation", "inbox", "top_task", "habits", "stacking", "week", "more"];
+  const order: string[] = prefs?.cards || ["brief", "goals", "money", "tasks", "next_event", "ring", "gaps", "sleep_water", "affirmation", "inbox", "top_task", "habits", "stacking", "week", "more"];
   const hidden: string[] = prefs?.hidden_cards || [];
-  const CARD_NAME: Record<string, string> = { brief: "Morning / night brief", goals: "Daily goals", tasks: "Today's tasks", next_event: "Next event (Google Calendar)",
+  const CARD_NAME: Record<string, string> = { brief: "Morning / night brief", goals: "Daily goals", money: "Money plan", tasks: "Today's tasks", next_event: "Next event (Google Calendar)",
     inbox: "Gmail inbox", ring: "24-hour ring", gaps: "Hours to fill in", sleep_water: "Sleep & water", affirmation: "Affirmation",
     top_task: "Most important task", habits: "Habits", stacking: "Habit stacking", week: "This week", more: "More for today" };
   const move = (k: string, d: number) => { const o = [...order]; const i = o.indexOf(k); const j = i + d; if (j < 0 || j >= o.length) return; [o[i], o[j]] = [o[j], o[i]]; savePrefs({ cards: o }); };
   const toggle = (k: string) => savePrefs({ hidden_cards: hidden.includes(k) ? hidden.filter(x => x !== k) : [...hidden, k] });
   const cards: Record<string, React.ReactNode> = {
     goals: <DailyGoals api={api} goals={goals} onChange={load} onNotice={onNotice} onCelebrate={() => setPop(p => p + 1)}/>,
+    money: money && <TouchableOpacity onPress={() => onOpen("Wealth")}><Card style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+      <Text style={{ fontSize: 24 }}>💰</Text><View style={{ flex: 1 }}>
+        <Text style={{ color: C.text, fontWeight: "900" }}>{money.setup_done ? (money.net_worth != null ? `Net worth ${money.currency} ${Math.round(Number(money.net_worth)).toLocaleString()}` : "Your money plan") : "Set up your money plan (2 min)"}</Text>
+        <Muted small>{money.setup_done ? `${Number(money.debt) > 0 ? `💳 Debt ${money.currency} ${Math.round(Number(money.debt)).toLocaleString()} · ` : ""}${money.checkin?.done_today ? "✓ checked in today" : "⏱ 10-second money check-in"}${money.checkin?.streak ? ` · 🔥 ${money.checkin.streak}` : ""}` : "Salary, payday, debts → a plan to $1M"}</Muted>
+      </View><Text style={{ color: C.green, fontWeight: "900" }}>›</Text></Card></TouchableOpacity>,
     tasks: <TodayTasks api={api} data={t.tasks_today} calendar={String(t.calendar)} onChange={load} onError={onError} onNotice={onNotice} onCelebrate={() => setPop(p => p + 1)}/>,
     next_event: <NextEvent today={t} onOpen={onOpen}/>,
     inbox: <InboxCard api={api} onOpen={onOpen}/>,

@@ -361,6 +361,84 @@ class ActionRef(BaseModel):
     undoable: bool = False
 
 
+class MoneyDebtIn(BaseModel):
+    name: str = Field(default="Credit card", min_length=1, max_length=200)
+    balance: Decimal = Field(ge=0, lt=Decimal("1000000000"))
+    apr_pct: Decimal | None = Field(default=None, ge=0, le=200)
+    min_payment: Decimal | None = Field(default=None, ge=0, lt=Decimal("1000000000"))
+    due_day: int | None = Field(default=None, ge=1, le=31)
+
+
+class MoneySetupIn(BaseModel):
+    salary: Decimal = Field(gt=0, lt=Decimal("1000000000"))
+    currency: str = Field(default="LKR", pattern=r"^[A-Za-z]{3}$")
+    payday: int = Field(default=25, ge=1, le=31)
+    fixed: dict[str, Decimal] = Field(default_factory=dict, max_length=12)        # e.g. {"boarding": 6500}
+    food_transport: Decimal = Field(default=Decimal("0"), ge=0, lt=Decimal("1000000000"))
+    debts: list[MoneyDebtIn] = Field(default_factory=list, max_length=10)
+    envelopes: bool = True
+
+
+class MoneyCheckinIn(BaseModel):
+    spent: Decimal | None = Field(default=None, ge=0, lt=Decimal("1000000000"))
+    income_action: bool = False
+    note: str | None = Field(default=None, max_length=120)
+
+
+class SprintIn(BaseModel):
+    idea_id: str = Field(min_length=1, max_length=40)
+
+
+class SprintWeekIn(BaseModel):
+    week: int = Field(ge=1, le=13)
+    done: bool = True
+
+
+class MoneyHourIn(BaseModel):
+    weekday: Literal["MO", "TU", "WE", "TH", "FR", "SA", "SU"] = "SA"
+    time: str = Field(default="10:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+class IdeaCheckIn(BaseModel):
+    idea: str = Field(min_length=3, max_length=600)
+    cost_lkr: int = Field(default=0, ge=0, le=100_000_000)
+    hours_week: int = Field(default=6, ge=0, le=100)
+    ai: bool = False
+
+
+class LiabilityUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    amount: Decimal | None = Field(default=None, ge=0, lt=Decimal("1000000000"))
+    apr_pct: Decimal | None = Field(default=None, ge=0, le=200)
+    min_payment: Decimal | None = Field(default=None, ge=0, lt=Decimal("1000000000"))
+    due_day: int | None = Field(default=None, ge=1, le=31)
+
+
+StreamKind = Literal["job", "freelance", "tutoring", "product", "content", "investing", "business", "other"]
+
+
+class StreamIn(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    kind: StreamKind = "freelance"
+    status: Literal["active", "paused", "stopped"] = "active"
+    income_source: Literal["salary", "freelance", "business", "other"] | None = None
+    currency: str = Field(default="LKR", pattern=r"^[A-Z]{3}$")
+
+
+class StreamUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    kind: StreamKind | None = None
+    status: Literal["active", "paused", "stopped"] | None = None
+    income_source: Literal["salary", "freelance", "business", "other"] | None = None
+
+
+class StreamLogIn(BaseModel):
+    minutes: int = Field(ge=0, le=1440)
+    earned: Decimal | None = Field(default=None, ge=0, lt=Decimal("1000000000"))
+    note: str | None = Field(default=None, max_length=200)
+    local_date: date | None = None
+
+
 class DriveAutoIn(BaseModel):
     on: bool
 

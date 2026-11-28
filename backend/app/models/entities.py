@@ -481,6 +481,10 @@ class Asset(Base):
 
 class Liability(Base):
     __tablename__ = "liabilities"
+    __table_args__ = (
+        CheckConstraint("apr_pct IS NULL OR (apr_pct >= 0 AND apr_pct <= 200)", name="ck_liabilities_apr_pct"),
+        CheckConstraint("due_day IS NULL OR (due_day BETWEEN 1 AND 31)", name="ck_liabilities_due_day"),
+    )
 
     id: Mapped[uuid.UUID] = pk()
     user_id: Mapped[uuid.UUID] = user_fk()
@@ -489,6 +493,60 @@ class Liability(Base):
     balance: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     currency: Mapped[str] = mapped_column(String(3), default="USD")
     record_kind: Mapped[str] = mapped_column(String(16), default="actual")
+    apr_pct: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)          # yearly interest, e.g. 28.00
+    min_payment: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    due_day: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class MoneySnapshot(Base):
+    """Net worth, income and spending for one month and currency (saved as you use the money plan), for the progress chart."""
+    __tablename__ = "money_snapshots"
+    __table_args__ = (UniqueConstraint("user_id", "month", "currency", name="uq_money_snapshots_user_month_currency"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    month: Mapped[str] = mapped_column(String(7))
+    currency: Mapped[str] = mapped_column(String(3))
+    net_worth: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    income: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    spending: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class IncomeStream(Base):
+    """One way you earn (job, a freelance gig, tutoring, a product). Hours go in stream_logs; money comes from Income by source."""
+    __tablename__ = "income_streams"
+    __table_args__ = (
+        CheckConstraint("kind IN ('job','freelance','tutoring','product','content','investing','business','other')", name="ck_income_streams_kind"),
+        CheckConstraint("status IN ('active','paused','stopped')", name="ck_income_streams_status"),
+        UniqueConstraint("user_id", "name", name="uq_income_streams_user_name"),
+    )
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    name: Mapped[str] = mapped_column(String(100))
+    kind: Mapped[str] = mapped_column(String(16), default="freelance")
+    status: Mapped[str] = mapped_column(String(16), default="active")
+    income_source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    currency: Mapped[str] = mapped_column(String(3), default="LKR")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class StreamLog(Base):
+    """Time (and optionally money) you put into / got from one income stream on a day."""
+    __tablename__ = "stream_logs"
+    __table_args__ = (CheckConstraint("minutes BETWEEN 0 AND 1440", name="ck_stream_logs_minutes"),)
+
+    id: Mapped[uuid.UUID] = pk()
+    user_id: Mapped[uuid.UUID] = user_fk()
+    stream_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("income_streams.id", ondelete="CASCADE"), index=True)
+    local_date: Mapped[date] = mapped_column(Date)
+    minutes: Mapped[int] = mapped_column(Integer)
+    earned: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    note: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

@@ -97,6 +97,10 @@ export const SI: Record<string, string> = {
   "Or ask me something": "නැත්නම් මගෙන් අහන්න", "Add a task": "කාර්යයක්", "Buy list": "මිලදී ගැනීම්", "Wish list": "පැතුම් ලැයිස්තුව",
   "Log water": "වතුර", "Habit done": "පුරුද්ද කළා", "Finish a task": "කාර්යය අවසන්", "Expense": "වියදම", "Remember": "මතක තබාගන්න",
   "Plan my day": "මගේ දිනය සැලසුම් කරන්න", "Many at once": "එකවර කිහිපයක්", "Previous section": "පෙර කොටස", "Next section": "ඊළඟ කොටස",
+  "My money plan": "මගේ මුදල් සැලැස්ම", "Debt": "ණය", "Income & skills": "ආදායම සහ කුසලතා", "$1M journey": "$1M ගමන", "Income ideas": "ආදායම් අදහස්",
+  "Build my money plan": "මගේ මුදල් සැලැස්ම හදන්න", "Check in (+2 pts)": "සටහන් කරන්න (+2)", "🔔 Remind me every payday": "🔔 හැම පඩි දිනකම මතක් කරන්න",
+  "✏️ Change salary, costs or debts": "✏️ පඩිය, වියදම් හෝ ණය වෙනස් කරන්න", "Check it": "පරීක්ෂා කරන්න",
+  "Money plan": "මුදල් සැලැස්ම", "Paid off 🎉": "ගෙවා අවසන් 🎉", "✏️ Update": "✏️ යාවත්කාලීන",
   "THIS WEEK": "මෙම සතිය", "TODAY": "අද", "✨ Affirm": "✨ ප්‍රකාශ", "✍️ Script": "✍️ ලියන්න", "🎯 WOOP": "🎯 WOOP", "🙏 Thanks": "🙏 ස්තූතිය",
 };
 

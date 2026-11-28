@@ -436,3 +436,18 @@ export async function scheduleSmartCheckins(api: Api): Promise<number> {
     return n + 1;
   } catch { return 0; }
 }
+
+
+/** Monthly payday reminder ("pay yourself first"), 09:00 on your payday. A reminder only: you move the money yourself. */
+export async function schedulePayday(day: number, body: string): Promise<boolean> {
+  try {
+    if (!(await ready())) return false;
+    await cancelWhere(id => id === "sakuna-payday");
+    await Notifications.scheduleNotificationAsync({
+      identifier: "sakuna-payday",
+      content: { title: tr("💸 Payday: pay yourself first"), body: body.slice(0, 220), data: { kind: "payday" } },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.MONTHLY, day: Math.min(28, Math.max(1, day)), hour: 9, minute: 0, channelId: CHANNEL },
+    });
+    return true;
+  } catch { return false; }
+}

@@ -659,8 +659,13 @@ def today_view(db: Session = Depends(get_db), user: User = Depends(get_current_u
 
 @router.get("/review/week")
 def review_week(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    from app.services import consistency
-    return consistency.weekly_review(db, user.id, _today(db, user))
+    from app.services import consistency, money_plan
+    out = consistency.weekly_review(db, user.id, _today(db, user))
+    try:
+        out["money"] = money_plan.week_money(db, user.id, _today(db, user))      # the Sunday report's money part
+    except Exception:  # noqa: BLE001 - the review must still load
+        out["money"] = None
+    return out
 
 
 # ---------------- settings hub, app preferences, briefs
@@ -716,7 +721,7 @@ def today_bundle(brief: str | None = Query(default=None, pattern="^(morning|nigh
     A part that fails is null; the rest still load."""
     import logging
     from fastapi.encoders import jsonable_encoder
-    from app.services import app_settings, consistency, nudges
+    from app.services import app_settings, consistency, money_plan, nudges
     day = _today(db, user)
     parts = {
         "today": lambda: consistency.today(db, user, day),
@@ -724,6 +729,7 @@ def today_bundle(brief: str | None = Query(default=None, pattern="^(morning|nigh
         "prefs": lambda: app_settings.prefs(db, user.id),
         "week": lambda: consistency.weekly_review(db, user.id, day),
         "consistency": lambda: consistency.consistency(db, user.id, day),
+        "money": lambda: money_plan.today_card(db, user.id, day),
         "brief": (lambda: app_settings.brief(db, user, brief, day)) if brief else (lambda: None),
     }
     out: dict = {"day": day}

@@ -40,6 +40,7 @@ DEFAULT_RULES: dict[str, tuple[int, int, str]] = {
     "learning": (5, 25, "learning"),      # a learning reel or post finished / read
     "checkin": (2, 20, "reflection"),     # an hour filled in
     "daily_combo": (30, 30, "habits"),    # all 5 daily goals done
+    "wealth_milestone": (50, 400, "work"),  # net worth passed $1k, $3k, $10k ... (once each)
     "quest": (30, 90, "quest"),           # bonus for finishing a quest (quest sets the amount)
 }
 BONUS_EVENT = "balance_bonus"

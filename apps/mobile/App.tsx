@@ -188,6 +188,7 @@ function App() {
       } else if (data.kind === "brief") { setTab("Home"); setSub(null); }
       else if (data.kind === "report_week") { setTab("More"); setSub("Review"); }
       else if (data.kind === "backup") { setTab("More"); setSub("Profile"); }
+      else if (data.kind === "payday") { setTab("More"); setSub("Wealth"); }
       else if (data.kind === "water") {
         const ml = resp.actionIdentifier === "water500" ? 500 : resp.actionIdentifier === "water250" ? 250 : 0;
         if (ml) void api("/water", "POST", { ml }).then(() => showNotice(`💧 +${ml} ml logged`)).catch(() => undefined); else { setTab("More"); setSub("Water"); }

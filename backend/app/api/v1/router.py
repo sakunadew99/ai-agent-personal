@@ -1721,3 +1721,5 @@ router.include_router(routes_wellbeing.router)
 router.include_router(routes_home.router)
 router.include_router(routes_create.router)
 router.include_router(routes_reading.router)
+from app.api.v1 import routes_money  # noqa: E402
+router.include_router(routes_money.router)
