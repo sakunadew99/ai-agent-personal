@@ -4,6 +4,7 @@ import { ScrollView, Text, TextInput, TouchableOpacity, View } from "react-nativ
 import type { ApiRecord as Row } from "../api";
 import { openInApp } from "../browser";
 import { C } from "../ui";
+import { SectionNav } from "../SectionNav";
 import type { MoreTarget } from "./HealthReviewScreens";
 
 /** Every screen, grouped, with search words, so the app is easy to find your way around. */
@@ -198,12 +199,8 @@ export function hubOf(key: string): Group | null {
 export function HubTabs({ current, open }: { current: string; open: (t: MoreTarget) => void }) {
   const g = hubOf(current);
   if (!g || g.items.length < 2) return null;
-  return <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingHorizontal: 16, paddingVertical: 8 }} style={{ flexGrow: 0 }}>
-    {g.items.map(i => { const on = i.key === current;
-      return <TouchableOpacity key={i.key} onPress={() => { if (!on) { void rememberScreen(i.key); open(i.key); } }}
-        style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 16, backgroundColor: on ? g.color : C.panel2 }}>
-        <Text style={{ fontSize: 13 }}>{i.icon}</Text><Text style={{ color: on ? "#fff" : C.text, fontSize: 12, fontWeight: "800" }}>{i.title.replace(" & Mi Band", "").replace(" (CSE)", "")}</Text></TouchableOpacity>; })}
-  </ScrollView>;
+  return <SectionNav color={g.color} value={current} onChange={k => { void rememberScreen(k); open(k as MoreTarget); }}
+    items={g.items.map(i => ({ key: i.key, icon: i.icon, label: i.title.replace(" & Mi Band", "").replace(" (CSE)", "") }))}/>;
 }
 
 /** Your pinned screens (or a starter set) as big shortcuts. */

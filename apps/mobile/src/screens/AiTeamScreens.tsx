@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
 
 import { peek, type ApiRecord as Row } from "../api";
 import { Badge, Btn, C, Card, Empty, Kicker, Muted, Row as Line, Screen } from "../ui";
@@ -43,10 +43,10 @@ export function TeamTodayCard({ api, onError, onNotice, onOpen }: { api: Api; on
   const current = items.find(i => i.worker === shown);
   return <Card accent style={{ marginBottom: 10 }}>
     <Line><Kicker>TODAY FROM YOUR AI TEAM</Kicker><View style={{ flex: 1 }}/>{v.unread > 0 && <Badge tone="amber">{`${v.unread} new`}</Badge>}</Line>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.team}>{items.map(i => <TouchableOpacity key={i.worker} onPress={() => { setOpen(i.worker); setMore(false); }} style={[s.member, shown === i.worker && s.memberOn]}>
+    <View style={[{ flexDirection: "row", flexWrap: "wrap" }, s.team]}>{items.map(i => <TouchableOpacity key={i.worker} onPress={() => { setOpen(i.worker); setMore(false); }} style={[s.member, shown === i.worker && s.memberOn]}>
       <Text style={{ fontSize: 20 }}>{i.icon}</Text>
       <View style={[s.dot, i.note ? (i.note.status === "new" ? s.dotNew : s.dotRead) : null]}/>
-    </TouchableOpacity>)}</ScrollView>
+    </TouchableOpacity>)}</View>
     {current && (current.note ? <View style={{ gap: 8 }}>
       <Line><Text style={s.who}>{current.icon} {current.name}</Text><View style={{ flex: 1 }}/>{current.note.used_ai ? <Badge>✨ AI</Badge> : <Badge tone="muted">rules</Badge>}</Line>
       <Text style={s.title}>{current.note.title}</Text>

@@ -78,9 +78,9 @@ export function WatchScreen({ api, onError, onNotice }: Props) {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>{(res!.must_watch as Row[]).map(v => <TouchableOpacity key={v.id} onPress={() => open(v.url, v.title, { category: "study", note: `Video: ${v.title}` })} style={{ width: 240 }}>
         <Image source={{ uri: v.thumb }} style={{ width: 240, height: 135, borderRadius: 16, backgroundColor: C.panel2 }}/>
         <Text style={{ color: C.text, fontWeight: "800", marginTop: 6 }} numberOfLines={2}>{v.title}</Text><Muted small>{`${v.channel} · ${Number(v.views).toLocaleString()} views`}</Muted></TouchableOpacity>)}</ScrollView></>}
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>{[{ key: "all", title: "All" }, ...shelves].map(s => <TouchableOpacity key={s.key} onPress={() => setShelf(s.key)}
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{[{ key: "all", title: "All" }, ...shelves].map(s => <TouchableOpacity key={s.key} onPress={() => setShelf(s.key)}
       style={{ borderWidth: 1, borderColor: shelf === s.key ? C.green : C.line, backgroundColor: shelf === s.key ? C.greenSoft : "transparent", borderRadius: 99, paddingHorizontal: 12, paddingVertical: 7 }}>
-      <Text style={{ color: C.text, fontWeight: "700" }}>{s.title}</Text></TouchableOpacity>)}</ScrollView>
+      <Text style={{ color: C.text, fontWeight: "700" }}>{s.title}</Text></TouchableOpacity>)}</View>
     {(res?.errors || []).length > 0 && <Muted small>{(res!.errors as string[]).join(" ")}</Muted>}
     {shown.map((s, k) => <View key={s.key} style={{ gap: 10 }}>
       <Text style={{ color: C.text, fontSize: 17, fontWeight: "800" }}>{s.title}</Text>

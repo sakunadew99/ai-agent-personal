@@ -357,6 +357,13 @@ class ActionRef(BaseModel):
     summary: str
     approval_id: uuid.UUID | None = None
     resource_id: uuid.UUID | None = None
+    resource_ids: list[uuid.UUID] = Field(default_factory=list)
+    undoable: bool = False
+
+
+class ChatUndoIn(BaseModel):
+    tool: str = Field(min_length=1, max_length=64)
+    ids: list[uuid.UUID] = Field(min_length=1, max_length=20)
 
 
 class ChatOut(BaseModel):

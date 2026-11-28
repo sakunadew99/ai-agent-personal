@@ -22,6 +22,9 @@ LIST_TOOLS = [
     "add_to_wishlist",
     "exam_update",      # log study minutes / a score, or change your own exam plan
     "log_life_area",    # "called my mother" -> a check-in for Family (your own log, easy to delete)
+    "log_water",        # "drank 500 ml water"
+    "log_habit",        # "did my workout" -> today's tick for that habit
+    "complete_task",    # "finished the report" -> done (Undo in the chat reopens it)
 ]
 
 

@@ -122,7 +122,8 @@ def brief(db: Session, user, kind: str, day: date) -> dict:
         timed = [e for e in evs if not e["all_day"]]
         if timed:
             steps.append(f"{len(timed)} event(s) today, first “{timed[0]['title']}” at {timed[0]['start'].astimezone(tz).strftime('%H:%M')}.")
-        mail = gmail.inbox(db, user.id, 3)
+        mail = gmail.inbox(db, user.id, 5)
+        mail = {**mail, "emails": mail["emails"][:3]}
         if mail["emails"]:
             steps.append(f"{mail['unread']} unread email(s); top: “{mail['emails'][0]['subject'][:60]}”.")
         return {"kind": "morning", "title": "🌅 Good morning", "sleep": sl, "emails": mail["emails"], "events": len(timed), "affirmation": aff, "tasks": tasks["tasks"][:3], "water_target_ml": w["target_ml"],

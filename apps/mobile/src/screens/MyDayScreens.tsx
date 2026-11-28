@@ -20,8 +20,9 @@ const minutesOf = (t?: string | null) => (t ? Number(t.slice(0, 2)) * 60 + Numbe
 /** Day / Week / Month switch shown at the top of the Plan tab. */
 export type PlanView = "day" | "week" | "month" | "board" | "life";
 export function PlanSwitch({ value, onChange }: { value: PlanView; onChange: (v: PlanView) => void }) {
-  return <View style={s.switch}>{(["day", "week", "board", "life", "month"] as const).map(v => <TouchableOpacity key={v} style={[s.switchTab, value === v && s.switchOn]} onPress={() => onChange(v)}>
-    <Text style={[s.switchText, value === v && s.switchTextOn]}>{v === "day" ? "☀️ Day" : v === "week" ? "🗓 Week" : v === "month" ? "📅 Month" : v === "life" ? "🗂 Life" : "▦ Tasks"}</Text></TouchableOpacity>)}</View>;
+  const L: Record<PlanView, [string, string]> = { day: ["☀️", "Day"], week: ["🗓", "Week"], board: ["▦", "Tasks"], life: ["🗂", "Board"], month: ["📅", "Month"] };
+  return <View style={s.switch}>{(["day", "week", "month", "board", "life"] as const).map(v => <TouchableOpacity key={v} style={[s.switchTab, { paddingVertical: 6, gap: 1 }, value === v && s.switchOn]} onPress={() => onChange(v)}>
+    <Text style={{ fontSize: 16 }}>{L[v][0]}</Text><Text style={[s.switchText, { fontSize: 11 }, value === v && s.switchTextOn]} numberOfLines={1}>{L[v][1]}</Text></TouchableOpacity>)}</View>;
 }
 
 // =====================================================================================================================

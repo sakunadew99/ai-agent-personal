@@ -91,6 +91,12 @@ export const SI: Record<string, string> = {
   "Other amount (ml)": "වෙනත් ප්‍රමාණයක් (ml)", "🔔 Remind me every 2 hours (10:00–20:00)": "🔔 පැය 2කට වරක් මතක් කරන්න (10:00–20:00)",
   "✨ I read my affirmations": "✨ මම ප්‍රකාශ කියෙව්වා", "Save my plan": "මගේ සැලැස්ම සුරකින්න", "Write in the present tense: “I am…”, “I wake up…”": "වර්තමාන කාලයෙන් ලියන්න: “මම…”",
   "Goal reached 💧": "ඉලක්කය සපුරා ගත්තා 💧", "Long-press to remove a mistake.": "වැරදීමක් ඉවත් කිරීමට දිගු වේලාවක් ඔබන්න.",
+  "Day": "දිනය", "Week": "සතිය", "Month": "මාසය", "Tasks": "කාර්යයන්", "Board": "පුවරුව", "Undo": "අහෝසි කරන්න", "Approve": "අනුමත කරන්න",
+  "Reject": "ප්‍රතික්ෂේප කරන්න", "Waiting for your OK": "ඔබේ අනුමැතිය එනතුරු", "Done ✓": "කළා ✓", "Undone": "අහෝසි කළා",
+  "Tell Sakuna what to do": "Sakuna ට කළ යුතු දේ කියන්න", "↻ Updating…": "↻ යාවත්කාලීන වෙමින්…", "Tell me what to do ✨": "කළ යුතු දේ මට කියන්න ✨",
+  "Or ask me something": "නැත්නම් මගෙන් අහන්න", "Add a task": "කාර්යයක්", "Buy list": "මිලදී ගැනීම්", "Wish list": "පැතුම් ලැයිස්තුව",
+  "Log water": "වතුර", "Habit done": "පුරුද්ද කළා", "Finish a task": "කාර්යය අවසන්", "Expense": "වියදම", "Remember": "මතක තබාගන්න",
+  "Plan my day": "මගේ දිනය සැලසුම් කරන්න", "Many at once": "එකවර කිහිපයක්", "Previous section": "පෙර කොටස", "Next section": "ඊළඟ කොටස",
   "THIS WEEK": "මෙම සතිය", "TODAY": "අද", "✨ Affirm": "✨ ප්‍රකාශ", "✍️ Script": "✍️ ලියන්න", "🎯 WOOP": "🎯 WOOP", "🙏 Thanks": "🙏 ස්තූතිය",
 };
 

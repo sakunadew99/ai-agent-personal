@@ -59,7 +59,7 @@ import { ReelsScreen } from "./src/screens/ReelsScreen";
 import { HubScreen } from "./src/screens/HubScreen";
 import { SleepScreen, uploadSleep } from "./src/screens/SleepDayScreens";
 import { MindsetScreen, WaterScreen } from "./src/screens/MindsetScreens";
-import { BoardScreen, BodyOverview, TodayScreen } from "./src/screens/TodayBoardScreens";
+import { BoardScreen, BodyOverview, CalendarDay, TodayScreen } from "./src/screens/TodayBoardScreens";
 import { AppearanceScreen } from "./src/screens/AppearanceScreen";
 import { Onboarding, SettingsScreen } from "./src/screens/SettingsScreen";
 import { applyNotificationPrefs, notifyApprovals, savedNotifyPrefs, scheduleWaterSmart } from "./src/notify";
@@ -140,7 +140,8 @@ function App() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to load your data"); }
   }, [token]);
 
-  useEffect(() => { if (token) void loadTab(tab); }, [token, tab, loadTab]);
+  // Home = Today, which loads itself in one request; the older Home cards load only when "More for today" opens.
+  useEffect(() => { if (token && tab !== "Home") void loadTab(tab); }, [token, tab, loadTab]);
 
   // Mi Band data every time the app comes back to the screen (at most every 30 minutes), not only on the Health screen.
   useEffect(() => {
@@ -274,7 +275,7 @@ function App() {
       {!token && <Text style={{ color: C.muted, fontSize: 11 }}>connecting…</Text>}{!(tab === "More" && sub) && <TouchableOpacity onPress={() => void (token ? loadTab(tab) : restore())}><View style={styles.refreshBtn}><Text style={styles.refresh}>↻</Text></View></TouchableOpacity>}</View>
     {!!error && <Text style={styles.errorBox}>{error}</Text>}{!!notice && <TouchableOpacity onPress={() => setNotice("")}><Text style={styles.notice}>{notice}  ×</Text></TouchableOpacity>}
     <View style={[styles.screen, tab === "More" && sub === "Assistant" && keyboard === 0 && { marginBottom: 84 }]}>
-      {tab === "Home" && <TodayScreen api={api} onError={showError} onNotice={showNotice} onOpen={t => openTarget(t)}
+      {tab === "Home" && <TodayScreen api={api} onError={showError} onNotice={showNotice} onOpen={t => openTarget(t)} onMore={() => void loadTab("Home")}
         pinnedBar={<PinnedLaunch pinned={(prefs?.pinned as string[]) || []} open={t => openTarget(t)}/>}
         extra={<HomeScreen name={String(user.full_name || "").split(" ")[0]} life={life} dashboard={dashboard} finance={finance} health={health} onOpen={openTarget} onComplete={completeTask} onOpenPlan={() => setTab("Plan")}
         quick={<QuickLaunch open={openTarget} onSearch={() => { setTab("More"); setSub(null); }}/>}
@@ -286,11 +287,11 @@ function App() {
           { key: "compass", label: "🧭 Compass", node: <LifeCompass api={api} onError={showError} onNotice={showNotice} onOpen={openTarget}/> },
           { key: "brain", label: "🧠 Brain", node: <BrainCard api={api}/> }]}/>}/>}/>}
       {tab === "Plan" && planView === "day" && <PlanScreen plan={plan} busy={busy} generate={generatePlan}
-        top={<><PlanSwitch value={planView} onChange={setPlanView}/><TodayRoutines api={api} onError={showError} onNotice={showNotice}/><Text style={styles.sectionTitle}>Time plan</Text></>}
+        top={<><PlanSwitch value={planView} onChange={setPlanView}/><CalendarDay api={api} onOpen={openTarget}/><TodayRoutines api={api} onError={showError} onNotice={showNotice}/><Text style={styles.sectionTitle}>Time plan</Text></>}
         extra={<TimeCard api={api}/>}/>}
       {tab === "Plan" && planView === "week" && <KbScroll contentContainerStyle={styles.scroll}><PlanSwitch value={planView} onChange={setPlanView}/><WeekPlan api={api} onError={showError} onNotice={showNotice}/></KbScroll>}
       {tab === "Plan" && planView === "board" && <KbScroll contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled"><PlanSwitch value={planView} onChange={setPlanView}/><PlanBoard api={api} onError={showError} onNotice={showNotice}/></KbScroll>}
-      {tab === "Plan" && planView === "life" && <BoardScreen api={api} onError={showError} onNotice={showNotice} onOpen={t => openTarget(t)}/>}
+      {tab === "Plan" && planView === "life" && <BoardScreen top={<PlanSwitch value={planView} onChange={setPlanView}/>} api={api} onError={showError} onNotice={showNotice} onOpen={t => openTarget(t)}/>}
       {tab === "Plan" && planView === "month" && <KbScroll contentContainerStyle={styles.scroll}><PlanSwitch value={planView} onChange={setPlanView}/><MonthRoutines api={api} onError={showError}/><Text style={styles.sectionTitle}>Tasks and deadlines</Text><MonthAgenda api={api}/></KbScroll>}
       {tab === "Capture" && <InboxScreen api={api} onError={showError} onNotice={showNotice} top={<CommandCard api={api} onError={showError}/>}/>}
       {tab === "Focus" && <KbScroll contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">

@@ -114,8 +114,9 @@ def nudges(db: Session, user, day: date, now_local: datetime | None = None) -> d
     if not g["_mindset"]["read_today"] and now_local.hour < 14:
         out.append({"id": f"affirm-{day}", "icon": "✨", "tone": "purple", "priority": 45, "title": "Today's affirmation is waiting",
                     "body": str((g["_mindset"]["affirmation_of_the_day"] or {}).get("text", ""))[:120], "action": {"label": "Read (+5)", "kind": "open", "target": "Mindset"}})
-    events, state = gcalendar.list_events(db, user.id, now_utc(), now_utc() + timedelta(hours=2))
-    soon = next((e for e in events if not e["all_day"] and as_utc(e["start"]) > now_utc()), None)
+    day_start = datetime.combine(day, time.min, tz)
+    events, state = gcalendar.list_events(db, user.id, day_start, day_start + timedelta(days=1))
+    soon = next((e for e in events if not e["all_day"] and now_utc() < as_utc(e["start"]) <= now_utc() + timedelta(hours=2)), None)
     if soon:
         mins = int((as_utc(soon["start"]) - now_utc()).total_seconds() // 60)
         if mins <= 60:

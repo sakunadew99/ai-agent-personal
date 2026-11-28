@@ -66,9 +66,9 @@ export function NotesScreen({ api, onError }: { api: Api; onError: (m: string) =
     <Screen onRefresh={load}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.panel2, borderRadius: 16, paddingHorizontal: 12, borderWidth: 1, borderColor: C.line }}>
         <Text>🔍</Text><TextInput value={q} onChangeText={setQ} placeholder="Search notes" placeholderTextColor={C.muted} style={{ flex: 1, color: C.text, paddingVertical: 11 }}/></View>
-      {(v.tags as string[]).length > 0 && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+      {(v.tags as string[]).length > 0 && <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
         {["", ...(v.tags as string[])].map(t => <TouchableOpacity key={t || "all"} onPress={() => setTag(t)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 99, borderWidth: 1,
-          borderColor: tag === t ? C.green : C.line, backgroundColor: tag === t ? C.greenSoft : "transparent" }}><Text style={{ color: tag === t ? C.green : C.muted, fontWeight: "700" }}>{t ? `#${t}` : "All"}</Text></TouchableOpacity>)}</ScrollView>}
+          borderColor: tag === t ? C.green : C.line, backgroundColor: tag === t ? C.greenSoft : "transparent" }}><Text style={{ color: tag === t ? C.green : C.muted, fontWeight: "700" }}>{t ? `#${t}` : "All"}</Text></TouchableOpacity>)}</View>}
       {items.length ? <View style={{ flexDirection: "row", gap: 10 }}>{[0, 1].map(k => <View key={k} style={{ flex: 1, gap: 10 }}>{col(k).map(card)}</View>)}</View>
         : <Empty>{q || tag ? "No notes match." : "No notes yet. Tap ＋ to write your first one."}</Empty>}
     </Screen>

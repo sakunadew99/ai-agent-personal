@@ -62,7 +62,7 @@ export function GymScreen({ api, onError, onNotice }: Props) {
     </Hero>
     <Card><Kicker>QUICK START</Kicker><View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{Object.keys(v.templates).map(t => <TouchableOpacity key={t} style={chip(title === t)} onPress={() => template(t)}><Text style={{ color: C.text, fontWeight: "700" }}>{t}</Text></TouchableOpacity>)}</View></Card>
     <Card><Kicker>ADD AN EXERCISE</Kicker>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>{Object.keys(v.exercises).map(g => <TouchableOpacity key={g} style={chip(group === g)} onPress={() => setGroup(g)}><Text style={{ color: C.text }}>{g}</Text></TouchableOpacity>)}</ScrollView>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{Object.keys(v.exercises).map(g => <TouchableOpacity key={g} style={chip(group === g)} onPress={() => setGroup(g)}><Text style={{ color: C.text }}>{g}</Text></TouchableOpacity>)}</View>
       <Line><View style={{ flex: 1 }}><Field value={custom} onChangeText={setCustom} placeholder="Your own exercise, e.g. Cable row (narrow grip)"/></View>
         <Btn title="Add" disabled={!custom.trim()} onPress={() => { addEx(custom.trim()); setCustom(""); }}/></Line>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{(v.exercises[group] as string[]).map(ex => <TouchableOpacity key={ex} style={chip(false, PALETTE[1])} onPress={() => addEx(ex)}>
@@ -173,7 +173,7 @@ export function ProgressScreen({ api, onError, onNotice }: Props) {
       <Muted small>Stats are read from each site's public profile data. No password needed.</Muted></Card>
     <Line style={{ justifyContent: "space-between" }}><H2>Courses</H2><Btn kind="link" title="＋ Add course" onPress={() => setCourse({ platform: "Coursera", title: "", url: "", progress_pct: 0 })}/></Line>
     {course && <Card accent>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>{COURSE_SITES.map(x => <TouchableOpacity key={x} style={chip(course.platform === x)} onPress={() => setCourse({ ...course, platform: x })}><Text style={{ color: C.text }}>{x}</Text></TouchableOpacity>)}</ScrollView>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{COURSE_SITES.map(x => <TouchableOpacity key={x} style={chip(course.platform === x)} onPress={() => setCourse({ ...course, platform: x })}><Text style={{ color: C.text }}>{x}</Text></TouchableOpacity>)}</View>
       <Field value={course.title} onChangeText={t => setCourse({ ...course, title: t })} placeholder="Course name"/>
       <Field value={course.url || ""} onChangeText={t => setCourse({ ...course, url: t })} placeholder="Link (optional)" autoCapitalize="none"/>
       <Field value={String(course.progress_pct ?? 0)} onChangeText={t => setCourse({ ...course, progress_pct: t.replace(/\D/g, "") })} placeholder="Progress %" keyboardType="number-pad"/>

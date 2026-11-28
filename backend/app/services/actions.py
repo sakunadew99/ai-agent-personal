@@ -296,6 +296,9 @@ def execute_action(db: Session, user: User, action: str, body: dict) -> dict:
         db.add(row); db.flush()
         audit(db, user.id, "note.create", "note", row.id)
         return {"id": str(row.id), "title": row.title}
+    if action in ("log_water", "log_habit", "complete_task"):
+        from app.services import agent
+        return agent.execute(db, user, action, body)
     raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown action")
 
 
@@ -319,9 +322,10 @@ def queue_or_run(db: Session, user: User, tool: str, body: dict, summary: str) -
     result = execute_action(db, user, tool, body)
     return {
         "status": "completed",
-        "summary": summary,
+        "summary": summary + (" (already done today)" if result.get("already") else ""),
         "tool": tool,
         "resource_id": result.get("id"),
+        "resource_ids": result.get("ids") or ([result["id"]] if result.get("id") else []),
     }
 
 

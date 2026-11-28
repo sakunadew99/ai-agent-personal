@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Alert, Image, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Image, Text, TouchableOpacity, View } from "react-native";
 import type { ApiRecord as Row } from "../api";
 import { openInApp } from "../browser";
 import { Hero, PALETTE, Ring } from "../charts";
@@ -29,9 +29,9 @@ export function VideosScreen({ api, onError, onNotice }: { api: Api; onError: (m
       <Btn title="＋ Add video" disabled={url.trim().length < 8} onPress={add}/>
       <Muted small>{v.tip}</Muted>
     </Hero>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>{["All", ...(v.folders as string[])].map((f, k) => <TouchableOpacity key={f} onPress={() => setShown(f)}
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{["All", ...(v.folders as string[])].map((f, k) => <TouchableOpacity key={f} onPress={() => setShown(f)}
       style={{ borderWidth: 1, borderColor: shown === f ? PALETTE[k % PALETTE.length] : C.line, backgroundColor: shown === f ? `${PALETTE[k % PALETTE.length]}33` : "transparent", borderRadius: 99, paddingHorizontal: 12, paddingVertical: 7 }}>
-      <Text style={{ color: C.text, fontWeight: "700" }}>{`📁 ${f}`}</Text></TouchableOpacity>)}</ScrollView>
+      <Text style={{ color: C.text, fontWeight: "700" }}>{`📁 ${f}`}</Text></TouchableOpacity>)}</View>
     {items.map(m => <Card key={m.id} style={{ padding: 10 }}>
       <TouchableOpacity onPress={() => play(m)}><Line style={{ alignItems: "flex-start" }}>
         {m.thumb ? <Image source={{ uri: m.thumb }} style={{ width: 132, height: 74, borderRadius: 12, backgroundColor: C.panel2 }}/>

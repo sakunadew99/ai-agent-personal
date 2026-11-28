@@ -40,6 +40,13 @@ def list_events(db: Session, user_id, start: datetime, end: datetime) -> tuple[l
     if conn is None:
         existing = g.get_connection(db, user_id, "calendar")
         return [], ("expired" if existing is not None and existing.status == "expired" else "not_connected")
+    from app.core import cache
+    key = f"gcal:{as_utc(start).isoformat()}:{as_utc(end).isoformat()}"
+    # Today, the ring, nudges and the brief all ask for the same day; Google is asked once per 2 minutes.
+    return cache.cached(user_id, key, lambda: _fetch(db, conn, start, end), min(120, cache.TTL_SECONDS))
+
+
+def _fetch(db: Session, conn, start: datetime, end: datetime) -> tuple[list[dict], str]:
     items: list[dict] = []
     params = {"timeMin": as_utc(start).isoformat(), "timeMax": as_utc(end).isoformat(), "singleEvents": "true",
               "orderBy": "startTime", "maxResults": 250}

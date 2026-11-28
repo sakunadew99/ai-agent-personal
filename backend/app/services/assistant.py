@@ -66,8 +66,7 @@ def classify_intent(text: str) -> str:
 
 def converse(db: Session, user: User, message: str, conversation_id):
     conversation = _conversation(db, user, conversation_id, message)
-    intent = classify_intent(message)
-    proposed, completed, refused = _act(db, user, intent, message)
+    intent, (proposed, completed, refused) = _act_all(db, user, message)
     memories = _relevant_memories(db, user, message)
     facts = _facts(db, user, intent, memories)
     draft = _draft(facts, proposed, completed, refused)
@@ -95,6 +94,50 @@ def converse(db: Session, user: User, message: str, conversation_id):
         "actions_completed": completed,
         "relevant_memories": [f"{item.category}: {item.content}" for item in memories],
     }
+
+
+ACTION_INTENTS = {"remember", "capture", "list_add", "life_log", "exam_update", "expense", "plan"}
+
+
+def _act_one(db: Session, user: User, text: str):
+    """One command: water / habit done / task done first (they need your data), then the classic intents."""
+    from app.services import agent
+    found = agent.detect(db, user.id, text)
+    if found:
+        tool, body, summary = found
+        p, c, r = [], [], []
+        try:
+            _collect(queue_or_run(db, user, tool, body, summary), p, c, r)
+        except HTTPException as exc:
+            r.append(ActionRef(tool=tool, status="refused", summary=f"{summary}: {exc.detail}"))
+        return "capture", (p, c, r)
+    intent = classify_intent(text)
+    return intent, _act(db, user, intent, text)
+
+
+def _act_all(db: Session, user: User, message: str):
+    """Several commands in one message run one by one; a model (with a key) handles command-like text no rule matched."""
+    from app.services import agent
+    clauses = agent.split_commands(message)
+    # Several parts, and every part is a command (checked before anything runs): do them one by one.
+    if len(clauses) > 1 and all(agent.detect(db, user.id, c) or classify_intent(c) in ACTION_INTENTS for c in clauses):
+        p, c, r = [], [], []
+        for clause in clauses:
+            _i, (a, b, d) = _act_one(db, user, clause)
+            p += a; c += b; r += d
+        return "capture", (p, c, r)
+    intent, res = _act_one(db, user, message)
+    if not any(res) and intent in {"general", "focus", "productivity", "goals"}:
+        planned = agent.ai_actions(db, user, message)
+        if planned:
+            p, c, r = [], [], []
+            for tool, body, summary in planned:
+                try:
+                    _collect(queue_or_run(db, user, tool, body, summary), p, c, r)
+                except HTTPException as exc:
+                    r.append(ActionRef(tool=tool, status="refused", summary=f"{summary}: {exc.detail}"))
+            return "capture", (p, c, r)
+    return intent, res
 
 
 def _conversation(db: Session, user: User, conversation_id, message: str) -> Conversation:
@@ -215,12 +258,16 @@ def _act(db: Session, user: User, intent: str, message: str):
 
 
 def _collect(outcome: dict, proposed, completed, refused) -> None:
+    from app.services.agent import UNDOABLE
+    ids = [i for i in (outcome.get("resource_ids") or []) if i]
     ref = ActionRef(
         tool=outcome["tool"],
         status=outcome["status"],
         summary=outcome["summary"],
         approval_id=outcome.get("approval_id"),
         resource_id=outcome.get("resource_id"),
+        resource_ids=ids,
+        undoable=outcome["status"] == "completed" and outcome["tool"] in UNDOABLE and bool(ids),
     )
     if outcome["status"] == "completed":
         completed.append(ref)

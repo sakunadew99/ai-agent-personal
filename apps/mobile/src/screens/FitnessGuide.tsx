@@ -1,6 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import React, { useCallback, useEffect, useState } from "react";
-import { ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import type { ApiRecord as Row } from "../api";
 import { openInApp } from "../browser";
 import { Hero, Ring, Segments } from "../charts";
@@ -37,8 +37,8 @@ function Today({ api, onError, onOpen }: { api: Api; onError: (m: string) => voi
   useEffect(() => { api<Row>(`/exercises/today?plan=${plan}`).then(setT).catch(e => onError(msg(e))); }, [api, plan, onError]);
   const choose = (p: string) => { setPlan(p); void SecureStore.setItemAsync(PLAN_KEY, p).catch(() => undefined); };
   return <View style={{ gap: 10 }}>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>{plans.map(p => <TouchableOpacity key={p.key} onPress={() => choose(p.key)} style={chip(plan === p.key)}>
-      <Text style={{ color: plan === p.key ? C.green : C.muted, fontWeight: "800" }}>{p.title}</Text></TouchableOpacity>)}</ScrollView>
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{plans.map(p => <TouchableOpacity key={p.key} onPress={() => choose(p.key)} style={chip(plan === p.key)}>
+      <Text style={{ color: plan === p.key ? C.green : C.muted, fontWeight: "800" }}>{p.title}</Text></TouchableOpacity>)}</View>
     {!t ? <Empty>Loading…</Empty> : t.rest_day ? <Card accent><Text style={{ color: C.text, fontWeight: "900", fontSize: 18 }}>😌 Rest day</Text>
       <Muted>{t.tip}</Muted><Muted small>{`Next workout: ${t.next_day}`}</Muted></Card> : <>
       <Card accent><Kicker>{`TODAY · WORKOUT ${t.workout}`}</Kicker><Text style={{ color: C.text }}>{`Warm-up: ${(t.warmup as string[]).join(", ")}`}</Text><Muted small>{t.tip}</Muted>
@@ -55,10 +55,10 @@ function Library({ api, onError }: { api: Api; onError: (m: string) => void }) {
   useEffect(() => { const q = [muscle && `muscle=${muscle}`, equip && `equipment=${equip}`].filter(Boolean).join("&");
     api<Row>(`/exercises${q ? `?${q}` : ""}`).then(x => setItems(x.items)).catch(e => onError(msg(e))); }, [api, muscle, equip, onError]);
   return <View style={{ gap: 10 }}>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>{["", "chest", "back", "shoulders", "quads", "glutes", "hamstrings", "biceps", "triceps", "core", "cardio"].map(m =>
-      <TouchableOpacity key={m || "all"} onPress={() => setMuscle(m)} style={chip(muscle === m)}><Text style={{ color: muscle === m ? C.green : C.muted, fontWeight: "700", textTransform: "capitalize" }}>{m || "All"}</Text></TouchableOpacity>)}</ScrollView>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>{["", "none", "dumbbell", "barbell", "machine", "bar"].map(m =>
-      <TouchableOpacity key={m || "any"} onPress={() => setEquip(m)} style={chip(equip === m)}><Text style={{ color: equip === m ? C.green : C.muted, fontWeight: "700" }}>{m ? (m === "none" ? "No equipment" : m) : "Any equipment"}</Text></TouchableOpacity>)}</ScrollView>
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{["", "chest", "back", "shoulders", "quads", "glutes", "hamstrings", "biceps", "triceps", "core", "cardio"].map(m =>
+      <TouchableOpacity key={m || "all"} onPress={() => setMuscle(m)} style={chip(muscle === m)}><Text style={{ color: muscle === m ? C.green : C.muted, fontWeight: "700", textTransform: "capitalize" }}>{m || "All"}</Text></TouchableOpacity>)}</View>
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{["", "none", "dumbbell", "barbell", "machine", "bar"].map(m =>
+      <TouchableOpacity key={m || "any"} onPress={() => setEquip(m)} style={chip(equip === m)}><Text style={{ color: equip === m ? C.green : C.muted, fontWeight: "700" }}>{m ? (m === "none" ? "No equipment" : m) : "Any equipment"}</Text></TouchableOpacity>)}</View>
     {items.map(e => <ExerciseCard key={e.name} e={e} open={open === e.name} onToggle={() => setOpen(open === e.name ? null : e.name)}/>)}
   </View>;
 }
@@ -107,8 +107,8 @@ function Meals({ api, onError }: { api: Api; onError: (m: string) => void }) {
         {!!plan.protein_note && <Text style={{ color: C.amber }}>{plan.protein_note}</Text>}
         {(plan.using_from_home as string[] | undefined)?.length ? <Muted small>{`Using from home: ${(plan.using_from_home as string[]).join(", ")}`}</Muted> : null}
         {!!plan.allergy_note && <Text style={{ color: C.red }}>{plan.allergy_note}</Text>}</Card>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>{(plan.days as Row[]).map((x, i) => <TouchableOpacity key={x.day} onPress={() => setDay(i)} style={chip(day === i)}>
-        <Text style={{ color: day === i ? C.green : C.muted, fontWeight: "800" }}>{x.day.slice(0, 3)}</Text></TouchableOpacity>)}</ScrollView>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{(plan.days as Row[]).map((x, i) => <TouchableOpacity key={x.day} onPress={() => setDay(i)} style={chip(day === i)}>
+        <Text style={{ color: day === i ? C.green : C.muted, fontWeight: "800" }}>{x.day.slice(0, 3)}</Text></TouchableOpacity>)}</View>
       {d && <>{(d.meals as Row[]).map(m => <Card key={m.slot} style={{ padding: 12 }}>
         <Line><Text style={{ color: C.text, fontWeight: "900", textTransform: "capitalize", flex: 1 }}>{m.slot}</Text><Muted small>{`${m.kcal} kcal · ${m.protein_g} g`}</Muted></Line>
         {(m.items as Row[]).map((it, k) => <Text key={k} style={{ color: C.text }}>{`• ${it.name} — ${it.qty !== 1 ? `${it.qty} × ` : ""}${it.portion}`}</Text>)}</Card>)}

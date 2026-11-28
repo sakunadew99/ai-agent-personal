@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Alert, Linking, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, Linking, Text, TextInput, TouchableOpacity, View } from "react-native";
 import type { ApiRecord as Row } from "../api";
 import { openInApp } from "../browser";
 import { Hero, Ring } from "../charts";
@@ -85,10 +85,10 @@ export function TravelScreen({ api, onError, onNotice }: { api: Api; onError: (m
       <TouchableOpacity onPress={() => void api(`/travel/wishes/${w.id}`, "PATCH", { status: w.status === "wish" ? "planned" : w.status === "planned" ? "done" : "wish" }).then(load)}>
         <Text style={{ color: "#4fd1c5", fontWeight: "800", marginLeft: 8 }}>{w.status === "wish" ? "Plan" : w.status === "planned" ? "Done" : "Again"}</Text></TouchableOpacity>
       <TouchableOpacity onPress={() => void api(`/travel/wishes/${w.id}`, "DELETE").then(load)}><Text style={{ color: C.muted, marginLeft: 8 }}>✕</Text></TouchableOpacity></Line>)}</Card>}
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>{MONTHS.map((m, i) => <TouchableOpacity key={m} onPress={() => setMonth(i + 1)} style={chip(month === i + 1, "#4fd1c5")}>
-      <Text style={{ color: month === i + 1 ? "#4fd1c5" : C.muted, fontWeight: "800" }}>{m}</Text></TouchableOpacity>)}</ScrollView>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>{["", ...(v.interests as string[])].map(x => <TouchableOpacity key={x || "all"} onPress={() => setInterest(x)} style={chip(interest === x, "#4fd1c5")}>
-      <Text style={{ color: interest === x ? "#4fd1c5" : C.muted, fontWeight: "700", textTransform: "capitalize" }}>{x || "Everything"}</Text></TouchableOpacity>)}</ScrollView>
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{MONTHS.map((m, i) => <TouchableOpacity key={m} onPress={() => setMonth(i + 1)} style={chip(month === i + 1, "#4fd1c5")}>
+      <Text style={{ color: month === i + 1 ? "#4fd1c5" : C.muted, fontWeight: "800" }}>{m}</Text></TouchableOpacity>)}</View>
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{["", ...(v.interests as string[])].map(x => <TouchableOpacity key={x || "all"} onPress={() => setInterest(x)} style={chip(interest === x, "#4fd1c5")}>
+      <Text style={{ color: interest === x ? "#4fd1c5" : C.muted, fontWeight: "700", textTransform: "capitalize" }}>{x || "Everything"}</Text></TouchableOpacity>)}</View>
     <Card><Kicker>TRIP SETTINGS</Kicker><Line>
       <TextInput value={days} onChangeText={setDays} keyboardType="number-pad" style={{ color: C.text, backgroundColor: C.panel2, borderRadius: 10, padding: 8, width: 60, textAlign: "center" }}/><Muted small>days</Muted>
       <TextInput value={people} onChangeText={setPeople} keyboardType="number-pad" style={{ color: C.text, backgroundColor: C.panel2, borderRadius: 10, padding: 8, width: 60, textAlign: "center" }}/><Muted small>people</Muted></Line>

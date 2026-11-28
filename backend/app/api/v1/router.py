@@ -1549,6 +1549,15 @@ def chat(data: dto.ChatIn, idempotency_key: str | None = Header(default=None, ma
     return result
 
 
+@router.post("/chat/undo")
+def chat_undo(data: dto.ChatUndoIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Undo what the assistant just did (a task, list items, water, a habit tick, a finished task, a note). Your own rows only."""
+    from app.services import agent
+    n = agent.undo(db, user, data.tool, data.ids)
+    db.commit()
+    return {"ok": True, "undone": n}
+
+
 @router.get("/assistant/status")
 def assistant_status(user: User = Depends(get_current_user)):
     """Whether a language-model provider is configured (never returns the key)."""

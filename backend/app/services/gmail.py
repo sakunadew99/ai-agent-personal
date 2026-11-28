@@ -19,6 +19,11 @@ def inbox(db: Session, user_id, limit: int = 5) -> dict:
     conn = g.get_connection(db, user_id, "gmail")
     if conn is None or conn.status != "connected":
         return {"status": "expired" if conn is not None and conn.status == "expired" else "not_connected", "emails": [], "unread": 0}
+    from app.core import cache
+    return cache.cached(user_id, f"gmail:{limit}", lambda: _fetch(db, conn, limit), min(300, cache.TTL_SECONDS))
+
+
+def _fetch(db: Session, conn, limit: int) -> dict:
     try:
         code, data = g.call(db, conn, "GET", f"{g.GMAIL_API}/messages", {"q": "is:unread category:primary newer_than:2d", "maxResults": limit})
         if code != 200:

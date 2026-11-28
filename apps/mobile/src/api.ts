@@ -75,14 +75,30 @@ export function loadHome<T = ApiRecord>(token: string): Promise<T> {
   return p;
 }
 
+// The same read asked twice at once (e.g. the start-up prefetch and the screen itself) shares one request.
+const inflight = new Map<string, Promise<unknown>>();
+
 export async function apiRequest<T = ApiRecord>(path: string, token = "", method = "GET", body?: unknown): Promise<T> {
-  if (method !== "GET") primed.clear();
-  else if (HOME_CARDS.includes(path)) {
+  if (method !== "GET") { primed.clear(); return rawRequest<T>(path, token, method, body); }
+  if (HOME_CARDS.includes(path)) {
     if (homeInflight) await homeInflight;
     const hit = primed.get(path);
     if (hit) { primed.delete(path); if (Date.now() - hit.at < 45000) return hit.value as T; }
   }
-  return rawRequest<T>(path, token, method, body);
+  const running = inflight.get(path);
+  if (running) return running as Promise<T>;
+  const p = rawRequest<T>(path, token, method, body).finally(() => inflight.delete(path));
+  inflight.set(path, p);
+  return p;
+}
+
+/** The Today screen's one request (with the morning or night brief at those hours). */
+export function todayPath(hour = new Date().getHours()) {
+  return hour < 12 ? "/today/bundle?brief=morning" : hour >= 19 ? "/today/bundle?brief=night" : "/today/bundle";
+}
+/** The last Today answer saved on this phone (any brief variant), so Today opens instantly. */
+export function peekToday(): ApiRecord | null {
+  return peek(todayPath()) || peek("/today/bundle") || peek("/today/bundle?brief=morning") || peek("/today/bundle?brief=night");
 }
 
 async function rawRequest<T = ApiRecord>(path: string, token = "", method = "GET", body?: unknown): Promise<T> {
@@ -163,7 +179,7 @@ export async function flushQueue(token: string): Promise<number> {
 // ---------- Fast screens: show the last data at once, refresh in the background ----------
 // Successful reads of the main screens are kept in memory and in a small file on this phone (only for the signed-in
 // account; deleted on sign-out). Screens start from peek(path) and then load fresh data as usual.
-const CACHEABLE = /^\/(compass|workers(\/today)?|routines\/(today|week|month)|focus\/(today|avoid)|exams|you(\/reports)?|invest|news|journal|dashboard|planner\/daily|tasks|finance\/(summary|trends)|health\/(summary|trends)|life\/overview|study|me)(\?|$)/;
+const CACHEABLE = /^\/(compass|workers(\/today)?|routines\/(today|week|month)|focus\/(today|avoid)|exams|you(\/reports)?|invest|news|journal|dashboard|planner\/daily|tasks|finance\/(summary|trends)|health\/(summary|trends)|life\/overview|study|me|today\/bundle)(\?|$)/;
 const memCache = new Map<string, unknown>();
 let cacheOwner = "";
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -203,8 +219,13 @@ export function clearScreenCache() {
 
 /** Load the main screens together in the background, so every tab opens instantly. */
 export function prefetchScreens(token: string) {
-  const paths = ["/compass", "/workers/today", "/routines/today", "/focus/today", "/journal", "/exams", "/you", "/invest", "/news", "/routines/week", "/tasks", "/life/overview", "/finance/trends", "/health/trends?days=14"];
-  void Promise.allSettled(paths.map(path => apiRequest(path, token)));
+  const paths = ["/tasks", "/routines/today", "/planner/daily", "/focus/today", "/compass", "/workers/today", "/journal", "/exams", "/you", "/invest", "/news", "/routines/week", "/life/overview", "/finance/trends", "/health/trends?days=14"];
+  void (async () => {
+    // Today first (it's the first screen), then the rest a few at a time so they don't slow Today down on a small server.
+    await apiRequest(todayPath(), token).catch(() => undefined);
+    await sleep(2500);
+    for (let i = 0; i < paths.length; i += 3) await Promise.allSettled(paths.slice(i, i + 3).map(path => apiRequest(path, token)));
+  })();
 }
 
 /** Upload one file (multipart/form-data) to the API, e.g. a CSV or Excel file picked on the phone. */

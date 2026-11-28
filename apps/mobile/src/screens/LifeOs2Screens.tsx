@@ -8,6 +8,7 @@ import { Badge, Btn, C, Card, Empty, Field, H2, Kicker, Muted, Row as Line, Scre
 import { syncHabitReminders } from "../notify";
 import { openInApp, type Track } from "../browser";
 import { LinkedInCard } from "./LifeOs3Screens";
+import { SectionNav, splitLabel } from "../SectionNav";
 
 type Api = <T = Row>(path: string, method?: string, body?: unknown) => Promise<T>;
 type Props = { api: Api; onError: (m: string) => void; onNotice: (m: string) => void };
@@ -22,10 +23,7 @@ export function Switcher<T extends string>({ options, labels, render, initial }:
   const [v, setV] = useState<T>(initial && options.includes(initial) ? initial : options[0]);
   return <View style={{ flex: 1 }}>
     {options.length <= 3 ? <View style={{ paddingHorizontal: 16, paddingTop: 10 }}><Segments options={options} value={v} onChange={setV} labels={labels}/></View>
-      : <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 10, gap: 8 }}>
-        {options.map(o => <TouchableOpacity key={o} onPress={() => setV(o)} style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 99, borderWidth: 1,
-          borderColor: v === o ? C.green : C.line, backgroundColor: v === o ? C.greenSoft : "transparent" }}>
-          <Text style={{ color: v === o ? C.green : C.muted, fontWeight: "800" }}>{labels[o]}</Text></TouchableOpacity>)}</ScrollView>}
+      : <SectionNav items={options.map(o => splitLabel(o, labels[o]))} value={v} onChange={k => setV(k as T)}/>}
     <View style={{ flex: 1 }}>{render(v)}</View>
   </View>;
 }
@@ -190,8 +188,8 @@ export function PlanBoard({ api, onError, onNotice }: Props) {
       right={<Ring value={Math.min(100, events.length * 4)} size={84} label={`${events.length}`} sub="ITEMS"/>}>
       <Line><Btn kind="outline" title="‹" onPress={() => setAnchor(a => addDays(a, -7))}/><Btn kind="outline" title="Today" onPress={() => { setAnchor(new Date()); setDay(isoDate(new Date())); }}/><Btn kind="outline" title="›" onPress={() => setAnchor(a => addDays(a, 7))}/></Line>
     </Hero>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>{LAYERS.map(([k, label, color]) => <TouchableOpacity key={k} style={[chip(on[k], color), !on[k] && { opacity: 0.5 }]} onPress={() => setOn(o => ({ ...o, [k]: !o[k] }))}>
-      <Text style={{ color: C.text, fontWeight: "700", fontSize: 12 }}>{label}</Text></TouchableOpacity>)}</ScrollView>
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{LAYERS.map(([k, label, color]) => <TouchableOpacity key={k} style={[chip(on[k], color), !on[k] && { opacity: 0.5 }]} onPress={() => setOn(o => ({ ...o, [k]: !o[k] }))}>
+      <Text style={{ color: C.text, fontWeight: "700", fontSize: 12 }}>{label}</Text></TouchableOpacity>)}</View>
     <View style={{ flexDirection: "row", gap: 4 }}>{days.map(d => { const k = isoDate(d); const evs = events.filter(e => e.day === k); const sel = k === day; const today = k === isoDate(new Date());
       return <TouchableOpacity key={k} onPress={() => setDay(k)} style={{ flex: 1, borderRadius: 16, paddingVertical: 8, alignItems: "center", gap: 4, borderWidth: 1, borderColor: sel ? C.green : today ? "#2a6b4a" : C.line, backgroundColor: sel ? C.greenSoft : C.panel, minHeight: 92 }}>
         <Text style={{ color: C.muted, fontSize: 10, fontWeight: "800" }}>{["MO", "TU", "WE", "TH", "FR", "SA", "SU"][(d.getDay() + 6) % 7]}</Text>
@@ -236,7 +234,7 @@ export function SubscriptionsScreen({ api, onError, onNotice }: Props) {
       <SplitBar parts={Object.entries(v.by_category[cur] as Record<string, number>).map(([k, x]) => ({ label: `${CAT_ICON[k]} ${k}`, value: Number(x) }))} format={n => `${cur} ${short(n)}`}/></Card>}
     {f ? <Card accent><Kicker>{f.id ? "EDIT" : "ADD A SUBSCRIPTION OR BILL"}</Kicker>
       <Field value={f.name} onChangeText={name => setF({ ...f, name })} placeholder="Netflix, Dialog, insurance, rent…"/>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>{CATS.map(c => <TouchableOpacity key={c} style={chip(f.category === c)} onPress={() => setF({ ...f, category: c })}><Text style={{ color: C.text }}>{`${CAT_ICON[c]} ${c}`}</Text></TouchableOpacity>)}</ScrollView>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{CATS.map(c => <TouchableOpacity key={c} style={chip(f.category === c)} onPress={() => setF({ ...f, category: c })}><Text style={{ color: C.text }}>{`${CAT_ICON[c]} ${c}`}</Text></TouchableOpacity>)}</View>
       <Line><View style={{ flex: 2 }}><Field value={String(f.amount ?? "")} onChangeText={amount => setF({ ...f, amount })} placeholder="Amount" keyboardType="decimal-pad"/></View>
         <View style={{ flex: 1 }}><Field value={f.currency} onChangeText={c => setF({ ...f, currency: c.toUpperCase() })} maxLength={3} autoCapitalize="characters"/></View></Line>
       <Segments options={["weekly", "monthly", "quarterly", "yearly"] as const} value={f.cycle} onChange={cycle => setF({ ...f, cycle })}/>
@@ -330,7 +328,7 @@ export function RadarScreen({ api, onError, onNotice }: Props) {
     <Hero kicker="LEARNING RADAR" title="Learn what's" accent="new today" sub="Fresh from Hacker News, dev.to and GitHub for your topics, plus Wikipedia's thing-of-the-day and free courses.">
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{topics.map(t => <TouchableOpacity key={t} style={chip(true)} onPress={() => keep(topics.filter(x => x !== t))}><Text style={{ color: C.text, fontWeight: "700" }}>{`${t} ✕`}</Text></TouchableOpacity>)}</View>
       <Line><View style={{ flex: 1 }}><Field value={typed} onChangeText={setTyped} placeholder="Add a topic" onSubmitEditing={() => add(typed)}/></View><Btn kind="outline" title="Add" onPress={() => add(typed)}/></Line>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>{TOPIC_IDEAS.filter(t => !topics.includes(t)).map(t => <TouchableOpacity key={t} style={chip(false)} onPress={() => add(t)}><Text style={{ color: C.muted }}>{`+ ${t}`}</Text></TouchableOpacity>)}</ScrollView>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{TOPIC_IDEAS.filter(t => !topics.includes(t)).map(t => <TouchableOpacity key={t} style={chip(false)} onPress={() => add(t)}><Text style={{ color: C.muted }}>{`+ ${t}`}</Text></TouchableOpacity>)}</View>
       {busy && <Muted small>Scanning…</Muted>}
     </Hero>
     {res?.today && <Card accent><Kicker>🌍 LEARN ONE THING TODAY</Kicker><H2>{res.today.title}</H2><Text style={{ color: C.text, lineHeight: 20 }}>{String(res.today.summary).slice(0, 320)}…</Text>

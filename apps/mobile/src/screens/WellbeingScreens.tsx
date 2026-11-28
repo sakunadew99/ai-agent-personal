@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Alert, KeyboardAvoidingView, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Modal, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { KbScroll } from "../keyboard";
 import type { ApiRecord as Row } from "../api";
 import { Bars, Hero, Ring } from "../charts";
@@ -188,8 +188,8 @@ export function SkillsScreen({ api, onError, onNotice, onOpen }: { api: Api; onE
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>{(v.templates as Row[]).map(t => <TouchableOpacity key={t.name} onPress={() => add(t)} style={[chip(false), { flexDirection: "row", gap: 6, alignItems: "center" }]}>
         <Text>{t.icon}</Text><Text style={{ color: C.text, fontWeight: "700" }}>{t.name}</Text>{t.trainer && <Text style={{ color: "#b48cff", fontSize: 11 }}>{t.trainer === "pitch" ? "🎤" : "📷"}</Text>}</TouchableOpacity>)}</View>
       <TextInput style={input} value={custom} onChangeText={setCustom} placeholder="Your own: e.g. Chess, Drawing, Negotiation" placeholderTextColor={C.muted}/>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>{CATS.map(([k, l]) => <TouchableOpacity key={k} onPress={() => setCat(k)} style={chip(cat === k, CAT_COLOR[k])}>
-        <Text style={{ color: cat === k ? CAT_COLOR[k] : C.muted, fontWeight: "700" }}>{l}</Text></TouchableOpacity>)}</ScrollView>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{CATS.map(([k, l]) => <TouchableOpacity key={k} onPress={() => setCat(k)} style={chip(cat === k, CAT_COLOR[k])}>
+        <Text style={{ color: cat === k ? CAT_COLOR[k] : C.muted, fontWeight: "700" }}>{l}</Text></TouchableOpacity>)}</View>
       <Btn kind="outline" title="＋ Add my skill" disabled={!custom.trim()} onPress={() => { add({ name: custom.trim(), icon: "🎯", category: cat }); setCustom(""); }}/>
       <Muted small>🎤 = pitch trainer (tuner, singing scale) · 📷 = pose coach (camera checks form and counts). Both run on your phone.</Muted>
     </Card>

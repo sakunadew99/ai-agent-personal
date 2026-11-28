@@ -702,6 +702,35 @@ def brief(kind: str, db: Session = Depends(get_db), user: User = Depends(get_cur
 
 # ---------------- in-app nudges, daily goals, Gmail inbox
 
+@router.get("/today/bundle")
+def today_bundle(brief: str | None = Query(default=None, pattern="^(morning|night)$"), db: Session = Depends(get_db),
+                 user: User = Depends(get_current_user)):
+    """Everything the Today screen shows in ONE request (the phone also keeps the last answer, so Today opens instantly).
+    A part that fails is null; the rest still load."""
+    import logging
+    from fastapi.encoders import jsonable_encoder
+    from app.services import app_settings, consistency, nudges
+    day = _today(db, user)
+    parts = {
+        "today": lambda: consistency.today(db, user, day),
+        "goals": lambda: {k: v for k, v in nudges.goals(db, user, day).items() if not k.startswith("_")},
+        "prefs": lambda: app_settings.prefs(db, user.id),
+        "week": lambda: consistency.weekly_review(db, user.id, day),
+        "consistency": lambda: consistency.consistency(db, user.id, day),
+        "brief": (lambda: app_settings.brief(db, user, brief, day)) if brief else (lambda: None),
+    }
+    out: dict = {"day": day}
+    for name, fn in parts.items():
+        try:
+            out[name] = jsonable_encoder(fn())
+        except Exception:  # noqa: BLE001 - one broken card must not blank Today
+            logging.getLogger(__name__).exception("today part failed: %s", name)
+            db.rollback()
+            out[name] = None
+    db.commit()
+    return out
+
+
 @router.get("/nudges")
 def nudges_view(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Friendly in-app prompts with one-tap actions, plus the 5 daily goals."""

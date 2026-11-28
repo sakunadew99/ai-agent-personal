@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Linking, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
-import type { ApiRecord as Row } from "../api";
+import { peekToday, todayPath, type ApiRecord as Row } from "../api";
 import { Btn, C, Card, Empty, Kicker, Muted, Row as Line, Screen } from "../ui";
 import { GapCards } from "./SleepDayScreens";
 
@@ -34,25 +34,32 @@ function Pop({ show }: { show: number }) {
 }
 
 /** Today (the Home tab): brief, ring, hours to fill, sleep & water, affirmation, top task, habits, stacking, week, more. Cards can be reordered or hidden. */
-export function TodayScreen({ api, onError, onNotice, onOpen, extra, pinnedBar }: { api: Api; onError: (m: string) => void; onNotice: (m: string) => void; onOpen: (t: string) => void;
-  extra?: React.ReactNode; pinnedBar?: React.ReactNode }) {
-  const [t, setT] = useState<Row | null>(null); const [rv, setRv] = useState<Row | null>(null); const [cons, setCons] = useState<Row | null>(null); const [pop, setPop] = useState(0);
-  const [prefs, setPrefs] = useState<Row | null>(null); const [brief, setBrief] = useState<Row | null>(null); const [goals, setGoals] = useState<Row | null>(null); const [edit, setEdit] = useState(false); const [more, setMore] = useState(false);
+export function TodayScreen({ api, onError, onNotice, onOpen, extra, pinnedBar, onMore }: { api: Api; onError: (m: string) => void; onNotice: (m: string) => void; onOpen: (t: string) => void;
+  extra?: React.ReactNode; pinnedBar?: React.ReactNode; onMore?: () => void }) {
   const hour = new Date().getHours();
   const briefKind = hour < 12 ? "morning" : hour >= 19 ? "night" : null;
+  // Starts from the last answer saved on this phone (shown at once), then refreshes with ONE request.
+  const saved = useRef(peekToday()).current;
+  const [t, setT] = useState<Row | null>(saved?.today ?? null); const [rv, setRv] = useState<Row | null>(saved?.week ?? null); const [cons, setCons] = useState<Row | null>(saved?.consistency ?? null); const [pop, setPop] = useState(0);
+  const [prefs, setPrefs] = useState<Row | null>(saved?.prefs ?? null); const [brief, setBrief] = useState<Row | null>(saved?.brief?.kind === briefKind ? saved?.brief : null);
+  const [goals, setGoals] = useState<Row | null>(saved?.goals ?? null); const [edit, setEdit] = useState(false); const [more, setMore] = useState(false);
+  const [sync, setSync] = useState<"" | "updating" | "offline">(saved ? "updating" : "");
+  const hasData = useRef(!!saved); hasData.current = hasData.current || !!t;
   const load = useCallback(() => {
-    api<Row>("/today").then(setT).catch(e => onError(msg(e)));
-    api<Row>("/review/week").then(setRv).catch(() => undefined);
-    api<Row>("/consistency").then(setCons).catch(() => undefined);
-    api<Row>("/settings").then(r => setPrefs(r.prefs)).catch(() => undefined);
-    api<Row>("/nudges").then(r => setGoals(r.goals)).catch(() => undefined);
-    if (briefKind) api<Row>(`/brief/${briefKind}`).then(setBrief).catch(() => undefined);
+    setSync(s => (hasData.current ? "updating" : s));
+    api<Row>(todayPath()).then(b => {
+      if (b.today) setT(b.today);
+      if (b.week) setRv(b.week); if (b.consistency) setCons(b.consistency); if (b.prefs) setPrefs(b.prefs); if (b.goals) setGoals(b.goals);
+      setBrief(b.brief && b.brief.kind === briefKind ? b.brief : null); setSync("");
+    }).catch(e => { if (hasData.current) setSync("offline"); else onError(msg(e)); });
   }, [api, onError, briefKind]);
   useEffect(() => { load(); }, [load]);
   const habit = (h: Row) => { if (h.done_today) return; void api(`/habits/${h.id}/logs`, "POST", {}).then(() => { setPop(p => p + 1); onNotice(`${h.name} ✓`); load(); }).catch(e => onError(msg(e))); };
   const water = () => void api("/water", "POST", { ml: 250 }).then(() => { onNotice("💧 +250 ml"); load(); }).catch(e => onError(msg(e)));
   const savePrefs = (patch: Row) => void api<Row>("/settings/prefs", "PATCH", patch).then(setPrefs).catch(e => onError(msg(e)));
-  if (!t) return <Screen><Empty>Building your day…</Empty></Screen>;
+  if (!t) return <Screen><Text style={{ color: C.text, fontSize: 24, fontWeight: "900" }}>{`${hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"} 👋`}</Text>
+    {[90, 150, 250, 110].map((h, i) => <View key={i} style={{ height: h, borderRadius: 20, backgroundColor: C.panel, opacity: 1 - i * 0.18 }}/>)}
+    <Muted small>Building your day… (the first time can take a few seconds; after that Today opens instantly)</Muted></Screen>;
   const totals = t.totals as Record<string, number>;
   const legend = Object.entries(totals).filter(([k, v]) => v > 0 && k !== "future").sort((a, b) => b[1] - a[1]);
   const order: string[] = prefs?.cards || ["brief", "goals", "tasks", "next_event", "ring", "gaps", "sleep_water", "affirmation", "inbox", "top_task", "habits", "stacking", "week", "more"];
@@ -113,13 +120,17 @@ export function TodayScreen({ api, onError, onNotice, onOpen, extra, pinnedBar }
       {(rv.wins as string[]).map(w => <Text key={w} style={{ color: C.green }}>{`✓ ${w}`}</Text>)}
       {(rv.fixes as string[]).map(w => <Text key={w} style={{ color: C.amber }}>{`→ ${w}`}</Text>)}
       <Text style={{ color: C.text, fontWeight: "800" }}>{`One change for next week: ${rv.one_change}`}</Text></Card>,
-    more: extra ? <View style={{ gap: 10 }}><TouchableOpacity onPress={() => setMore(m => !m)}><Card style={{ flexDirection: "row", alignItems: "center" }}>
+    more: extra ? <View style={{ gap: 10 }}><TouchableOpacity onPress={() => { if (!more) onMore?.(); setMore(m => !m); }}><Card style={{ flexDirection: "row", alignItems: "center" }}>
       <Text style={{ color: C.text, fontWeight: "900", flex: 1 }}>🧰 More for today: rituals, coach, compass</Text><Text style={{ color: C.muted }}>{more ? "▴" : "▾"}</Text></Card></TouchableOpacity>
       {more && extra}</View> : null,
   };
   return <Screen onRefresh={load}>
     <Line><Text style={{ color: C.text, fontSize: 24, fontWeight: "900", flex: 1 }}>{`${hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"} 👋`}</Text>
       <TouchableOpacity onPress={() => setEdit(e => !e)}><Text style={{ color: C.green, fontWeight: "800" }}>{edit ? "Done" : "✏️ Customize"}</Text></TouchableOpacity></Line>
+    {!!sync && <Muted small>{sync === "updating" ? "↻ Updating…" : "📴 Offline: showing what was saved on this phone"}</Muted>}
+    <TouchableOpacity onPress={() => onOpen("Assistant")} activeOpacity={0.85} style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 18, backgroundColor: `${C.green}1f`, borderWidth: 1, borderColor: `${C.green}55` }}>
+      <Text style={{ fontSize: 22 }}>✨</Text><View style={{ flex: 1 }}><Text style={{ color: C.text, fontWeight: "900" }}>Tell Sakuna what to do</Text>
+        <Muted small>“Drank 500 ml water; add milk to my buy list and remind me to call Amma at 6pm”</Muted></View><Text style={{ color: C.green, fontWeight: "900" }}>›</Text></TouchableOpacity>
     {pinnedBar}
     {edit ? <Card style={{ gap: 8 }}><Kicker>ARRANGE YOUR TODAY</Kicker>{order.map((k, i) => <Line key={k}>
       <Switch value={!hidden.includes(k)} onValueChange={() => toggle(k)}/><Text style={{ color: hidden.includes(k) ? C.muted : C.text, flex: 1 }}>{CARD_NAME[k] || k}</Text>
@@ -132,7 +143,7 @@ export function TodayScreen({ api, onError, onNotice, onOpen, extra, pinnedBar }
 }
 
 /** Life board: tasks in Now / Next / Later, habits by strength, goals by progress. */
-export function BoardScreen({ api, onError, onNotice, onOpen }: { api: Api; onError: (m: string) => void; onNotice: (m: string) => void; onOpen: (t: string) => void }) {
+export function BoardScreen({ api, onError, onNotice, onOpen, top }: { api: Api; onError: (m: string) => void; onNotice: (m: string) => void; onOpen: (t: string) => void; top?: React.ReactNode }) {
   const [tab, setTab] = useState<"tasks" | "habits" | "goals">("tasks"); const [tasks, setTasks] = useState<Row[]>([]); const [cons, setCons] = useState<Row | null>(null);
   const [prog, setProg] = useState<Row | null>(null); const [pop, setPop] = useState(0);
   const load = useCallback(() => {
@@ -149,6 +160,7 @@ export function BoardScreen({ api, onError, onNotice, onOpen }: { api: Api; onEr
   const PR: Record<string, string> = { high: C.red, medium: C.amber, low: C.muted };
   const COLS: [string, string, string][] = [["now", "🔥 Now", "#ef5350"], ["next", "⏭ Next", "#ffb74d"], ["later", "🗂 Later", "#78909c"]];
   return <Screen onRefresh={load}>
+    {top}
     <View style={{ flexDirection: "row", gap: 6 }}>{([["tasks", "✅ Tasks"], ["habits", "🔁 Habits"], ["goals", "🎯 Goals"]] as const).map(([k, l]) =>
       <TouchableOpacity key={k} onPress={() => setTab(k)} style={{ flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 14, backgroundColor: tab === k ? C.green : C.panel2 }}>
         <Text style={{ color: tab === k ? C.greenDark : C.text, fontWeight: "800" }}>{l}</Text></TouchableOpacity>)}</View>
@@ -305,5 +317,24 @@ export function InboxCard({ api, onOpen }: { api: Api; onOpen: (t: string) => vo
       <View style={{ paddingVertical: 4 }}><Text style={{ color: C.text, fontWeight: "800" }} numberOfLines={1}>{e.subject}</Text>
         <Muted small>{`${e.from} · ${e.snippet}`.slice(0, 110)}</Muted></View></TouchableOpacity>) : <Muted small>Inbox zero. 🎉</Muted>}
     <Muted small>Read-only: Sakuna never sends or deletes email.</Muted>
+  </Card>;
+}
+
+
+/** Plan → Day: today's Google Calendar events (from the same cached Today answer), or a prompt to connect. */
+export function CalendarDay({ api, onOpen }: { api: Api; onOpen: (t: string) => void }) {
+  const [b, setB] = useState<Row | null>(() => peekToday());
+  useEffect(() => { api<Row>(todayPath()).then(setB).catch(() => undefined); }, [api]);
+  const t = b?.today;
+  if (!t) return null;
+  if (t.calendar !== "connected") return <TouchableOpacity onPress={() => onOpen("Profile")}><Card style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+    <Text style={{ fontSize: 22 }}>📅</Text><View style={{ flex: 1 }}><Text style={{ color: C.text, fontWeight: "800" }}>{t.calendar === "expired" ? "Google Calendar needs reconnecting" : "See your meetings here"}</Text>
+      <Muted small>Settings → Connections → Google Calendar</Muted></View><Text style={{ color: C.green, fontWeight: "900" }}>›</Text></Card></TouchableOpacity>;
+  const evs = (t.events as Row[]) || [];
+  return <Card style={{ gap: 8 }}><Kicker>{`📅 GOOGLE CALENDAR TODAY · ${evs.length}`}</Kicker>
+    {evs.length ? evs.map((e, i) => <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 10, opacity: e.upcoming || e.all_day ? 1 : 0.5 }}>
+      <View style={{ width: 62, paddingVertical: 4, borderRadius: 8, alignItems: "center", backgroundColor: "#29b6f633" }}><Text style={{ color: "#29b6f6", fontWeight: "900", fontSize: 12 }}>{e.all_day ? "All day" : e.start}</Text></View>
+      <View style={{ flex: 1 }}><Text style={{ color: C.text, fontWeight: "700" }} numberOfLines={1}>{`${e.from_sakuna ? "✅ " : ""}${e.title}`}</Text>
+        {!e.all_day && <Muted small>{`until ${e.end} · ${e.minutes} min`}</Muted>}</View></View>) : <Muted small>No events today. Your time plan below has the whole day.</Muted>}
   </Card>;
 }
