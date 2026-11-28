@@ -91,6 +91,13 @@ def routines_skip(routine_id: uuid.UUID, day: date, db: Session = Depends(get_db
     out = routine_svc.skip(db, routine_svc.owned_routine(db, user.id, routine_id), day); db.commit(); return out
 
 
+@router.post("/meals/photo")
+def meals_photo(data: dto.MealPhotoIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """What's on the plate, from a photo (a suggestion for the meal form; nothing is saved and the photo isn't kept)."""
+    from app.services import meal_photo
+    out = meal_photo.estimate(db, user.id, data.image_base64, data.mime); db.commit(); return out
+
+
 @router.post("/meals", status_code=201)
 def meals_create(data: dto.MealIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     row = routine_svc.log_meal(db, user.id, data); db.commit(); return routine_svc.meal_out(row)

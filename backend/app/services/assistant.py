@@ -66,16 +66,24 @@ def classify_intent(text: str) -> str:
 
 def converse(db: Session, user: User, message: str, conversation_id):
     conversation = _conversation(db, user, conversation_id, message)
-    intent, (proposed, completed, refused) = _act_all(db, user, message, conversation_id)
-    memories = _relevant_memories(db, user, message)
+    from app.services import agent as _agent
+    from app.services import hf as _hf
+    sinhala = _hf.has_sinhala(message)
+    work = (_agent.to_english(db, user, message) if sinhala else None) or message     # Sinhala in, same tools, Sinhala out
+    intent, (proposed, completed, refused) = _act_all(db, user, work, conversation_id)
+    memories = _relevant_memories(db, user, work)
     facts = _facts(db, user, intent, memories)
     if not (proposed or completed or refused):
         from app.services import agent
-        quick = agent.quick_answer(db, user, message)       # "when did I last go to the gym?", "how much did I spend on food?"
+        quick = agent.quick_answer(db, user, work)          # "when did I last go to the gym?", "how much did I spend on food?"
         if quick:
             intent, facts = "quick", f"Answer from the user's own records (exact, calculated by Sakuna): {quick}\n{facts}"
     draft = _draft(facts, proposed, completed, refused)
+    if sinhala and ai_enabled():
+        draft += "\n\nThe user wrote in Sinhala: reply in clear, simple Sinhala (සිංහල)."
     reply = _phrase(db, user, conversation, message, draft, intent)
+    if sinhala and not _hf.has_sinhala(reply):
+        reply = _agent.to_sinhala(db, user, reply) or reply
     db.add(Message(conversation_id=conversation.id, user_id=user.id, role="user", content=message, actions={}))
     db.add(
         Message(

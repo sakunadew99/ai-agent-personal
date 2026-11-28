@@ -61,8 +61,9 @@ def _items(db: Session, user_id) -> list[dict]:
     return out
 
 
-def _vectors(db: Session, user_id, texts: list[str], budget: int = 160) -> dict[str, list[float]]:
-    model = settings.hf_embedding_model
+def _vectors(db: Session, user_id, texts: list[str], budget: int = 160, model: str | None = None) -> dict[str, list[float]]:
+    model = model or settings.hf_embedding_model
+    prefix = "passage: " if "e5" in model.lower() else ""             # e5 models expect "query:" / "passage:" prefixes
     hashes = {t: hashlib.sha256(f"{model}|{t}".encode()).hexdigest() for t in texts}
     have: dict[str, list[float]] = {}
     hv = list(set(hashes.values()))
@@ -71,7 +72,7 @@ def _vectors(db: Session, user_id, texts: list[str], budget: int = 160) -> dict[
             have[row.text_hash] = row.vector
     missing = [t for t in texts if hashes[t] not in have][:budget]           # the rest are embedded on later searches
     if missing:
-        vecs = hf.embed(missing)
+        vecs = hf.embed([prefix + t for t in missing], model)
         if vecs:
             for t, v in zip(missing, vecs):
                 if hashes[t] not in have:
@@ -99,10 +100,15 @@ def search(db: Session, user_id, q: str, limit: int = 25) -> dict:
             s += 3
         it["kw"] = s
     mode = "keyword"
-    qv = hf.embed([q]) if hf.enabled() else None
+    # Sinhala search: a multilingual model, so "වතුර" also finds "water" notes (and Sinhala notes find each other).
+    model = settings.hf_multilingual_model if hf.has_sinhala(q) else settings.hf_embedding_model
+    qv = hf.embed([("query: " if "e5" in model.lower() else "") + q], model) if hf.enabled() else None
+    if qv is None and model != settings.hf_embedding_model and hf.enabled():
+        model = settings.hf_embedding_model
+        qv = hf.embed([q], model)
     if qv:
         pool = [it for it in items if it["meaning_ok"]]
-        vecs = _vectors(db, user_id, [it["text"] for it in pool])
+        vecs = _vectors(db, user_id, [it["text"] for it in pool], model=model)
         if vecs:
             mode = "meaning"
             for it in pool:

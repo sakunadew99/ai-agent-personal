@@ -62,14 +62,15 @@ def finbert(titles: list[str]) -> list[dict | None]:
     return [(_tone_cache.get(t) or (0, None))[1] for t in titles]
 
 
-def embed(texts: list[str]) -> list[list[float]] | None:
-    """Meaning vectors (384 numbers each), or None if unavailable."""
+def embed(texts: list[str], model: str | None = None) -> list[list[float]] | None:
+    """Meaning vectors (384 numbers each), or None if unavailable. model: e.g. the multilingual one for Sinhala."""
     if not texts or not enabled():
         return None
+    model = model or settings.hf_embedding_model
     vecs: list[list[float]] = []
     try:
         for i in range(0, len(texts), 32):
-            res = _post(settings.hf_embedding_model, {"inputs": texts[i:i + 32], "options": {"wait_for_model": True}}, "/pipeline/feature-extraction")
+            res = _post(model, {"inputs": texts[i:i + 32], "options": {"wait_for_model": True}}, "/pipeline/feature-extraction")
             if not isinstance(res, list):
                 return None
             vecs.extend([float(x) for x in v] for v in res)
@@ -86,7 +87,7 @@ def cosine(a: list[float], b: list[float]) -> float:
     return num / (da * db) if da and db else 0.0
 
 
-ZERO_SHOT_MODEL = "facebook/bart-large-mnli"
+ZERO_SHOT_MODEL = "facebook/bart-large-mnli"          # fallback when the newer model isn't available
 _zs_cache: dict[str, str | None] = {}
 
 
@@ -101,8 +102,12 @@ def zero_shot(texts: list[str], labels: dict[str, str]) -> list[str | None]:
         if text in _zs_cache:
             out[i] = _zs_cache[text]
             continue
+        payload = {"inputs": text[:300], "parameters": {"candidate_labels": names}, "options": {"wait_for_model": True}}
         try:
-            res = _post(ZERO_SHOT_MODEL, {"inputs": text[:300], "parameters": {"candidate_labels": names}, "options": {"wait_for_model": True}})
+            try:
+                res = _post(settings.hf_zero_shot_model, payload)
+            except (httpx.HTTPError, ValueError, json.JSONDecodeError):
+                res = _post(ZERO_SHOT_MODEL, payload)                           # older, always-available model
         except (httpx.HTTPError, ValueError, json.JSONDecodeError) as exc:
             _fail("zero-shot", exc)
             break
@@ -136,4 +141,28 @@ def emotion(text: str) -> str | None:
     if isinstance(res, list) and res and isinstance(res[0], dict):
         top = max(res, key=lambda x: x.get("score", 0))
         return str(top.get("label")).lower() if float(top.get("score", 0)) >= 0.4 else None
+    return None
+
+
+SINHALA = "\u0d80-\u0dff"
+
+
+def has_sinhala(text: str) -> bool:
+    import re
+    return bool(re.search(f"[{SINHALA}]", text or ""))
+
+
+def translate(text: str, to: str) -> str | None:
+    """Sinhala <-> English with NLLB (to = "en" or "si"). None when unavailable."""
+    if not text.strip() or not enabled():
+        return None
+    src, tgt = ("sin_Sinh", "eng_Latn") if to == "en" else ("eng_Latn", "sin_Sinh")
+    try:
+        res = _post(settings.hf_translate_model, {"inputs": text[:1500], "parameters": {"src_lang": src, "tgt_lang": tgt}, "options": {"wait_for_model": True}})
+    except (httpx.HTTPError, ValueError, json.JSONDecodeError) as exc:
+        _fail("translation", exc)
+        return None
+    if isinstance(res, list) and res and isinstance(res[0], dict):
+        out = res[0].get("translation_text") or res[0].get("generated_text")
+        return str(out).strip() or None
     return None

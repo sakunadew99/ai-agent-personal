@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, KeyboardAvoidingView, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import { peek, type ApiRecord as Row } from "../api";
+import * as DocumentPicker from "expo-document-picker";
+import { readAsStringAsync } from "expo-file-system/legacy";
 import { syncRoutineReminders } from "../notify";
 import { DateField, TimeField } from "../pickers";
 import { Badge, Btn, C, Card, Chips, Empty, H2, Kicker, Muted, Progress, Row as Line, soft } from "../ui";
@@ -282,6 +284,7 @@ function MealCard({ api, rules, meals, onClose, onSaved, onError }: { api: Api; 
             labels={{ breakfast: "🌅 Breakfast", lunch: "☀️ Lunch", dinner: "🌙 Dinner", snack: "🍎 Snack / other" }}/>
           <View style={s.chipsWrap}>{(FOODS[m.meal] || []).map(f => <TouchableOpacity key={f} style={s.chip} onPress={() => addFood(f)}>
             <Text style={s.chipText}>＋ {f}</Text></TouchableOpacity>)}</View>
+          <PhotoFill api={api} onError={onError} onFoods={foods => setM(cur => ({ ...cur, foods: [String(cur.foods || "").trim(), foods].filter(Boolean).join(", ") }))}/>
           <TextInput style={[s.input, { minHeight: 60, textAlignVertical: "top" }]} multiline value={m.foods} onChangeText={foods => setM({ ...m, foods })}
             placeholder="e.g. rice, dhal, chicken curry, beans" placeholderTextColor={C.muted} maxLength={1000}/>
           <TimeField label="Eaten at" value={m.eaten_time} onChange={eaten_time => setM({ ...m, eaten_time })}/>
@@ -512,3 +515,28 @@ const s = StyleSheet.create({
   calNum: { color: C.text, fontSize: 12, fontWeight: "700" },
   legend: { width: 14, height: 14, borderRadius: 4 },
 });
+
+
+/** Pick a food photo from the gallery: the AI suggests what's on the plate (you check it, then Save). The photo isn't kept. */
+function PhotoFill({ api, onError, onFoods }: { api: Api; onError: (m: string) => void; onFoods: (foods: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [hint, setHint] = useState<Row | null>(null);
+  async function pick() {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({ type: ["image/jpeg", "image/png", "image/webp"], copyToCacheDirectory: true });
+      if (res.canceled || !res.assets?.length) return;
+      const f = res.assets[0];
+      if (f.size && f.size > 4 * 1024 * 1024) { onError("That photo is over 4 MB; pick a smaller one."); return; }
+      setBusy(true);
+      const data = await readAsStringAsync(f.uri, { encoding: "base64" });
+      const mime = f.mimeType && ["image/jpeg", "image/png", "image/webp"].includes(f.mimeType) ? f.mimeType : "image/jpeg";
+      const out = await api<Row>("/meals/photo", "POST", { image_base64: data, mime });
+      if (!(out.foods as string[]).length) { onError(String(out.note || "No food found in that photo.")); return; }
+      onFoods(String(out.foods_text)); setHint(out);
+    } catch (e) { onError(e instanceof Error ? e.message : "Couldn't read the photo"); } finally { setBusy(false); }
+  }
+  return <View style={{ gap: 4 }}>
+    <Btn kind="outline" title={busy ? "Looking at your plate…" : "📷 Fill from a food photo"} disabled={busy} onPress={() => void pick()}/>
+    {!!hint && <Muted small>{`Rough guess (${hint.confidence} confidence): ${hint.calories ? `~${hint.calories} kcal` : ""}${hint.protein_g ? `, ~${hint.protein_g} g protein` : ""}. ${hint.note || ""} Check the foods, then Save.`}</Muted>}
+  </View>;
+}

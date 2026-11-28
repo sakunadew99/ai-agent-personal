@@ -1267,6 +1267,11 @@ class RunModeIn(BaseModel):
     mode: Literal["full", "short"]
 
 
+class MealPhotoIn(BaseModel):
+    image_base64: str = Field(min_length=100, max_length=5_600_000)
+    mime: str = Field(default="image/jpeg", max_length=20)
+
+
 class MealIn(BaseModel):
     meal: Literal["breakfast", "lunch", "dinner", "snack"]
     local_date: date | None = None

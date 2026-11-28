@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     hf_base_url: str = "https://router.huggingface.co/hf-inference/models"
     hf_sentiment_model: str = "ProsusAI/finbert"
     hf_embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    hf_multilingual_model: str = "intfloat/multilingual-e5-small"      # Sinhala + 100 languages, for Sinhala searches
+    hf_zero_shot_model: str = "MoritzLaurer/deberta-v3-large-zeroshot-v2.0"   # falls back to facebook/bart-large-mnli
+    hf_translate_model: str = "facebook/nllb-200-distilled-600M"     # Sinhala <-> English when no AI key is set
     ai_transcription: bool = True
     openai_model_small: str = "gpt-4o-mini"
     openai_model_balanced: str = "gpt-4o-mini"
