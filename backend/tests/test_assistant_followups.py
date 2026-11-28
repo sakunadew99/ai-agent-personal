@@ -74,3 +74,26 @@ def test_repeating_task_rename_habit_and_quick_answers():
         assert "750 ml" in a("POST", "/chat", {"message": "How much water today?"}).json()["reply"]
         a("POST", "/finance/expenses", {"amount": "1200", "currency": "LKR", "category": "food", "spent_at": (datetime.now(TZ) - timedelta(minutes=5)).isoformat()})
         assert "LKR 1,200.00" in a("POST", "/chat", {"message": "How much did I spend on food this month?"}).json()["reply"]
+
+
+def test_streak_freeze_costs_points_once_a_week_and_ownership():
+    from app.core.database import SessionLocal
+    from app.models.entities import HabitLog, PointsLedger
+    with TestClient(app) as client:
+        a, b = _user(client), _user(client)
+        h = a("POST", "/habits", {"name": "Read 10 pages"}).json()
+        me = h["user_id"]
+        today = datetime.now(TZ).date()
+        with SessionLocal() as db:
+            for k in (2, 3):
+                db.add(HabitLog(habit_id=uuid.UUID(h["id"]), user_id=uuid.UUID(me), logged_on=today - timedelta(days=k)))
+            db.add(PointsLedger(user_id=uuid.UUID(me), event_type="test", ref_id="seed", points=60, area="habits", reason="seed", local_date=today))
+            db.commit()
+        hv = next(x for x in a("GET", "/consistency").json()["habits"] if x["id"] == h["id"])
+        assert hv["can_freeze"] and hv["status"] == "must"
+        assert b("POST", f"/habits/{h['id']}/freeze").status_code == 404                  # not yours
+        r = a("POST", f"/habits/{h['id']}/freeze").json()
+        assert r["ok"] and r["streak"] == 3 and r["balance"] == 10, r
+        hv = next(x for x in a("GET", "/consistency").json()["habits"] if x["id"] == h["id"])
+        assert not hv["can_freeze"] and hv["status"] == "todo"
+        assert a("POST", f"/habits/{h['id']}/freeze").status_code == 409                  # once a week

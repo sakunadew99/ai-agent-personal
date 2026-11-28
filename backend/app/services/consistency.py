@@ -54,15 +54,27 @@ def strength(done: set[date], start: date, today: date, per_week: int | None) ->
     return round(s * 100)
 
 
+FREEZE_COST = 50          # points for one streak freeze
+
+
+def _frozen(db: Session, user_id) -> dict[str, set[date]]:
+    p = db.scalar(select(UserProfile).where(UserProfile.user_id == user_id))
+    raw = ((p.app_prefs or {}).get("freezes") or {}) if p else {}
+    return {k: {date.fromisoformat(d) for d in v} for k, v in raw.items() if isinstance(v, list)}
+
+
 def habits_view(db: Session, user_id, today: date) -> list[dict]:
     habits = db.scalars(select(Habit).where(Habit.user_id == user_id, Habit.active.is_(True)).order_by(Habit.created_at)).all()
+    frozen_all = _frozen(db, user_id)
     out = []
     for h in habits:
         logs = db.scalars(select(HabitLog.logged_on).where(HabitLog.habit_id == h.id, HabitLog.completed.is_(True), HabitLog.logged_on >= today - timedelta(days=180))).all()
-        done = set(logs)
+        real = set(logs)
+        frozen = frozen_all.get(str(h.id), set())
+        done = real | frozen               # a frozen day protects the streak (strength below still uses real days only)
         created = as_utc(h.created_at).date() if h.created_at else today
         start = max(today - timedelta(days=120), min([created, *done]) if done else created)
-        st = strength(done, start, today, h.target_per_week)
+        st = strength(real, start, today, h.target_per_week)
         streak, d = 0, today if today in done else today - timedelta(days=1)
         while d in done:
             streak += 1
@@ -81,7 +93,10 @@ def habits_view(db: Session, user_id, today: date) -> list[dict]:
             status, nudge = "must", f"Never miss twice: do it today, even just {tiny_version(h.name)}."
         else:
             status, nudge = "todo", f"Tiny version if you're busy: {tiny_version(h.name)}."
+        can_freeze = daily and missed_y and h.id is not None and not any(today - timedelta(days=7) <= f <= today for f in frozen) \
+            and (today - timedelta(days=2)) in done
         out.append({"id": h.id, "name": h.name, "icon": h.icon or ("🚫" if h.kind == "avoid" else "✅"), "kind": h.kind, "strength": st, "streak": streak,
+                    "can_freeze": can_freeze, "freeze_cost": FREEZE_COST, "frozen_days": sorted(d.isoformat() for d in frozen if d >= today - timedelta(days=30)),
                     "done_today": today in done, "status": status, "nudge": nudge, "tiny": tiny_version(h.name),
                     "week_done": week_n, "week_target": h.target_per_week or 7, "journey_day": journey,
                     "level": "automatic" if st >= 80 and journey >= 66 else "strong" if st >= 60 else "growing" if st >= 30 else "new"})
@@ -203,7 +218,7 @@ def today(db: Session, user, day: date) -> dict:
             "unknown_minutes": totals.get("unknown", 0), "gaps": len(gaps["gaps"]),
             "sleep": last, "water": {k: w[k] for k in ("today_ml", "target_ml", "percent", "left_ml")},
             "top_task": top["tasks"][0] if top.get("tasks") else None, "top_task_answer": top["answer"],
-            "habits": [{k: h[k] for k in ("id", "name", "icon", "done_today", "status", "strength", "streak", "tiny")} for h in hv],
+            "habits": [{k: h[k] for k in ("id", "name", "icon", "done_today", "status", "strength", "streak", "tiny", "can_freeze", "freeze_cost")} for h in hv],
             "affirmation": m["affirmation_of_the_day"], "affirm_read": m["read_today"], "colors": COLORS}
 
 
@@ -304,3 +319,34 @@ def checkin_plan(db: Session, user_id, today: date) -> dict:
         hours = range(8, 21)
         out[d.isoformat()] = {"ask": [h for h in hours if h not in known], "skip": {str(h): known[h] for h in hours if h in known}}
     return out
+
+
+
+def freeze(db: Session, user_id, habit_id, today: date) -> dict:
+    """Spend points to protect yesterday's missed day of a daily habit (once a week per habit). Plain code, audited."""
+    from fastapi import HTTPException
+
+    from app.models.entities import Redemption
+    from app.services import game
+    from app.services.audit import audit
+    h = db.get(Habit, habit_id)
+    if h is None or h.user_id != user_id:
+        raise HTTPException(404, "Habit not found")
+    view = next((x for x in habits_view(db, user_id, today) if x["id"] == h.id), None)
+    if view is None or not view["can_freeze"]:
+        raise HTTPException(409, "A freeze works for a daily habit you missed only yesterday, once a week.")
+    have = game.balance(db, user_id)
+    if have < FREEZE_COST:
+        raise HTTPException(409, f"You have {have} points; a streak freeze costs {FREEZE_COST}.")
+    p = db.scalar(select(UserProfile).where(UserProfile.user_id == user_id))
+    prefs = dict(p.app_prefs or {})
+    fr = dict(prefs.get("freezes") or {})
+    yesterday = today - timedelta(days=1)
+    fr[str(h.id)] = sorted({*fr.get(str(h.id), []), yesterday.isoformat()})[-20:]
+    prefs["freezes"] = fr
+    p.app_prefs = prefs
+    db.add(Redemption(user_id=user_id, treat_id=None, treat_name=f"🧊 Streak freeze: {h.name}"[:120], points_spent=FREEZE_COST))
+    audit(db, user_id, "habit.freeze", "habit", h.id, {"day": yesterday.isoformat(), "points": FREEZE_COST})
+    db.flush()
+    after = next(x for x in habits_view(db, user_id, today) if x["id"] == h.id)
+    return {"ok": True, "habit": h.name, "frozen": yesterday.isoformat(), "streak": after["streak"], "balance": have - FREEZE_COST}

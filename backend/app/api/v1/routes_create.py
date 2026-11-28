@@ -702,6 +702,13 @@ def brief(kind: str, db: Session = Depends(get_db), user: User = Depends(get_cur
 
 # ---------------- in-app nudges, daily goals, Gmail inbox
 
+@router.post("/habits/{habit_id}/freeze")
+def habit_freeze(habit_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Streak freeze: 50 points protect yesterday's miss of a daily habit (once a week per habit)."""
+    from app.services import consistency
+    out = consistency.freeze(db, user.id, habit_id, _today(db, user)); db.commit(); return out
+
+
 @router.get("/today/bundle")
 def today_bundle(brief: str | None = Query(default=None, pattern="^(morning|night)$"), db: Session = Depends(get_db),
                  user: User = Depends(get_current_user)):

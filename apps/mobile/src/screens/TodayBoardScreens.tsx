@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Linking, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Animated, FlatList, Linking, Modal, PanResponder, Share, Switch, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { peekToday, todayPath, type ApiRecord as Row } from "../api";
 import { Btn, C, Card, Empty, Kicker, Muted, Row as Line, Screen } from "../ui";
 import { GapCards } from "./SleepDayScreens";
@@ -56,8 +56,16 @@ export function TodayScreen({ api, onError, onNotice, onOpen, extra, pinnedBar, 
     }).catch(e => { if (hasData.current) setSync("offline"); else onError(msg(e)); });
   }, [api, onError, briefKind]);
   useEffect(() => { load(); }, [load]);
-  const habit = (h: Row) => { if (h.done_today) return; void api(`/habits/${h.id}/logs`, "POST", {}).then(() => { setPop(p => p + 1); onNotice(`${h.name} ✓`); load(); }).catch(e => onError(msg(e))); };
-  const water = () => void api("/water", "POST", { ml: 250 }).then(() => { onNotice("💧 +250 ml"); load(); }).catch(e => onError(msg(e)));
+  // Taps show at once (optimistic); the server answer then refreshes everything, or the change is undone on an error.
+  const habit = (h: Row) => { if (h.done_today) return;
+    setT(p => p && { ...p, habits: (p.habits as Row[]).map(x => x.id === h.id ? { ...x, done_today: true, streak: Number(x.streak || 0) + 1 } : x) }); setPop(p => p + 1);
+    void api(`/habits/${h.id}/logs`, "POST", {}).then(() => { onNotice(`${h.name} ✓`); load(); }).catch(e => { onError(msg(e)); load(); }); };
+  const water = () => {
+    setT(p => { if (!p) return p; const w = p.water as Row; const ml = Number(w.today_ml) + 250;
+      return { ...p, water: { ...w, today_ml: ml, left_ml: Math.max(0, Number(w.target_ml) - ml), percent: Math.min(100, Math.round(ml / Math.max(1, Number(w.target_ml)) * 100)) } }; });
+    void api("/water", "POST", { ml: 250 }).then(() => { onNotice("💧 +250 ml"); load(); }).catch(e => { onError(msg(e)); load(); }); };
+  const freeze = (h: Row) => void api<Row>(`/habits/${h.id}/freeze`, "POST").then(r => { onNotice(`🧊 Streak saved: ${r.habit} (${r.streak} days, ${r.balance} pts left)`); load(); }).catch(e => onError(msg(e)));
+  const [story, setStory] = useState(false);
   const savePrefs = (patch: Row) => void api<Row>("/settings/prefs", "PATCH", patch).then(setPrefs).catch(e => onError(msg(e)));
   if (!t) return <Screen><Text style={{ color: C.text, fontSize: 24, fontWeight: "900" }}>{`${hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"} 👋`}</Text>
     {[90, 150, 250, 110].map((h, i) => <View key={i} style={{ height: h, borderRadius: 20, backgroundColor: C.panel, opacity: 1 - i * 0.18 }}/>)}
@@ -115,6 +123,8 @@ export function TodayScreen({ api, onError, onNotice, onOpen, extra, pinnedBar, 
           borderColor: h.done_today ? C.green : h.status === "must" || h.status === "restart" ? C.amber : C.line, backgroundColor: h.done_today ? C.greenSoft : "transparent" }}>
         <Text style={{ color: C.text, fontWeight: "800" }}>{`${h.done_today ? "✅" : h.icon} ${h.name}`}</Text>
         <Muted small>{h.done_today ? `🔥 ${h.streak} · strength ${h.strength}` : h.status === "must" ? `Never miss twice · tiny: ${h.tiny}` : h.status === "restart" ? `Restart today · ${h.tiny}` : `strength ${h.strength}`}</Muted>
+        {!!h.can_freeze && <TouchableOpacity onPress={() => freeze(h)} style={{ marginTop: 4, alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: "#4fc3f733" }}>
+          <Text style={{ color: "#4fc3f7", fontSize: 11, fontWeight: "900" }}>{`🧊 Save streak · ${h.freeze_cost} pts`}</Text></TouchableOpacity>}
       </TouchableOpacity>)}</View></Card>,
     stacking: cons && (cons.stacking as Row[]).length > 0 && <Card style={{ gap: 4 }}><Kicker>🔗 HABIT STACKING IDEAS</Kicker>{(cons.stacking as Row[]).map(s => <Text key={s.text} style={{ color: C.text }}>{`• ${s.text}`}</Text>)}</Card>,
     week: rv && <Card style={{ gap: 6 }}>
@@ -122,7 +132,9 @@ export function TodayScreen({ api, onError, onNotice, onOpen, extra, pinnedBar, 
       <Muted small>{`Productive ${hm(Number(rv.productive_minutes))} · waste ${hm(Number(rv.wasted_minutes))} · sleep ${rv.sleep_avg_minutes ? `${(Number(rv.sleep_avg_minutes) / 60).toFixed(1)} h avg` : "—"} · water goal ${rv.water_days_met}/7 days · ${rv.tasks_done} tasks done`}</Muted>
       {(rv.wins as string[]).map(w => <Text key={w} style={{ color: C.green }}>{`✓ ${w}`}</Text>)}
       {(rv.fixes as string[]).map(w => <Text key={w} style={{ color: C.amber }}>{`→ ${w}`}</Text>)}
-      <Text style={{ color: C.text, fontWeight: "800" }}>{`One change for next week: ${rv.one_change}`}</Text></Card>,
+      <Text style={{ color: C.text, fontWeight: "800" }}>{`One change for next week: ${rv.one_change}`}</Text>
+      <Btn kind="outline" title="▶ Play my week story" onPress={() => setStory(true)}/>
+      {story && <WeekStory rv={rv} onClose={() => setStory(false)}/>}</Card>,
     more: extra ? <View style={{ gap: 10 }}><TouchableOpacity onPress={() => { if (!more) onMore?.(); setMore(m => !m); }}><Card style={{ flexDirection: "row", alignItems: "center" }}>
       <Text style={{ color: C.text, fontWeight: "900", flex: 1 }}>🧰 More for today: rituals, coach, compass</Text><Text style={{ color: C.muted }}>{more ? "▴" : "▾"}</Text></Card></TouchableOpacity>
       {more && extra}</View> : null,
@@ -232,13 +244,18 @@ const PRI: Record<string, string> = { high: "#ef5350", medium: "#ffb74d", low: "
 export function TodayTasks({ api, data, calendar, onChange, onError, onNotice, onCelebrate }: { api: Api; data: Row; calendar: string; onChange: () => void;
   onError: (m: string) => void; onNotice: (m: string) => void; onCelebrate: () => void }) {
   const [text, setText] = useState(""); const [showDone, setShowDone] = useState(false); const [busy, setBusy] = useState<string>("");
-  const open = (data?.open || []) as Row[]; const done = (data?.done || []) as Row[];
+  const [gone, setGone] = useState<string[]>([]);                // finished / moved here, waiting for the server
+  useEffect(() => { setGone([]); }, [data]);
+  const open = ((data?.open || []) as Row[]).filter(t => !gone.includes(String(t.id))); const done = (data?.done || []) as Row[];
   const total = open.length + Number(data?.done_count || 0); const pct = total ? Math.round(Number(data?.done_count || 0) / total * 100) : 0;
   const run = (id: string, p: Promise<unknown>, okMsg: string, celebrate = false) => { setBusy(id);
     void p.then(() => { onNotice(okMsg); if (celebrate) onCelebrate(); onChange(); }).catch(e => onError(msg(e))).finally(() => setBusy("")); };
-  const complete = (t: Row) => run(t.id, api(`/tasks/${t.id}/complete`, "PATCH"), `✓ ${t.title}`, true);
+  const hide = (t: Row) => setGone(g => [...g, String(t.id)]);
+  const unhide = (t: Row) => setGone(g => g.filter(x => x !== String(t.id)));
+  const complete = (t: Row) => { hide(t); onCelebrate();
+    void api(`/tasks/${t.id}/complete`, "PATCH").then(() => { onNotice(`✓ ${t.title}`); onChange(); }).catch(e => { unhide(t); onError(msg(e)); }); };
   const tomorrow = (t: Row) => { const d = new Date(); d.setDate(d.getDate() + 1); const [hh, mm] = String(t.due || "09:00").split(":").map(Number); d.setHours(hh, mm, 0, 0);
-    run(t.id, api(`/tasks/${t.id}`, "PATCH", { due_at: d.toISOString() }), "⏭ Moved to tomorrow"); };
+    hide(t); void api(`/tasks/${t.id}`, "PATCH", { due_at: d.toISOString() }).then(() => { onNotice("⏭ Moved to tomorrow"); onChange(); }).catch(e => { unhide(t); onError(msg(e)); }); };
   const toCal = (t: Row) => run(t.id, api(`/tasks/${t.id}/calendar`, "POST", { popup_minutes: 10 }), "📅 Added to Google Calendar with a 10-min reminder");
   const add = () => { const title = text.trim(); if (!title) return; const d = new Date(); d.setHours(Math.min(22, d.getHours() + 2), 0, 0, 0);
     run("new", api("/tasks", "POST", { title: title.slice(0, 200), due_at: d.toISOString(), priority: "medium" }), "＋ Added for today"); setText(""); };
@@ -247,7 +264,7 @@ export function TodayTasks({ api, data, calendar, onChange, onError, onNotice, o
       <Text style={{ color: C.green, fontWeight: "900" }}>{`${data?.done_count || 0}/${total}`}</Text></Line>
     <View style={{ height: 8, borderRadius: 4, backgroundColor: C.line, overflow: "hidden" }}><View style={{ width: `${pct}%`, height: 8, backgroundColor: C.green }}/></View>
     {open.length === 0 ? <Text style={{ color: C.muted }}>{total ? "🎉 Everything for today is done!" : "Nothing due today. Add one small thing that moves a goal."}</Text>
-      : open.map(t => <View key={t.id} style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 16, backgroundColor: C.panel2,
+      : open.map(t => <SwipeRow key={t.id} onRight={() => complete(t)} onLeft={() => tomorrow(t)}><View style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 16, backgroundColor: C.panel2,
         borderLeftWidth: 4, borderLeftColor: PRI[t.priority] || C.line, opacity: busy === t.id ? 0.5 : 1 }}>
         <TouchableOpacity onPress={() => complete(t)} accessibilityLabel={`Complete ${t.title}`} style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 2.5, borderColor: C.green,
           alignItems: "center", justifyContent: "center" }}><Text style={{ color: C.green, fontSize: 14 }}>{busy === t.id ? "…" : ""}</Text></TouchableOpacity>
@@ -263,7 +280,8 @@ export function TodayTasks({ api, data, calendar, onChange, onError, onNotice, o
         </View>
         {calendar === "connected" && !t.on_calendar && <TouchableOpacity onPress={() => toCal(t)} accessibilityLabel="Add to Google Calendar"><Text style={{ fontSize: 18 }}>📅</Text></TouchableOpacity>}
         <TouchableOpacity onPress={() => tomorrow(t)} accessibilityLabel="Move to tomorrow"><Text style={{ fontSize: 18 }}>⏭</Text></TouchableOpacity>
-      </View>)}
+      </View></SwipeRow>)}
+    {open.length > 0 && <Muted small>Swipe a task right for ✓ done, left for ⏭ tomorrow.</Muted>}
     <View style={{ flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 14, borderWidth: 1, borderColor: C.line, paddingHorizontal: 12 }}>
       <Text style={{ color: C.green, fontSize: 18 }}>＋</Text>
       <TextInput value={text} onChangeText={setText} onSubmitEditing={add} placeholder="Add a task for today…" placeholderTextColor={C.muted} returnKeyType="done"
@@ -380,4 +398,61 @@ export function CalendarRange({ api, mode, onOpen }: { api: Api; mode: "week" | 
           <Text style={{ color: C.text, flex: 1 }} numberOfLines={1}>{`${e.from_sakuna ? "✅ " : ""}${e.title}`}</Text></View>)}
       </View>)}
   </Card>;
+}
+
+
+/** Swipe a row: right past 90 px = onRight (✓ done), left = onLeft (⏭ tomorrow). Short or vertical drags scroll the page as usual. */
+function SwipeRow({ children, onRight, onLeft }: { children: React.ReactNode; onRight: () => void; onLeft: () => void }) {
+  const x = useRef(new Animated.Value(0)).current;
+  const [dir, setDir] = useState(0);
+  const pan = useRef(PanResponder.create({
+    onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 14 && Math.abs(g.dx) > Math.abs(g.dy) * 1.8,
+    onPanResponderMove: (_e, g) => { x.setValue(g.dx); setDir(Math.sign(g.dx)); },
+    onPanResponderTerminationRequest: () => false,
+    onPanResponderRelease: (_e, g) => {
+      if (g.dx > 90) Animated.timing(x, { toValue: 500, duration: 160, useNativeDriver: true }).start(() => { onRight(); x.setValue(0); });
+      else if (g.dx < -90) Animated.timing(x, { toValue: -500, duration: 160, useNativeDriver: true }).start(() => { onLeft(); x.setValue(0); });
+      else Animated.spring(x, { toValue: 0, useNativeDriver: true }).start();
+    },
+    onPanResponderTerminate: () => Animated.spring(x, { toValue: 0, useNativeDriver: true }).start(),
+  })).current;
+  return <View>
+    <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: 16, flexDirection: "row", alignItems: "center", paddingHorizontal: 16,
+      justifyContent: dir >= 0 ? "flex-start" : "flex-end", backgroundColor: dir >= 0 ? C.green : "#29b6f6" }}>
+      <Text style={{ color: "#fff", fontWeight: "900" }}>{dir >= 0 ? "✓ Done" : "Tomorrow ⏭"}</Text></View>
+    <Animated.View style={{ transform: [{ translateX: x }] }} {...pan.panHandlers}>{children}</Animated.View>
+  </View>;
+}
+
+/** "My week" story: full-screen slides you swipe through, with a share button (text, so it works everywhere). */
+function WeekStory({ rv, onClose }: { rv: Row; onClose: () => void }) {
+  const { width } = useWindowDimensions();
+  const [i, setI] = useState(0);
+  const hh = (m: number) => `${Math.floor(m / 60)}h ${m % 60}m`;
+  const slides: { bg: string; emoji: string; big: string; title: string; lines: string[] }[] = [
+    { bg: "#00c853", emoji: "🏆", big: `${rv.score}`, title: "Your week score", lines: ["out of 100", "Swipe to see the story →"] },
+    { bg: "#7c4dff", emoji: "⏱", big: hh(Number(rv.productive_minutes || 0)), title: "Productive time", lines: [`Time waste: ${hh(Number(rv.wasted_minutes || 0))}`] },
+    { bg: "#29b6f6", emoji: "😴💧", big: rv.sleep_avg_minutes ? `${(Number(rv.sleep_avg_minutes) / 60).toFixed(1)} h` : "—", title: "Average sleep",
+      lines: [`Water goal on ${rv.water_days_met}/7 days`] },
+    { bg: "#ff9100", emoji: "✅", big: `${rv.tasks_done}`, title: "Tasks done", lines: ((rv.wins as string[]) || []).slice(0, 3).map(w => `✓ ${w}`) },
+    { bg: "#ef5350", emoji: "🎯", big: "Next week", title: "One change", lines: [String(rv.one_change || ""), ...((rv.fixes as string[]) || []).slice(0, 2).map(f => `→ ${f}`)] },
+  ];
+  const share = () => void Share.share({ message: `My week with Sakuna 🌱\nScore ${rv.score}/100 · productive ${hh(Number(rv.productive_minutes || 0))} · ${rv.tasks_done} tasks done · water goal ${rv.water_days_met}/7 days\nNext week: ${rv.one_change}` });
+  return <Modal visible animationType="fade" onRequestClose={onClose}>
+    <View style={{ flex: 1, backgroundColor: slides[i].bg }}>
+      <View style={{ flexDirection: "row", gap: 4, padding: 12, paddingTop: 40 }}>{slides.map((_, k) => <View key={k} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: k <= i ? "#fff" : "#ffffff55" }}/>)}</View>
+      <FlatList horizontal pagingEnabled showsHorizontalScrollIndicator={false} data={slides} keyExtractor={(_, k) => String(k)}
+        onMomentumScrollEnd={e => setI(Math.round(e.nativeEvent.contentOffset.x / width))}
+        renderItem={({ item }) => <View style={{ width, flex: 1, alignItems: "center", justifyContent: "center", padding: 28, gap: 10 }}>
+          <Text style={{ fontSize: 64 }}>{item.emoji}</Text>
+          <Text style={{ color: "#ffffffcc", fontSize: 16, fontWeight: "800", letterSpacing: 1 }}>{item.title.toUpperCase()}</Text>
+          <Text style={{ color: "#fff", fontSize: 54, fontWeight: "900", textAlign: "center" }}>{item.big}</Text>
+          {item.lines.filter(Boolean).map((l, k) => <Text key={k} style={{ color: "#fff", fontSize: 17, fontWeight: "700", textAlign: "center" }}>{l}</Text>)}
+        </View>}/>
+      <View style={{ flexDirection: "row", gap: 10, padding: 20, paddingBottom: 36 }}>
+        <TouchableOpacity onPress={share} style={{ flex: 1, alignItems: "center", padding: 14, borderRadius: 16, backgroundColor: "#ffffff33" }}><Text style={{ color: "#fff", fontWeight: "900" }}>↗ Share</Text></TouchableOpacity>
+        <TouchableOpacity onPress={onClose} style={{ flex: 1, alignItems: "center", padding: 14, borderRadius: 16, backgroundColor: "#fff" }}><Text style={{ color: slides[i].bg, fontWeight: "900" }}>Close</Text></TouchableOpacity>
+      </View>
+    </View>
+  </Modal>;
 }
